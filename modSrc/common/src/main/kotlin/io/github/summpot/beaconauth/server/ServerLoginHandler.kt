@@ -84,11 +84,17 @@ class ServerLoginHandler(
         }
 
         // Determine if we should bypass BeaconAuth
-        val bypassOnlineMode = onlineMode && BeaconAuthConfig.shouldBypassIfOnlineModeVerified()
+        // Note: When BeaconAuth intercepts handleHello on online-mode servers,
+        // the gameProfile.id will be null because Mojang authentication was skipped.
+        // A non-null UUID indicates the player passed through Mojang verification
+        // (either because BeaconAuth didn't intercept, or on offline-mode servers).
+        val hasMojangVerifiedUUID = gameProfile?.id != null
+        
+        val bypassOnlineMode = onlineMode && BeaconAuthConfig.shouldBypassIfOnlineModeVerified() && hasMojangVerifiedUUID
         val bypassOfflineMode = !onlineMode && !BeaconAuthConfig.shouldForceAuthIfOfflineMode()
         val bypass = bypassOnlineMode || bypassOfflineMode
         
-        logger.info("Bypass check: bypassOnlineMode=$bypassOnlineMode, bypassOfflineMode=$bypassOfflineMode, finalBypass=$bypass")
+        logger.info("Bypass check: bypassOnlineMode=$bypassOnlineMode, bypassOfflineMode=$bypassOfflineMode, finalBypass=$bypass, hasMojangUUID=$hasMojangVerifiedUUID")
         logger.info("Config values: bypass_if_online_mode_verified=${BeaconAuthConfig.shouldBypassIfOnlineModeVerified()}, force_auth_if_offline_mode=${BeaconAuthConfig.shouldForceAuthIfOfflineMode()}")
         
         if (bypass) {
