@@ -20,7 +20,9 @@ This repository contains three projects with two different "root" concepts.
     * **To work on the Mod in an IDE, you MUST open the `modSrc/` directory as the project root (or open `modSrc/build.gradle.kts`).**
 
 ## 3. Global Coding Guidelines
-* **[NEW] Language:** All non-code content (comments, documentation, commit messages, console logs) **must** be written in **English** for consistency.
+* **[NEW] Language:** 
+    * **User Communication:** When responding to users, use the **same language as the user's request** for better understanding.
+    * **Code Output:** All code content (comments, documentation, commit messages, console logs) **must** be written in **English** for consistency.
 * **[CRITICAL] Code Verification:** 
     * **After modifying any Rust code**, you **MUST** run `cargo check --workspace` to verify compilation before completing your task.
     * **After modifying any Kotlin/Mod code**, you **SHOULD** run `./gradlew build` (from `modSrc/`) to verify compilation when feasible.

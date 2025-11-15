@@ -4,7 +4,7 @@ plugins {
 
 configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
     forge {
-        mixinConfig("beacon_auth.mixins.json")
+        mixinConfig("beaconauth.mixins.json")
     }
     
     runs {

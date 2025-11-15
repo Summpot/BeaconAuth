@@ -7,7 +7,7 @@ pluginManagement {
     }
 }
 
-rootProject.name = "beacon_auth"
+rootProject.name = "beaconauth"
 
 include("common")
 include("fabric")

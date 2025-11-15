@@ -4,7 +4,7 @@ loaderVersion = "[4,)"
 license = "Insert License Here"
 
 [[mods]]
-modId = "beacon_auth"
+modId = "beaconauth"
 version = "${version}"
 displayName = "Beacon Auth"
 authors = "Me!"
@@ -13,21 +13,21 @@ This is an example description! Tell everyone what your mod is about!
 '''
 #logoFile = ""
 
-[[dependencies.beacon_auth]]
+[[dependencies.beaconauth]]
 modId = "forge"
 mandatory = true
 versionRange = "[47,)"
 ordering = "NONE"
 side = "BOTH"
 
-[[dependencies.beacon_auth]]
+[[dependencies.beaconauth]]
 modId = "minecraft"
 mandatory = true
 versionRange = "[1.20.1,)"
 ordering = "NONE"
 side = "BOTH"
 
-[[dependencies.beacon_auth]]
+[[dependencies.beaconauth]]
 modId = "architectury"
 mandatory = true
 versionRange = "[9.2.14,)"

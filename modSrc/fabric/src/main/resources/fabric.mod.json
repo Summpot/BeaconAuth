@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "beacon_auth",
+  "id": "beaconauth",
   "version": "${version}",
   "name": "Beacon Auth",
   "description": "This is an example description! Tell everyone what your mod is about!",
@@ -12,24 +12,24 @@
     "sources": "https://github.com/FabricMC/fabric-example-mod"
   },
   "license": "CC0-1.0",
-  "icon": "assets/beacon_auth/icon.png",
+  "icon": "assets/beaconauth/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
       {
         "adapter": "kotlin",
-        "value": "io.github.summpot.beacon_auth.fabric.BeaconAuthModFabric"
+        "value": "io.github.summpot.beaconauth.fabric.BeaconAuthModFabric"
       }
     ],
     "client": [
       {
         "adapter": "kotlin",
-        "value": "io.github.summpot.beacon_auth.fabric.client.BeaconAuthModFabricClient"
+        "value": "io.github.summpot.beaconauth.fabric.client.BeaconAuthModFabricClient"
       }
     ]
   },
   "mixins": [
-    "beacon_auth.mixins.json"
+    "beaconauth.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.18.0",
