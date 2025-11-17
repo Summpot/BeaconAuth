@@ -134,6 +134,14 @@ object AuthClient {
             }
 
             logger.info("Received JWT from browser, notifying server...")
+            
+            // Try to bring Minecraft window to foreground
+            try {
+                focusMinecraftWindow()
+            } catch (e: Exception) {
+                logger.warn("Failed to focus Minecraft window: ${e.message}")
+            }
+            
             loginPhaseCallback?.onAuthSuccess(jwt, verifier)
             currentCodeVerifier = null
             sendHtmlResponse(exchange, 200, generateSuccessPage())
@@ -257,6 +265,24 @@ object AuthClient {
         } catch (e: Exception) {
             logger.warn("Failed to get translation for key: $key", e)
             key.substringAfterLast('.')
+        }
+    }
+
+    /**
+     * Attempts to bring the Minecraft window to the foreground.
+     * Uses platform-specific methods to focus the game window.
+     */
+    private fun focusMinecraftWindow() {
+        try {
+            val minecraft = Minecraft.getInstance()
+            minecraft.execute {
+                val window = minecraft.window
+                // Request focus on the Minecraft window
+                window.setFocus(true)
+                logger.info("Successfully requested focus for Minecraft window")
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to focus Minecraft window: ${e.message}", e)
         }
     }
 }

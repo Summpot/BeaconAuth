@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-// 定义搜索参数的 schema
+// Define search params schema
 const searchParamsSchema = z.object({
   challenge: z.string().min(1, 'Challenge is required'),
   redirect_port: z.coerce.number().min(1).max(65535),
@@ -11,7 +11,7 @@ const searchParamsSchema = z.object({
 
 type SearchParams = z.infer<typeof searchParamsSchema>;
 
-// 定义注册表单的 schema
+// Define registration form schema
 const registerFormSchema = z
   .object({
     username: z.string().min(3, 'Username must be at least 3 characters'),

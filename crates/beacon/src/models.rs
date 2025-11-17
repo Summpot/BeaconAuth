@@ -82,6 +82,17 @@ pub struct Claims {
     pub challenge: String,
 }
 
+/// Response for GET /api/v1/config
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConfigResponse {
+    /// Whether database authentication is enabled (always true if database is configured)
+    pub database_auth: bool,
+    /// Whether GitHub OAuth is configured
+    pub github_oauth: bool,
+    /// Whether Google OAuth is configured
+    pub google_oauth: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

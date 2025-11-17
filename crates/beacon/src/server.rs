@@ -18,13 +18,13 @@ use tokio::net::UnixListener;
 #[cfg(windows)]
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 
-// 用于嵌入静态文件（Release 模式）
+// For embedding static files (Release mode)
 #[cfg(not(debug_assertions))]
 use rust_embed::RustEmbed;
 
 #[cfg(not(debug_assertions))]
 #[derive(RustEmbed)]
-#[folder = "../../dist/"] // 路径相对于 crates/auth_server/Cargo.toml
+#[folder = "../../dist/"] // Path relative to crates/auth_server/Cargo.toml
 struct Assets;
 
 pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
@@ -106,8 +106,9 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
             cors = cors.allowed_origin(origin);
         }
 
-        // 定义 API 路由
+        // Define API routes
         let api_routes = web::scope("/api/v1")
+            .route("/config", web::get().to(handlers::get_config))
             .route("/login", web::post().to(handlers::login))
             .route("/register", web::post().to(handlers::register))
             .route("/oauth/start", web::post().to(handlers::oauth_start))
@@ -118,10 +119,10 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
 
         #[cfg(debug_assertions)]
         {
-            // ***** DEBUG 模式 *****
-            // 从文件系统提供服务，允许热重载
+            // ***** DEBUG MODE *****
+            // Serve from filesystem, allows hot-reloading
 
-            // SPA 回退函数
+            // SPA fallback function
             async fn serve_index_html() -> std::io::Result<actix_files::NamedFile> {
                 actix_files::NamedFile::open_async("./dist/index.html").await
             }
@@ -132,36 +133,36 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
                 .wrap(cors)
                 .service(api_routes)
                 .service(jwks_route)
-                // 为构建输出的静态资源提供服务
+                // Serve static assets from build output
                 .service(actix_files::Files::new("/static", "./dist/static"))
                 // favicon
                 .service(actix_files::Files::new(
                     "/favicon.png",
                     "./dist/favicon.png",
                 ))
-                // 将所有其他 GET 请求回退到 index.html (SPA)
+                // Fallback all other GET requests to index.html (SPA)
                 .default_service(web::get().to(serve_index_html))
         }
 
         #[cfg(not(debug_assertions))]
         {
-            // ***** RELEASE 模式 *****
-            // 从嵌入式内存提供服务
+            // ***** RELEASE MODE *****
+            // Serve from embedded memory
             use actix_web::{HttpRequest, HttpResponse};
 
-            // 处理静态文件和 SPA 回退
+            // Handle static files and SPA fallback
             async fn serve_embedded_assets(req: HttpRequest) -> HttpResponse {
                 let path = req.path().trim_start_matches('/');
                 let path = if path.is_empty() { "index.html" } else { path };
 
-                // 尝试获取请求的文件
+                // Try to get the requested file
                 if let Some(content) = Assets::get(path) {
                     let mime_type = mime_guess::from_path(path).first_or_octet_stream();
                     HttpResponse::Ok()
                         .content_type(mime_type.as_ref())
                         .body(content.data.into_owned())
                 } else {
-                    // 回退到 index.html（用于 SPA 路由）
+                    // Fallback to index.html (for SPA routing)
                     if let Some(content) = Assets::get("index.html") {
                         HttpResponse::Ok()
                             .content_type("text/html")
@@ -178,7 +179,7 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
                 .wrap(cors)
                 .service(api_routes)
                 .service(jwks_route)
-                // 所有其他请求由嵌入的资产处理，带 SPA 回退
+                // All other requests handled by embedded assets with SPA fallback
                 .default_service(web::to(serve_embedded_assets))
         }
     })
@@ -189,7 +190,7 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-// Unix 版本：使用 Unix Domain Socket
+// Unix version: using Unix Domain Socket
 #[cfg(unix)]
 async fn run_control_listener(
     socket_path: std::path::PathBuf,
@@ -222,19 +223,19 @@ async fn run_control_listener(
     }
 }
 
-// Windows 版本：使用命名管道
+// Windows version: using Named Pipe
 #[cfg(windows)]
 async fn run_control_listener(
     pipe_name: std::path::PathBuf,
     db: sea_orm::DatabaseConnection,
 ) -> anyhow::Result<()> {
-    // 将路径转换为命名管道名称
-    // 例如：如果配置为 "beacon-auth"，则使用 \\.\pipe\beacon-auth
+    // Convert path to named pipe name
+    // Example: if configured as "beacon-auth", use \\.\pipe\beacon-auth
     let pipe_name_str = pipe_name.to_string_lossy();
     let pipe_path = if pipe_name_str.starts_with(r"\\.\pipe\") {
         pipe_name_str.to_string()
     } else {
-        // 提取文件名部分作为管道名
+        // Extract file name part as pipe name
         let name = pipe_name
             .file_name()
             .and_then(|n| n.to_str())
@@ -245,7 +246,7 @@ async fn run_control_listener(
     log::info!("Control named pipe listening at {}", pipe_path);
 
     loop {
-        // 为每个连接创建一个新的命名管道实例
+        // Create a new named pipe instance for each connection
         let server = ServerOptions::new()
             .first_pipe_instance(false)
             .create(&pipe_path)?;
@@ -254,7 +255,7 @@ async fn run_control_listener(
         let pipe_path_clone = pipe_path.clone();
 
         tokio::spawn(async move {
-            // 等待客户端连接
+            // Wait for client connection
             match server.connect().await {
                 Ok(_) => {
                     log::info!("Client connected to control pipe");
@@ -268,7 +269,7 @@ async fn run_control_listener(
             }
         });
 
-        // 小延迟以避免紧密循环
+        // Small delay to avoid tight loop
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
     }
 }

@@ -27,6 +27,12 @@ This repository contains three projects with two different "root" concepts.
     * **After modifying any Rust code**, you **MUST** run `cargo check --workspace` to verify compilation before completing your task.
     * **After modifying any Kotlin/Mod code**, you **SHOULD** run `./gradlew build` (from `modSrc/`) to verify compilation when feasible.
     * Never consider a code modification complete without verification.
+* **[CRITICAL] Project Synchronization:**
+    * **After making major changes** to the project (new features, architecture changes, API modifications, build system updates), you **MUST** synchronize documentation:
+        * Update this **instruction file** (`.github/copilot-instructions.md`) with new patterns, endpoints, or workflows.
+        * Update the **README.md** with user-facing changes, setup instructions, or API documentation.
+        * Update **GitHub Actions workflows** (`.github/workflows/*.yml`) if build processes, dependencies, or deployment steps change.
+    * This ensures consistency across documentation, AI guidance, and automation.
 * **Dependency Management:**
     * **Frontend:** Always use `pnpm add <package-name>` from the **root** directory.
     * **Backend:** Always use `cargo add -p <crate-name>` (or `--build -p`) from the **root** directory to add dependencies to the correct workspace crate.
@@ -41,6 +47,14 @@ This repository contains three projects with two different "root" concepts.
     * The component **must** use the `useSearch()` hook to retrieve these values.
 * **Forms:** **`react-hook-form`** must be used for the login and registration forms.
 * **Styling:** **`tailwind`** must be used for all styling.
+* **Configuration Fetching:**
+    * On component mount, the login page **must** fetch `GET /api/v1/config` to determine which auth providers are available.
+    * The response contains: `{ database_auth: boolean, github_oauth: boolean, google_oauth: boolean }`.
+* **Conditional UI Rendering:**
+    * **Database login form**: Only shown if `config.database_auth === true`.
+    * **OAuth buttons**: Only shown if `config.github_oauth === true` or `config.google_oauth === true`.
+    * **"Or continue with" divider**: Only shown if both database auth and at least one OAuth provider are enabled.
+    * **Register link**: Only shown if `config.database_auth === true`.
 * **Login Flow (Standard):**
     * The login form `onSubmit` handler must:
         * Get `username`, `password` (from `react-hook-form`) and `challenge`, `redirect_port` (from `useSearch()`).
@@ -78,6 +92,7 @@ This repository contains three projects with two different "root" concepts.
         * **Debug (`cfg(debug_assertions)`)**: Must serve files from the `dist/` directory using `actix-files`, with a SPA fallback to `dist/index.html`.
         * **Release (`cfg(not(debug_assertions)`)**: Must serve files from memory using `rust-embed` and `rust-embed-actix-web`.
 * **API Endpoints:**
+    * **`GET /api/v1/config`**: Returns JSON with available authentication providers: `{ "database_auth": bool, "github_oauth": bool, "google_oauth": bool }`. Used by frontend to conditionally show login options.
     * **`POST /api/v1/login`**: Receives JSON `{ username, password, challenge, redirect_port }`. Verifies password (`bcrypt`). On success, creates `ES256` JWT (embedding `challenge` claim) and returns JSON: `{ "redirectUrl": "http://localhost:{redirect_port}/auth-callback?jwt=..." }`.
     * **`POST /api/v1/register`**: Receives JSON `{ username, password, challenge, redirect_port }`. Validates input, hashes password with bcrypt, creates user in Sea-ORM. Auto-logs in user by generating JWT. Returns 201 Created with JSON: `{ "redirectUrl": "..." }`.
     * **`POST /api/v1/oauth/start`**: Receives JSON `{ provider, challenge, redirect_port }`. Generates UUID state token, stores OAuth state in memory (using `RwLock<HashMap>`). Returns JSON: `{ "authorizationUrl": "..." }`.
@@ -110,7 +125,7 @@ This repository contains three projects with two different "root" concepts.
     * **Must** find a free port in the `38123-38133` range using `NetUtils.findAvailablePort()` and save it.
     * Receives `RequestClientLoginPacket` (S2C), then calls `startLoginProcess()`.
     * `startLoginProcess()`: Generates PKCE challenge/verifier via `PKCEUtils`, sends `RequestLoginUrlPacket` (C2S) with `challenge` and `boundPort`.
-    * `HttpHandler` at `/auth-callback`: Receives callback with `?jwt=...` query param, parses JWT, sends `VerifyAuthPacket` (C2S) with JWT and verifier. Returns an **i18n-translated** HTML "Success" page using `TranslationHelper.translate()`.
+    * `HttpHandler` at `/auth-callback`: Receives callback with `?jwt=...` query param, attempts to focus the Minecraft window using `window.setFocus(true)`, parses JWT, sends `VerifyAuthPacket` (C2S) with JWT and verifier. Returns an **i18n-translated** HTML "Success" page using `TranslationHelper.translate()`.
 * **`AuthServer.kt` (Server-Side):**
     * **State:** Must maintain a `MutableSet<UUID>` of `authenticatedPlayers` (thread-safe).
     * **Auto-Login:** **Must** hook the `PlayerJoinEvent` via `AuthEventHandler`. If player UUID is not in the `authenticatedPlayers` set, send `RequestClientLoginPacket` (S2C) to trigger login flow.

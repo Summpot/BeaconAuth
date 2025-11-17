@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::{
     app_state::AppState,
     models::{
-        Claims, ErrorResponse, LoginPayload, LoginResponse, OAuthCallbackQuery, OAuthStartPayload,
-        OAuthStartResponse, OAuthState, RegisterPayload,
+        Claims, ConfigResponse, ErrorResponse, LoginPayload, LoginResponse, OAuthCallbackQuery,
+        OAuthStartPayload, OAuthStartResponse, OAuthState, RegisterPayload,
     },
 };
 
@@ -19,6 +19,20 @@ pub async fn get_jwks(app_state: web::Data<AppState>) -> impl Responder {
     HttpResponse::Ok()
         .content_type("application/json")
         .body(app_state.jwks_json.clone())
+}
+
+/// GET /api/v1/config
+/// Returns the available authentication providers configuration
+pub async fn get_config(app_state: web::Data<AppState>) -> impl Responder {
+    let config = ConfigResponse {
+        database_auth: true, // Always enabled if server is running
+        github_oauth: app_state.oauth_config.github_client_id.is_some()
+            && app_state.oauth_config.github_client_secret.is_some(),
+        google_oauth: app_state.oauth_config.google_client_id.is_some()
+            && app_state.oauth_config.google_client_secret.is_some(),
+    };
+
+    HttpResponse::Ok().json(config)
 }
 
 /// POST /api/v1/login

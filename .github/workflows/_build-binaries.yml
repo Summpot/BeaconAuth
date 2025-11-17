@@ -106,6 +106,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+
       - name: Install cargo-zigbuild
         if: always() && contains(matrix.target, 'linux')
         run: |
