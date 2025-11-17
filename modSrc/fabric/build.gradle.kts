@@ -49,14 +49,10 @@ dependencies {
 
     modApi("fuzs.forgeconfigapiport:forgeconfigapiport-fabric:8.0.2")
 
-    // Nimbus JOSE JWT for server-side JWT validation
-    implementation("com.nimbusds:nimbus-jose-jwt:9.37.3")
-    implementation("com.github.stephenc.jcip:jcip-annotations:1.0-1")
-    implementation("com.google.guava:guava:33.5.0-jre")
+    implementation("com.nimbusds:nimbus-jose-jwt:10.6")
 
-    include("com.nimbusds:nimbus-jose-jwt:9.37.3")
-    include("com.github.stephenc.jcip:jcip-annotations:1.0-1")
-    include("com.google.guava:guava:33.5.0-jre")
+    include("fuzs.forgeconfigapiport:forgeconfigapiport-fabric:8.0.2")
+    include("com.nimbusds:nimbus-jose-jwt:10.6")
 }
 
 tasks.processResources {
@@ -70,6 +66,7 @@ tasks.processResources {
 tasks.shadowJar {
     configurations = listOf(shadowBundle)
     archiveClassifier.set("dev-shadow")
+    minimize()
 }
 
 tasks.remapJar {

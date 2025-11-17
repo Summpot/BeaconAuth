@@ -56,14 +56,9 @@ dependencies {
     }
     shadowBundle(project(path = ":common", configuration = "transformProductionForge"))
 
-    // Nimbus JOSE JWT for server-side JWT validation
-    implementation("com.nimbusds:nimbus-jose-jwt:9.37.3")
-    implementation("com.github.stephenc.jcip:jcip-annotations:1.0-1")
-    implementation("com.google.guava:guava:33.5.0-jre")
+    implementation("com.nimbusds:nimbus-jose-jwt:10.6")
 
-    forgeRuntimeLibrary("com.nimbusds:nimbus-jose-jwt:9.37.3")
-    forgeRuntimeLibrary("com.github.stephenc.jcip:jcip-annotations:1.0-1")
-    forgeRuntimeLibrary("com.google.guava:guava:33.5.0-jre")
+    forgeRuntimeLibrary("com.nimbusds:nimbus-jose-jwt:10.6")
 }
 
 tasks.processResources {
@@ -77,6 +72,7 @@ tasks.processResources {
 tasks.shadowJar {
     configurations = listOf(shadowBundle)
     archiveClassifier.set("dev-shadow")
+    minimize()
 }
 
 tasks.remapJar {
