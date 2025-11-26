@@ -1,223 +1,181 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { fetchWithAuth } from '../utils/api';
+import { ApiError, apiClient } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ChevronLeft, Loader2, Gamepad2 } from 'lucide-react';
 
-// Define search params schema
 const searchParamsSchema = z.object({
-  challenge: z.string().min(1, 'Challenge is required'),
-  redirect_port: z.coerce.number().min(1).max(65535),
+  challenge: z.string().min(1).optional(),
+  redirect_port: z.coerce.number().min(1).max(65535).optional(),
 });
 
 type SearchParams = z.infer<typeof searchParamsSchema>;
 
-// Define registration form schema
-const registerFormSchema = z
-  .object({
-    username: z.string().min(3, 'Username must be at least 3 characters'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  });
+const registerFormSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
 
+const BeaconIcon = ({ className = "w-16 h-16" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <title>Beacon</title>
+    <rect x="20" y="48" width="24" height="8" fill="#4a4a5a" stroke="#3a3a4a" strokeWidth="1"/>
+    <rect x="24" y="40" width="16" height="8" fill="#5a5a6a" stroke="#4a4a5a" strokeWidth="1"/>
+    <rect x="26" y="42" width="12" height="4" fill="#a855f7">
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+    </rect>
+    <path d="M32 42 L24 8 L40 8 Z" fill="url(#beamGradientRegister)" opacity="0.6">
+      <animate attributeName="opacity" values="0.4;0.7;0.4" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M32 42 L28 8 L36 8 Z" fill="url(#beamGradientInnerRegister)" opacity="0.8">
+      <animate attributeName="opacity" values="0.6;1;0.6" dur="1.5s" repeatCount="indefinite"/>
+    </path>
+    <defs>
+      <linearGradient id="beamGradientRegister" x1="32" y1="42" x2="32" y2="8" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#a855f7"/>
+        <stop offset="100%" stopColor="#a855f7" stopOpacity="0"/>
+      </linearGradient>
+      <linearGradient id="beamGradientInnerRegister" x1="32" y1="42" x2="32" y2="8" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#ffffff"/>
+        <stop offset="50%" stopColor="#a855f7"/>
+        <stop offset="100%" stopColor="#a855f7" stopOpacity="0"/>
+      </linearGradient>
+    </defs>
+  </svg>
+);
+
 function RegisterPage() {
   const searchParams = Route.useSearch();
+  const navigate = useNavigate();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    setError,
-  } = useForm<RegisterFormData>({
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof ApiError) {
+      const data = error.data as { message?: string } | undefined;
+      return data?.message ?? error.message;
+    }
+    if (error instanceof Error) return error.message;
+    return fallback;
+  };
+
+  const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
   });
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      // Step 1: Register and set session cookies
-      const registerResponse = await fetch('/api/v1/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Important: include cookies
-        body: JSON.stringify({
-          username: data.username,
-          password: data.password,
-        }),
-      });
+      await apiClient('/api/v1/register', { method: 'POST', requiresAuth: false, body: { username: data.username, password: data.password } });
+    } catch (error) {
+      setError('root', { type: 'manual', message: getErrorMessage(error, 'Registration failed') });
+      return;
+    }
 
-      if (!registerResponse.ok) {
-        const errorData = await registerResponse.json();
-        setError('root', {
-          type: 'manual',
-          message: errorData.message || 'Registration failed',
+    try {
+      if (searchParams.challenge && searchParams.redirect_port) {
+        const result = await apiClient<{ redirectUrl?: string }>('/api/v1/minecraft-jwt', {
+          method: 'POST',
+          body: { challenge: searchParams.challenge, redirect_port: searchParams.redirect_port, profile_url: window.location.origin + '/profile' },
         });
-        return;
+        if (result.redirectUrl) {
+          window.location.href = result.redirectUrl;
+          return;
+        }
       }
-
-      // Step 2: Get Minecraft JWT using the session cookie
-      const jwtResponse = await fetchWithAuth('/api/v1/minecraft-jwt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          challenge: searchParams.challenge,
-          redirect_port: searchParams.redirect_port,
-          profile_url: window.location.origin + '/profile',
-        }),
-      });
-
-      if (!jwtResponse.ok) {
-        setError('root', {
-          type: 'manual',
-          message: 'Failed to generate Minecraft token',
-        });
-        return;
-      }
-
-      const result = await jwtResponse.json();
-      if (result.redirectUrl) {
-        window.location.href = result.redirectUrl;
-      }
-    } catch (_error) {
-      setError('root', {
-        type: 'manual',
-        message: 'Failed to connect to server',
-      });
+      navigate({ to: '/profile' });
+    } catch (error) {
+      setError('root', { type: 'manual', message: getErrorMessage(error, 'Failed to complete registration') });
     }
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-xl p-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              📝 Create Account
-            </h1>
-            <p className="text-gray-600">Join BeaconAuth</p>
-          </div>
+        <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors mb-6">
+          <ChevronLeft className="h-4 w-4" />
+          Back to Home
+        </Link>
 
-          {/* Info Section */}
-          <div className="bg-blue-50 rounded-lg p-4 mb-6 text-sm">
-            <div className="flex justify-between mb-2">
-              <span className="font-medium text-gray-700">Challenge:</span>
-              <span className="text-gray-600 font-mono text-xs">
-                {searchParams.challenge.substring(0, 16)}...
-              </span>
+        <Card>
+          <CardHeader className="text-center pb-4">
+            <div className="flex justify-center mb-4">
+              <BeaconIcon className="w-16 h-16" />
             </div>
-            <div className="flex justify-between">
-              <span className="font-medium text-gray-700">Redirect Port:</span>
-              <span className="text-gray-600">
-                {searchParams.redirect_port}
-              </span>
-            </div>
-          </div>
+            <CardTitle className="text-3xl font-bold">Create Account</CardTitle>
+            <CardDescription>Join the BeaconAuth community</CardDescription>
+          </CardHeader>
 
-          {/* Register Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                {...register('username')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                placeholder="Choose a username"
-                disabled={isSubmitting}
-              />
-              {errors.username && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.username.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                {...register('password')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                placeholder="Create a password"
-                disabled={isSubmitting}
-              />
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                {...register('confirmPassword')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                placeholder="Confirm your password"
-                disabled={isSubmitting}
-              />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.confirmPassword.message}
-                </p>
-              )}
-            </div>
-
-            {errors.root && (
-              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
-                {errors.root.message}
-              </div>
+          <CardContent className="space-y-6">
+            {searchParams.challenge && searchParams.redirect_port && (
+              <Alert>
+                <Gamepad2 className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <span className="text-primary font-medium">Minecraft Registration</span>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Challenge:</span>
+                        <span className="text-foreground font-mono text-xs">{searchParams.challenge.substring(0, 16)}...</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Port:</span>
+                        <span className="text-foreground">{searchParams.redirect_port}</span>
+                      </div>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
             )}
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              {isSubmitting ? 'Creating Account...' : 'Register'}
-            </button>
-          </form>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input id="username" type="text" {...register('username')} placeholder="Choose a username" disabled={isSubmitting} className="bg-background/50 border-input" />
+                {errors.username && <p className="text-sm text-destructive">{errors.username.message}</p>}
+              </div>
 
-          {/* Login Link */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Already have an account?{' '}
-              <a
-                href={`/?challenge=${searchParams.challenge}&redirect_port=${searchParams.redirect_port}`}
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Login here
-              </a>
-            </p>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" {...register('password')} placeholder="Create a password (min 6 chars)" disabled={isSubmitting} className="bg-background/50 border-input" />
+                {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input id="confirmPassword" type="password" {...register('confirmPassword')} placeholder="Confirm your password" disabled={isSubmitting} className="bg-background/50 border-input" />
+                {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
+              </div>
+
+              {errors.root && <Alert variant="destructive"><AlertDescription>{errors.root.message}</AlertDescription></Alert>}
+
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating Account...</> : 'Create Account'}
+              </Button>
+            </form>
+
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link to="/login" search={{ challenge: searchParams.challenge, redirect_port: searchParams.redirect_port }} className="text-primary hover:text-primary/80 font-medium transition-colors">
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="mt-6 text-center">
+          <p className="text-xs text-muted-foreground">🔒 Your password is securely hashed with bcrypt</p>
         </div>
       </div>
     </div>
@@ -226,7 +184,5 @@ function RegisterPage() {
 
 export const Route = createFileRoute('/register')({
   component: RegisterPage,
-  validateSearch: (search: Record<string, unknown>): SearchParams => {
-    return searchParamsSchema.parse(search);
-  },
+  validateSearch: (search: Record<string, unknown>): SearchParams => searchParamsSchema.parse(search),
 });

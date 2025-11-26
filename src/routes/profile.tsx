@@ -2,9 +2,14 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import { fetchWithAuth, queryKeys } from '../utils/api';
+import { apiClient, queryKeys } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Settings, LogOut, Shield, Gamepad2, Lock, CheckCircle, ChevronRight, Loader2 } from 'lucide-react';
 
-// Define search params schema for status messages
 const searchParamsSchema = z.object({
   status: z.enum(['success', 'error']).optional(),
   message: z.string().optional(),
@@ -15,15 +20,41 @@ interface UserInfo {
   username: string;
 }
 
-// Query function to fetch user info
-async function fetchUserInfo(): Promise<UserInfo | null> {
-  const response = await fetchWithAuth('/api/v1/user/me');
+const BeaconIcon = ({ className = "w-16 h-16" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <title>Beacon</title>
+    <rect x="20" y="48" width="24" height="8" fill="#4a4a5a" stroke="#3a3a4a" strokeWidth="1"/>
+    <rect x="24" y="40" width="16" height="8" fill="#5a5a6a" stroke="#4a4a5a" strokeWidth="1"/>
+    <rect x="26" y="42" width="12" height="4" fill="#4eecd6">
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+    </rect>
+    <path d="M32 42 L24 8 L40 8 Z" fill="url(#beamGradientProfile)" opacity="0.6">
+      <animate attributeName="opacity" values="0.4;0.7;0.4" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M32 42 L28 8 L36 8 Z" fill="url(#beamGradientInnerProfile)" opacity="0.8">
+      <animate attributeName="opacity" values="0.6;1;0.6" dur="1.5s" repeatCount="indefinite"/>
+    </path>
+    <defs>
+      <linearGradient id="beamGradientProfile" x1="32" y1="42" x2="32" y2="8" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#4eecd6"/>
+        <stop offset="100%" stopColor="#4eecd6" stopOpacity="0"/>
+      </linearGradient>
+      <linearGradient id="beamGradientInnerProfile" x1="32" y1="42" x2="32" y2="8" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#ffffff"/>
+        <stop offset="50%" stopColor="#4eecd6"/>
+        <stop offset="100%" stopColor="#4eecd6" stopOpacity="0"/>
+      </linearGradient>
+    </defs>
+  </svg>
+);
 
-  if (!response.ok) {
+async function fetchUserInfo(): Promise<UserInfo | null> {
+  try {
+    return await apiClient<UserInfo>('/api/v1/user/me');
+  } catch (error) {
+    console.error('Failed to load user info', error);
     return null;
   }
-
-  return response.json();
 }
 
 function ProfilePage() {
@@ -31,21 +62,14 @@ function ProfilePage() {
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const queryClient = useQueryClient();
 
-  // Use TanStack Query to fetch user info
   const { data: user, isLoading } = useQuery({
     queryKey: queryKeys.userMe(),
     queryFn: fetchUserInfo,
   });
 
-  // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetchWithAuth('/api/v1/logout', {
-        method: 'POST',
-      });
-      if (!response.ok) {
-        throw new Error('Logout failed');
-      }
+      await apiClient('/api/v1/logout', { method: 'POST' });
     },
     onSuccess: () => {
       queryClient.setQueryData(queryKeys.userMe(), null);
@@ -53,30 +77,26 @@ function ProfilePage() {
   });
 
   useEffect(() => {
-    // Show status message from URL params if present
     if (status && message) {
-      setStatusMessage({
-        type: status,
-        text: decodeURIComponent(message.replace(/\+/g, ' ')),
-      });
-
-      // Clear status message after 5 seconds
-      const timer = setTimeout(() => {
-        setStatusMessage(null);
-      }, 5000);
-
+      setStatusMessage({ type: status, text: decodeURIComponent(message.replace(/\+/g, ' ')) });
+      const timer = setTimeout(() => setStatusMessage(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [status, message]);
 
-  const handleLogout = () => {
-    logoutMutation.mutate();
-  };
+  const handleLogout = () => logoutMutation.mutate();
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="text-gray-600">Loading...</div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="text-muted-foreground">Loading...</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -85,176 +105,179 @@ function ProfilePage() {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-xl p-8">
-            <div className="text-center">
-              <div className="text-6xl mb-4">🔐</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Not Authenticated
-              </h1>
-              <p className="text-gray-600 mb-6">
-                You must log in through the Minecraft mod to access this page.
-              </p>
-              <div className="bg-blue-50 text-blue-600 px-4 py-3 rounded-lg text-sm">
-                This page is only accessible after authenticating through Minecraft.
+          <Card className="text-center">
+            <CardContent className="pt-6">
+              <div className="inline-block mb-6">
+                <BeaconIcon className="w-20 h-20 opacity-50" />
               </div>
-            </div>
-          </div>
+              <CardTitle className="text-2xl font-bold mb-4">Not Authenticated</CardTitle>
+              <CardDescription className="mb-6">Please log in to access your profile.</CardDescription>
+              <div className="flex flex-col gap-3">
+                <Button asChild><Link to="/login">Sign In</Link></Button>
+                <Button variant="secondary" asChild><Link to="/">Back to Home</Link></Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-4xl mx-auto py-8">
-        {/* Status Message */}
-        {statusMessage && (
-          <div
-            className={`mb-6 p-4 rounded-lg ${
-              statusMessage.type === 'success'
-                ? 'bg-green-50 text-green-800 border border-green-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
-            }`}
-          >
-            <div className="flex items-center">
-              <span className="text-xl mr-3">
-                {statusMessage.type === 'success' ? '✓' : '✗'}
-              </span>
-              <p>{statusMessage.text}</p>
+    <div className="min-h-screen p-4">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 group">
+              <BeaconIcon className="w-8 h-8" />
+              <span className="text-xl text-primary font-bold">BeaconAuth</span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" asChild>
+                <Link to="/settings"><Settings className="h-4 w-4 mr-2" />Settings</Link>
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleLogout} disabled={logoutMutation.isPending}>
+                <LogOut className="h-4 w-4 mr-2" />
+                {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
+              </Button>
             </div>
           </div>
+        </div>
+      </nav>
+
+      <div className="max-w-4xl mx-auto pt-24 pb-8">
+        {statusMessage && (
+          <Alert variant={statusMessage.type === 'success' ? 'default' : 'destructive'} className="mb-6">
+            <AlertDescription className="flex items-center gap-3">
+              <span className="text-xl">{statusMessage.type === 'success' ? '✓' : '✗'}</span>
+              <p>{statusMessage.text}</p>
+            </AlertDescription>
+          </Alert>
         )}
 
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-xl p-8 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Welcome, {user.username}! 👋
-              </h1>
-              <p className="text-gray-600">
-                Manage your BeaconAuth account
-              </p>
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <Avatar className="h-24 w-24 border-2 border-primary/30">
+                  <AvatarFallback className="bg-linear-to-br from-primary/20 to-secondary/20 text-4xl text-primary">
+                    {user.username.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-background flex items-center justify-center">
+                  <CheckCircle className="h-3 w-3 text-white" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold mb-1">{user.username}</h1>
+                <p className="text-muted-foreground">BeaconAuth User</p>
+              </div>
+              <Button variant="secondary" asChild>
+                <Link to="/settings"><Settings className="h-4 w-4 mr-2" />Settings</Link>
+              </Button>
             </div>
-            <div className="flex gap-3">
-              <Link
-                to="/"
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Home
+          </CardContent>
+        </Card>
+
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          <Card className="bg-card/50 border-border">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                  <Lock className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-sm">Account ID</p>
+                  <p className="font-bold">#{user.id}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/50 border-border">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-sm">Status</p>
+                  <Badge variant="outline" className="text-green-500 border-green-500/30">Authenticated</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/50 border-border">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center">
+                  <Gamepad2 className="h-6 w-6 text-secondary-foreground" />
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-sm">Minecraft</p>
+                  <Badge variant="outline">Connected</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="bg-card/50 border-border">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center gap-3">
+              <span className="w-2 h-2 bg-primary rounded-full" />
+              Quick Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Link to="/settings" className="group p-5 rounded-xl border-2 border-border hover:border-primary/50 bg-card/50 hover:bg-primary/5 transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
+                      <Settings className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold group-hover:text-primary transition-colors">Profile Settings</h3>
+                      <p className="text-sm text-muted-foreground">Change password & manage passkeys</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
               </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
 
-        {/* Account Info Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Account Information
-          </h2>
-          <div className="space-y-3">
-            <div className="flex justify-between border-b border-gray-200 pb-3">
-              <span className="font-medium text-gray-700">User ID:</span>
-              <span className="text-gray-600">{user.id}</span>
-            </div>
-            <div className="flex justify-between border-b border-gray-200 pb-3">
-              <span className="font-medium text-gray-700">Username:</span>
-              <span className="text-gray-600">{user.username}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link
-              to="/settings"
-              className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
-            >
-              <div>
-                <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">
-                  ⚙️ Profile Settings
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Change password and manage passkeys
-                </p>
+              <div className="p-5 rounded-xl border-2 border-border bg-card/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center">
+                      <Gamepad2 className="h-5 w-5 text-secondary-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Minecraft Server</h3>
+                      <p className="text-sm text-muted-foreground">Connected via BeaconAuth Mod</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-green-500 text-sm font-medium">Online</span>
+                  </div>
+                </div>
               </div>
-              <svg
-                className="w-6 h-6 text-gray-400 group-hover:text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <title>Arrow Right</title>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </Link>
-
-            <div className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg bg-gray-50">
-              <div>
-                <h3 className="font-semibold text-gray-500">
-                  🎮 Minecraft Server
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Connected via BeaconAuth Mod
-                </p>
-              </div>
-              <svg
-                className="w-6 h-6 text-green-500"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <title>Checkmark</title>
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Info Box */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex">
-            <svg
-              className="w-6 h-6 text-blue-600 mr-3 shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <title>Information</title>
-              <path
-                fillRule="evenodd"
-                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Secure Authentication</p>
-              <p>
-                Your session is protected with ES256 encryption and secure
-                HttpOnly cookies. For enhanced security, consider setting up
-                passkey authentication in your profile settings.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert className="mt-6">
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            <h3 className="font-semibold mb-1">Secure Session</h3>
+            <p className="text-sm text-muted-foreground">
+              Your session is protected with ES256 encryption and secure HttpOnly cookies.
+              For enhanced security, consider setting up passkey authentication in your profile settings.
+            </p>
+          </AlertDescription>
+        </Alert>
       </div>
     </div>
   );

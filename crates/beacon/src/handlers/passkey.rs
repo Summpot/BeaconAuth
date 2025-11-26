@@ -1,5 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use base64::{engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD as BASE64URL}, Engine};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use webauthn_rs::prelude::*;
 
@@ -176,7 +176,8 @@ pub async fn auth_start(
         })?;
 
     // Store authentication state in cache using challenge as key (5-minute TTL)
-    let challenge_str = BASE64.encode(rcr.public_key.challenge.as_ref());
+    // Use base64url encoding (no padding) to match WebAuthn client_data_json format
+    let challenge_str = BASE64URL.encode(rcr.public_key.challenge.as_ref());
     app_state
         .passkey_auth_states
         .insert(challenge_str.clone(), passkey_authentication);
@@ -191,17 +192,35 @@ pub async fn auth_finish(
     app_state: web::Data<AppState>,
     body: web::Json<PasskeyAuthFinishRequest>,
 ) -> actix_web::Result<HttpResponse> {
-    // Extract challenge from credential response
-    let challenge_str = BASE64.encode(&body.credential.response.client_data_json);
+    // Parse client_data_json to extract challenge
+    let client_data_json = std::str::from_utf8(&body.credential.response.client_data_json)
+        .map_err(|e| {
+            log::error!("Invalid UTF-8 in client_data_json: {:?}", e);
+            actix_web::error::ErrorBadRequest("Invalid client data")
+        })?;
+    
+    let client_data: serde_json::Value = serde_json::from_str(client_data_json)
+        .map_err(|e| {
+            log::error!("Failed to parse client_data_json: {:?}", e);
+            actix_web::error::ErrorBadRequest("Invalid client data JSON")
+        })?;
+    
+    let challenge_b64 = client_data
+        .get("challenge")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| actix_web::error::ErrorBadRequest("Challenge not found in client data"))?;
 
-    // Retrieve authentication state from cache
+    // Retrieve authentication state from cache using the challenge
     let passkey_authentication = app_state
         .passkey_auth_states
-        .get(&challenge_str)
-        .ok_or_else(|| actix_web::error::ErrorBadRequest("No authentication in progress"))?;
+        .get(challenge_b64)
+        .ok_or_else(|| {
+            log::error!("No authentication state found for challenge: {}", challenge_b64);
+            actix_web::error::ErrorBadRequest("No authentication in progress")
+        })?;
     
     // Remove from cache after retrieval
-    app_state.passkey_auth_states.invalidate(&challenge_str);
+    app_state.passkey_auth_states.invalidate(challenge_b64);
 
     // Finish authentication
     let auth_result = app_state
@@ -254,7 +273,7 @@ pub async fn auth_finish(
         .ok_or_else(|| actix_web::error::ErrorNotFound("User not found"))?;
 
     // Generate tokens
-    let (access_cookie_str, refresh_cookie_str) = crate::handlers::auth::create_session_for_user(
+    let (access_token, refresh_token) = crate::handlers::auth::create_session_for_user(
         &app_state,
         user_id,
     )
@@ -263,9 +282,28 @@ pub async fn auth_finish(
 
     log::info!("User {} authenticated with passkey", user_model.username);
 
+    // Set cookies using proper cookie builder (same as login flow)
     Ok(HttpResponse::Ok()
-        .insert_header(("Set-Cookie", access_cookie_str))
-        .insert_header(("Set-Cookie", refresh_cookie_str))
+        .cookie(
+            actix_web::cookie::Cookie::build("access_token", access_token)
+                .path("/")
+                .http_only(true)
+                .same_site(actix_web::cookie::SameSite::Strict)
+                .max_age(actix_web::cookie::time::Duration::seconds(
+                    app_state.access_token_expiration,
+                ))
+                .finish(),
+        )
+        .cookie(
+            actix_web::cookie::Cookie::build("refresh_token", refresh_token)
+                .path("/")
+                .http_only(true)
+                .same_site(actix_web::cookie::SameSite::Strict)
+                .max_age(actix_web::cookie::time::Duration::seconds(
+                    app_state.refresh_token_expiration,
+                ))
+                .finish(),
+        )
         .json(serde_json::json!({
             "success": true,
             "username": user_model.username,

@@ -1,6 +1,8 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const RootLayout = () => {
   const [queryClient] = useState(
@@ -17,11 +19,17 @@ const RootLayout = () => {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
-        <Outlet />
-      </div>
-    </QueryClientProvider>
+    <ThemeProvider defaultTheme="system" storageKey="beaconauth-ui-theme">
+      <QueryClientProvider client={queryClient}>
+        <div className="min-h-screen bg-background text-foreground relative">
+          {/* Theme toggle in top right corner */}
+          <div className="fixed top-4 right-4 z-50">
+            <ThemeToggle />
+          </div>
+          <Outlet />
+        </div>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 };
 

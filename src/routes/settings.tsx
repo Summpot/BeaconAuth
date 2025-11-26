@@ -3,10 +3,16 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { startRegistration } from '@simplewebauthn/browser';
-import { fetchWithAuth } from '../utils/api';
+import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
+import { ApiError, apiClient } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { ChevronLeft, Loader2, Plus, Key, X, Lightbulb, Trash2 } from 'lucide-react';
 
-// Password change form schema
 const passwordChangeSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
   newPassword: z.string().min(6, 'Password must be at least 6 characters'),
@@ -18,17 +24,45 @@ const passwordChangeSchema = z.object({
 
 type PasswordChangeData = z.infer<typeof passwordChangeSchema>;
 
-interface UserInfo {
-  id: number;
-  username: string;
-}
+interface UserInfo { id: number; username: string; }
+interface PasskeyInfo { id: number; name: string; created_at: string; last_used_at: string | null; }
 
-interface PasskeyInfo {
-  id: number;
-  name: string;
-  created_at: string;
-  last_used_at: string | null;
-}
+const getErrorMessage = (error: unknown, fallback = 'Failed to process request') => {
+  if (error instanceof ApiError) {
+    const data = error.data as { message?: string } | undefined;
+    return data?.message ?? error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
+};
+
+const BeaconIcon = ({ className = "w-16 h-16" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <title>Beacon</title>
+    <rect x="20" y="48" width="24" height="8" fill="#4a4a5a" stroke="#3a3a4a" strokeWidth="1"/>
+    <rect x="24" y="40" width="16" height="8" fill="#5a5a6a" stroke="#4a4a5a" strokeWidth="1"/>
+    <rect x="26" y="42" width="12" height="4" fill="#4eecd6">
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+    </rect>
+    <path d="M32 42 L24 8 L40 8 Z" fill="url(#beamGradientSettings)" opacity="0.6">
+      <animate attributeName="opacity" values="0.4;0.7;0.4" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M32 42 L28 8 L36 8 Z" fill="url(#beamGradientInnerSettings)" opacity="0.8">
+      <animate attributeName="opacity" values="0.6;1;0.6" dur="1.5s" repeatCount="indefinite"/>
+    </path>
+    <defs>
+      <linearGradient id="beamGradientSettings" x1="32" y1="42" x2="32" y2="8" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#4eecd6"/>
+        <stop offset="100%" stopColor="#4eecd6" stopOpacity="0"/>
+      </linearGradient>
+      <linearGradient id="beamGradientInnerSettings" x1="32" y1="42" x2="32" y2="8" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#ffffff"/>
+        <stop offset="50%" stopColor="#4eecd6"/>
+        <stop offset="100%" stopColor="#4eecd6" stopOpacity="0"/>
+      </linearGradient>
+    </defs>
+  </svg>
+);
 
 function SettingsPage() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -38,194 +72,87 @@ function SettingsPage() {
   const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const [passkeyName, setPasskeyName] = useState('');
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    reset,
-  } = useForm<PasswordChangeData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<PasswordChangeData>({
     resolver: zodResolver(passwordChangeSchema),
   });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch user info
-        const userResponse = await fetchWithAuth('/api/v1/user/me');
-
-        if (!userResponse.ok) {
-          setLoading(false);
-          return;
-        }
-
-        const userData = await userResponse.json();
+        const userData = await apiClient<UserInfo>('/api/v1/user/me');
         setUser(userData);
-
-        // Fetch passkeys
-        const passkeysResponse = await fetchWithAuth('/api/v1/passkey/list');
-
-        if (passkeysResponse.ok) {
-          const passkeysData = await passkeysResponse.json();
-          setPasskeys(passkeysData.passkeys || []);
-        }
-      } catch {
-        // Error handled by fetchWithAuth (will redirect if needed)
+        const passkeysData = await apiClient<{ passkeys: PasskeyInfo[] }>('/api/v1/passkey/list');
+        setPasskeys(passkeysData.passkeys || []);
+      } catch (error) {
+        console.error('Failed to load settings data', error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
   const onPasswordChange = async (data: PasswordChangeData) => {
     try {
-      const response = await fetchWithAuth('/api/v1/user/change-password', {
+      await apiClient('/api/v1/user/change-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          current_password: data.currentPassword,
-          new_password: data.newPassword,
-        }),
+        body: { current_password: data.currentPassword, new_password: data.newPassword },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        setMessage({
-          type: 'error',
-          text: errorData.message || 'Failed to change password',
-        });
-        return;
-      }
-
-      setMessage({
-        type: 'success',
-        text: 'Password changed successfully!',
-      });
+      setMessage({ type: 'success', text: 'Password changed successfully!' });
       reset();
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: 'Failed to connect to server',
-      });
+      setMessage({ type: 'error', text: getErrorMessage(error, 'Failed to connect to server') });
     }
-  };
-
-  const handleRegisterPasskey = async () => {
-    setShowPasskeyModal(true);
   };
 
   const handlePasskeyModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     const name = passkeyName.trim();
     if (!name) {
       setMessage({ type: 'error', text: 'Passkey name is required' });
       return;
     }
-
     try {
-      // Step 1: Start registration
-      const startResponse = await fetchWithAuth('/api/v1/passkey/register/start', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name }),
-      });
-
-      if (!startResponse.ok) {
-        throw new Error('Failed to start passkey registration');
-      }
-
-      const data = await startResponse.json();
-
-      // Step 2: Use SimpleWebAuthn to handle the registration ceremony
-      // Pass the publicKey field directly (SimpleWebAuthn expects PublicKeyCredentialCreationOptions)
-      const credential = await startRegistration(data.creation_options.publicKey);
-
-      // Step 3: Finish registration
-      const finishResponse = await fetchWithAuth('/api/v1/passkey/register/finish', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          credential,
-          name,
-        }),
-      });
-
-      if (!finishResponse.ok) {
-        throw new Error('Failed to complete passkey registration');
-      }
-
-      setMessage({
-        type: 'success',
-        text: 'Passkey registered successfully!',
-      });
-
-      // Close modal and reset form
+      const data = await apiClient<{ creation_options: { publicKey: PublicKeyCredentialCreationOptionsJSON } }>(
+        '/api/v1/passkey/register/start', { method: 'POST', body: { name } }
+      );
+      const credential = await startRegistration({ optionsJSON: data.creation_options.publicKey });
+      await apiClient('/api/v1/passkey/register/finish', { method: 'POST', body: { credential, name } });
+      setMessage({ type: 'success', text: 'Passkey registered successfully!' });
       setShowPasskeyModal(false);
       setPasskeyName('');
-
-      // Refresh passkeys list
-      const passkeysResponse = await fetchWithAuth('/api/v1/passkey/list');
-      if (passkeysResponse.ok) {
-        const passkeysData = await passkeysResponse.json();
-        setPasskeys(passkeysData.passkeys || []);
-      }
+      const passkeysData = await apiClient<{ passkeys: PasskeyInfo[] }>('/api/v1/passkey/list');
+      setPasskeys(passkeysData.passkeys || []);
     } catch (error) {
       console.error('Passkey registration failed:', error);
-      setMessage({
-        type: 'error',
-        text: `Failed to register passkey: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
+      setMessage({ type: 'error', text: `Failed to register passkey: ${getErrorMessage(error, 'Unknown error')}` });
       setShowPasskeyModal(false);
       setPasskeyName('');
     }
   };
 
   const handleDeletePasskey = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete passkey "${name}"?`)) {
-      return;
-    }
-
+    if (!confirm(`Are you sure you want to delete passkey "${name}"?`)) return;
     try {
-      const response = await fetchWithAuth('/api/v1/passkey/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete passkey');
-      }
-
-      setMessage({
-        type: 'success',
-        text: 'Passkey deleted successfully!',
-      });
-
-      // Refresh passkeys list
+      await apiClient(`/api/v1/passkey/${id}`, { method: 'DELETE' });
+      setMessage({ type: 'success', text: 'Passkey deleted successfully!' });
       setPasskeys(passkeys.filter((p) => p.id !== id));
     } catch (error) {
-      console.error('Passkey deletion failed:', error);
-      setMessage({
-        type: 'error',
-        text: `Failed to delete passkey: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
+      setMessage({ type: 'error', text: `Failed to delete passkey: ${getErrorMessage(error, 'Unknown error')}` });
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="text-gray-600">Loading...</div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="text-muted-foreground">Loading...</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -234,294 +161,165 @@ function SettingsPage() {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-xl p-8">
-            <div className="text-center">
-              <div className="text-6xl mb-4">🔐</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Not Authenticated
-              </h1>
-              <p className="text-gray-600 mb-6">
-                You must log in through the Minecraft mod to access this page.
-              </p>
-            </div>
-          </div>
+          <Card className="text-center">
+            <CardContent className="pt-6">
+              <div className="inline-block mb-6">
+                <BeaconIcon className="w-20 h-20 opacity-50" />
+              </div>
+              <CardTitle className="text-2xl font-bold mb-4">Not Authenticated</CardTitle>
+              <CardDescription className="mb-6">Please log in to access settings.</CardDescription>
+              <Button asChild><Link to="/login">Sign In</Link></Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-4xl mx-auto py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <Link
-            to="/"
-            className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4"
-          >
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <title>Back Arrow</title>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Back to Home
+    <div className="min-h-screen p-4">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 group">
+              <BeaconIcon className="w-8 h-8" />
+              <span className="text-xl text-primary font-bold">BeaconAuth</span>
+            </Link>
+            <Button variant="ghost" asChild><Link to="/profile">Profile</Link></Button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-4xl mx-auto pt-24 pb-8">
+        <div className="mb-8">
+          <Link to="/profile" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors mb-4">
+            <ChevronLeft className="h-4 w-4" />
+            Back to Profile
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Profile Settings</h1>
-          <p className="text-gray-600 mt-2">
-            Manage your password and passkeys for {user.username}
-          </p>
+          <h1 className="text-3xl font-bold">Profile Settings</h1>
+          <p className="text-muted-foreground mt-2">Manage your password and passkeys for <span className="text-primary">{user.username}</span></p>
         </div>
 
-        {/* Message Display */}
         {message && (
-          <div
-            className={`mb-6 p-4 rounded-lg ${
-              message.type === 'success'
-                ? 'bg-green-50 text-green-800 border border-green-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
-            }`}
-          >
-            <div className="flex items-center">
-              <span className="text-xl mr-3">
-                {message.type === 'success' ? '✓' : '✗'}
-              </span>
-              <p>{message.text}</p>
-            </div>
-          </div>
+          <Alert variant={message.type === 'success' ? 'default' : 'destructive'} className="mb-6">
+            <AlertDescription className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{message.type === 'success' ? '✓' : '✗'}</span>
+                <p>{message.text}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setMessage(null)}><X className="h-4 w-4" /></Button>
+            </AlertDescription>
+          </Alert>
         )}
 
-        {/* Change Password Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Change Password
-          </h2>
-          <form onSubmit={handleSubmit(onPasswordChange)} className="space-y-4">
-            <div>
-              <label
-                htmlFor="currentPassword"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Current Password
-              </label>
-              <input
-                id="currentPassword"
-                type="password"
-                {...register('currentPassword')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                placeholder="Enter current password"
-                disabled={isSubmitting}
-              />
-              {errors.currentPassword && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.currentPassword.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="newPassword"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                New Password
-              </label>
-              <input
-                id="newPassword"
-                type="password"
-                {...register('newPassword')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                placeholder="Enter new password (min 6 characters)"
-                disabled={isSubmitting}
-              />
-              {errors.newPassword && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.newPassword.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Confirm New Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                {...register('confirmPassword')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                placeholder="Confirm new password"
-                disabled={isSubmitting}
-              />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.confirmPassword.message}
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              {isSubmitting ? 'Changing Password...' : 'Change Password'}
-            </button>
-          </form>
-        </div>
-
-        {/* Passkeys Card */}
-        <div className="bg-white rounded-lg shadow-xl p-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
-                Passkeys
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Use biometric authentication for passwordless login
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleRegisterPasskey}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-            >
-              + Add Passkey
-            </button>
-          </div>
-
-          {passkeys.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <div className="text-4xl mb-3">🔑</div>
-              <p>No passkeys registered yet</p>
-              <p className="text-sm mt-1">
-                Add a passkey for faster, more secure authentication
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {passkeys.map((passkey) => (
-                <div
-                  key={passkey.id}
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">
-                      {passkey.name}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      Created: {new Date(passkey.created_at).toLocaleDateString()}
-                    </p>
-                    {passkey.last_used_at && (
-                      <p className="text-sm text-gray-600">
-                        Last used: {new Date(passkey.last_used_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeletePasskey(passkey.id, passkey.name)}
-                    className="ml-4 px-3 py-1 text-sm text-red-600 hover:text-red-700 border border-red-300 rounded hover:bg-red-50 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Info box */}
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex">
-              <svg
-                className="w-5 h-5 text-blue-600 mr-3 shrink-0 mt-0.5"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <title>Information</title>
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">What are passkeys?</p>
-                <p>
-                  Passkeys are a secure, passwordless authentication method that uses
-                  your device's biometric authentication (fingerprint, face recognition)
-                  or PIN. They're more secure than passwords and easier to use.
-                </p>
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center gap-3">
+              <span className="w-2 h-2 bg-primary rounded-full" />Change Password
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onPasswordChange)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input id="currentPassword" type="password" {...register('currentPassword')} placeholder="Enter current password" disabled={isSubmitting} className="bg-background/50" />
+                {errors.currentPassword && <p className="text-sm text-destructive">{errors.currentPassword.message}</p>}
               </div>
-            </div>
-          </div>
-        </div>
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input id="newPassword" type="password" {...register('newPassword')} placeholder="Enter new password (min 6 characters)" disabled={isSubmitting} className="bg-background/50" />
+                {errors.newPassword && <p className="text-sm text-destructive">{errors.newPassword.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input id="confirmPassword" type="password" {...register('confirmPassword')} placeholder="Confirm new password" disabled={isSubmitting} className="bg-background/50" />
+                {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
+              </div>
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Changing Password...</> : 'Change Password'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-        {/* Passkey Name Modal */}
-        {showPasskeyModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
-                Add New Passkey
-              </h3>
-              <form onSubmit={handlePasskeyModalSubmit}>
-                <div className="mb-4">
-                  <label
-                    htmlFor="passkeyName"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Passkey Name
-                  </label>
-                  <input
-                    id="passkeyName"
-                    type="text"
-                    value={passkeyName}
-                    onChange={(e) => setPasskeyName(e.target.value)}
-                    placeholder='e.g., "My Phone", "YubiKey"'
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  />
-                  <p className="mt-2 text-sm text-gray-600">
-                    Give your passkey a memorable name to identify this device or security key.
-                  </p>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold flex items-center gap-3">
+                  <span className="w-2 h-2 bg-primary rounded-full" />Passkeys
+                </CardTitle>
+                <CardDescription>Use biometric authentication for passwordless login</CardDescription>
+              </div>
+              <Button onClick={() => setShowPasskeyModal(true)}><Plus className="h-4 w-4 mr-2" />Add Passkey</Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {passkeys.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed border-border rounded-xl">
+                <Key className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-2">No passkeys registered yet</p>
+                <p className="text-sm text-muted-foreground">Add a passkey for faster, more secure authentication</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {passkeys.map((passkey) => (
+                  <div key={passkey.id} className="flex items-center justify-between p-4 rounded-xl border border-border bg-card/50 hover:border-primary/30 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                        <Key className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{passkey.name}</h3>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                          <span>Created: {new Date(passkey.created_at).toLocaleDateString()}</span>
+                          {passkey.last_used_at && <span>Last used: {new Date(passkey.last_used_at).toLocaleDateString()}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <Button variant="destructive" size="sm" onClick={() => handleDeletePasskey(passkey.id, passkey.name)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Alert className="mt-6">
+              <Lightbulb className="h-4 w-4" />
+              <AlertDescription>
+                <h3 className="font-semibold mb-1">What are passkeys?</h3>
+                <p className="text-sm text-muted-foreground">
+                  Passkeys are a secure, passwordless authentication method that uses your device's biometric authentication (fingerprint, face recognition) or PIN. They're more secure than passwords and easier to use.
+                </p>
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+
+        <Dialog open={showPasskeyModal} onOpenChange={setShowPasskeyModal}>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle>Add New Passkey</DialogTitle>
+              <DialogDescription>Give your passkey a memorable name to identify this device.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handlePasskeyModalSubmit}>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="passkeyName">Passkey Name</Label>
+                  <Input id="passkeyName" type="text" value={passkeyName} onChange={(e) => setPasskeyName(e.target.value)} placeholder='e.g., "My Phone", "YubiKey"' className="bg-background/50" />
                 </div>
                 <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPasskeyModal(false);
-                      setPasskeyName('');
-                    }}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    Continue
-                  </button>
+                  <Button type="button" variant="secondary" className="flex-1" onClick={() => { setShowPasskeyModal(false); setPasskeyName(''); }}>Cancel</Button>
+                  <Button type="submit" className="flex-1">Continue</Button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
 }
 
-export const Route = createFileRoute('/settings')({
-  component: SettingsPage,
-});
+export const Route = createFileRoute('/settings')({ component: SettingsPage });

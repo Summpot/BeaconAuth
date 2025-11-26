@@ -1,38 +1,45 @@
-/**
- * API utility for handling authenticated requests with automatic token refresh
- * Optimized for use with TanStack Query
- */
+import { ofetch, type FetchOptions, type FetchRequest, type FetchResponse } from 'ofetch';
 
-let isRefreshing = false;
+declare module 'ofetch' {
+  interface FetchOptions {
+    /**
+     * Whether the request should trigger the 401 refresh flow.
+     * Defaults to true.
+     */
+    requiresAuth?: boolean;
+    /**
+     * Internal flag to prevent infinite retry loops.
+     */
+    isRetry?: boolean;
+  }
+}
+
+const baseFetch = ofetch.create({
+  credentials: 'include',
+  retry: 0,
+  ignoreResponseError: true,
+});
+
 let refreshPromise: Promise<boolean> | null = null;
 
-/**
- * Attempt to refresh the access token using the refresh token
- * @returns true if refresh was successful, false otherwise
- */
 async function refreshAccessToken(): Promise<boolean> {
-  // If already refreshing, wait for that promise
-  if (isRefreshing && refreshPromise) {
+  if (refreshPromise) {
     return refreshPromise;
   }
 
-  isRefreshing = true;
   refreshPromise = (async () => {
     try {
-      const response = await fetch('/api/v1/refresh', {
+      const response = await baseFetch.raw('/api/v1/refresh', {
         method: 'POST',
-        credentials: 'include',
+        requiresAuth: false,
+        ignoreResponseError: true,
       });
 
-      if (response.ok) {
-        return true;
-      }
-      return false;
+      return response.status === 200;
     } catch (error) {
       console.error('Token refresh failed:', error);
       return false;
     } finally {
-      isRefreshing = false;
       refreshPromise = null;
     }
   })();
@@ -40,9 +47,6 @@ async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
-/**
- * Custom error class for API errors
- */
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -54,84 +58,68 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Fetch wrapper that automatically handles 401 responses by refreshing tokens
- * If refresh fails, redirects to login page
- * 
- * @param url - The URL to fetch
- * @param options - Fetch options (will automatically add credentials: 'include')
- * @returns Response object
- * @throws Error if the request fails after token refresh
- */
-export async function fetchWithAuth(
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  // Always include credentials for authenticated requests
-  const fetchOptions: RequestInit = {
-    ...options,
-    credentials: 'include',
-  };
-
-  // Make the initial request
-  let response = await fetch(url, fetchOptions);
-
-  // If we get 401 Unauthorized, try to refresh the token
-  if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-
-    if (refreshed) {
-      // Retry the original request with new tokens
-      response = await fetch(url, fetchOptions);
-      
-      // If still 401 after refresh, redirect to login
-      if (response.status === 401) {
-        redirectToLogin();
-      }
-    } else {
-      // Refresh failed, redirect to login
-      redirectToLogin();
-    }
-  }
-
-  return response;
-}
-
-/**
- * Redirect to login page
- * This clears the session and sends user back to login
- */
-function redirectToLogin(): void {
-  // Redirect to login page
+function redirectToLogin(): never {
   window.location.href = '/login';
+  throw new ApiError(401, 'Redirecting to login');
 }
 
-/**
- * Type-safe JSON fetch with automatic auth handling
- * Throws ApiError for better error handling in TanStack Query
- */
-export async function fetchJsonWithAuth<T = unknown>(
-  url: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const response = await fetchWithAuth(url, options);
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new ApiError(
-      response.status,
-      errorData.message || `Request failed with status ${response.status}`,
-      errorData
-    );
-  }
-  
-  return response.json();
+function createApiClient() {
+  const client = baseFetch.create({
+    async onResponse(context) {
+      const { response, request, options } = context;
+
+      if (!response) {
+        return;
+      }
+
+      const requiresAuth = options?.requiresAuth !== false;
+
+      if (response.status === 401 && requiresAuth) {
+        if (options?.isRetry) {
+          redirectToLogin();
+        }
+
+        const refreshed = await refreshAccessToken();
+
+        if (refreshed) {
+          const retryResponse = await client.raw(request as FetchRequest, {
+            ...(options as FetchOptions),
+            isRetry: true,
+          });
+
+          context.response = retryResponse;
+        } else {
+          redirectToLogin();
+        }
+      }
+
+      if (context.response && context.response.status >= 400) {
+        const data =
+          (context.response as FetchResponse<unknown> & { _data?: unknown })
+            ._data ??
+          (await context.response
+            .clone()
+            .json()
+            .catch(() => undefined));
+
+        throw new ApiError(
+          context.response.status,
+          (data as { message?: string } | undefined)?.message ??
+            `Request failed with status ${context.response.status}`,
+          data
+        );
+      }
+    },
+    async onRequestError({ error }) {
+      throw new ApiError(0, error?.message ?? 'Network request failed');
+    },
+  });
+
+  return client;
 }
 
-/**
- * Query key factory for consistent cache keys
- * Use this with TanStack Query to ensure proper cache management
- */
+export const apiClient = createApiClient();
+
 export const queryKeys = {
   user: () => ['user'] as const,
   userMe: () => [...queryKeys.user(), 'me'] as const,
