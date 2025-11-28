@@ -111,6 +111,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
+      - name: Install OpenSSL
+        run: apt-get install pkg-config libssl-dev
+
       - name: Build workspace
         env:
           RUSTC_WRAPPER: sccache
