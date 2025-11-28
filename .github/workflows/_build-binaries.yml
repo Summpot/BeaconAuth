@@ -120,7 +120,7 @@ jobs:
 
       - name: Run vcpkg
         run: |
-          vcpkg install
+          vcpkg install openssl --triplet=${{ matrix.vcpkg_target_triplet }}
 
       - name: Build workspace
         env:
