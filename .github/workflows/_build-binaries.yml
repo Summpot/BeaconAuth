@@ -113,7 +113,7 @@ jobs:
 
       - name: Install OpenSSL
         if: runner.os == 'Linux'
-        run: apt-get install pkg-config libssl-dev
+        run: sudo apt-get install pkg-config libssl-dev
 
       - name: Build workspace
         env:
