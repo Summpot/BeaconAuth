@@ -116,11 +116,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.apt_packages }}
 
-      - name: Install OpenSSL via vcpkg
-        run: |
-          vcpkg install openssl:x64-windows-static-md
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
-
       - name: Build workspace
         env:
           RUSTC_WRAPPER: sccache
