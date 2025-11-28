@@ -43,13 +43,13 @@ jobs:
             arch: arm64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            vcpkg_target_triplet: x64-linux
+            vcpkg_target_triplet: x64-linux-musl
             artifact_name: beaconauth-linux-amd64-musl
             artifact_ext: tar.gz
             arch: amd64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-musl
-            vcpkg_target_triplet: arm64-linux
+            vcpkg_target_triplet: arm64-linux-musl
             artifact_name: beaconauth-linux-arm64-musl
             artifact_ext: tar.gz
             arch: arm64
@@ -118,9 +118,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
-      - name: Run vcpkg
+      - name: Run vcpkg and export OPENSSL_DIR
+        shell: pwsh
         run: |
           vcpkg install openssl --triplet=${{ matrix.vcpkg_target_triplet }}
+          $opensslDir = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\${{ matrix.vcpkg_target_triplet }}"
+          Write-Host "Setting OPENSSL_DIR=$opensslDir"
+          Add-Content -Path $env:GITHUB_ENV -Value "OPENSSL_DIR=$opensslDir"
+          
 
       - name: Build workspace
         env:
