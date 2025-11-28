@@ -112,6 +112,7 @@ jobs:
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
       - name: Install OpenSSL
+        if: runner.os == 'Linux'
         run: apt-get install pkg-config libssl-dev
 
       - name: Build workspace
