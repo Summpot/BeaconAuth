@@ -16,6 +16,10 @@ pub struct RegisterPayload {
 pub struct LoginPayload {
     pub username: String,
     pub password: String,
+    #[serde(default)]
+    pub challenge: String,
+    #[serde(default)]
+    pub redirect_port: u16,
 }
 
 /// Response for successful login
