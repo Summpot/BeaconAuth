@@ -87,6 +87,9 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 10
+      
+      - name: Setup pwsh
+        uses: milliewalky/setup-pwsh@v1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -108,7 +111,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@main
+        uses: Summpot/sccache-action@main
         with:
           disable_annotations: true
 
