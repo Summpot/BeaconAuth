@@ -1,8 +1,3 @@
-# syntax=docker/dockerfile:1.4
-# BeaconAuth Server - Runtime Docker Image
-# This Dockerfile uses pre-built musl binaries from the CI/CD pipeline.
-# Binaries should be placed in the binaries/ directory before building.
-
 FROM alpine:latest
 
 ARG TARGETARCH

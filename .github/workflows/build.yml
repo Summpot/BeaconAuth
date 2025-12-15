@@ -246,3 +246,51 @@ jobs:
           platforms: linux/arm64
           build-args: |
             TARGETARCH=arm64
+
+  build-docker-manifest:
+    name: Create Docker Multi-arch Manifest (debug)
+    runs-on: ubuntu-latest
+    needs: [build-docker-amd64, build-docker-arm64]
+    permissions:
+      contents: read
+      packages: write
+    # Only publish manifests on non-PR events (push/workflow_dispatch). PR builds should not mutate registry tags.
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifests
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+
+          # Branch-scoped multi-arch debug tag (e.g., main-debug, develop-debug)
+          docker buildx imagetools create -t "${IMAGE}:${REF_NAME}-debug" \
+            "${IMAGE}:${REF_NAME}-debug-amd64" \
+            "${IMAGE}:${REF_NAME}-debug-arm64"
+
+          # Default-branch convenience tags
+          if [ "${REF_NAME}" = "${DEFAULT_BRANCH}" ]; then
+            docker buildx imagetools create -t "${IMAGE}:latest-debug" \
+              "${IMAGE}:latest-debug-amd64" \
+              "${IMAGE}:latest-debug-arm64"
+
+            # Ensure a plain `latest` tag exists even without a semver release.
+            # Release workflow will later overwrite `latest` to point at the newest release.
+            docker buildx imagetools create -t "${IMAGE}:latest" \
+              "${IMAGE}:latest-debug-amd64" \
+              "${IMAGE}:latest-debug-arm64"
+          fi
