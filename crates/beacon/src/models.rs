@@ -60,13 +60,22 @@ pub struct OAuthCallbackQuery {
     pub state: String,
 }
 
-/// OAuth state stored temporarily
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OAuthState {
+/// OAuth state encoded into the `state` parameter as a signed JWT.
+///
+/// This avoids server-side in-memory storage so OAuth works behind load balancers
+/// and in multi-instance deployments.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OAuthStateClaims {
+    pub iss: String,
+    pub sub: String,
+    pub aud: String,
+    pub exp: i64,
+    pub iat: i64,
+    pub token_type: String,
+
     pub provider: String,
     pub challenge: Option<String>,
     pub redirect_port: Option<u16>,
-    pub state_token: String,
 }
 
 /// JWT Claims structure

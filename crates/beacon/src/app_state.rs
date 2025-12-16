@@ -1,12 +1,9 @@
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use sea_orm::DatabaseConnection;
-use std::collections::HashMap;
 use std::sync::Arc;
 use webauthn_rs::Webauthn;
 use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration};
 use moka::sync::Cache;
-
-use crate::models::OAuthState;
 
 /// Shared application state
 pub struct AppState {
@@ -22,6 +19,9 @@ pub struct AppState {
     /// Pre-generated JWKS JSON string containing the public key (EC P-256)
     pub jwks_json: String,
 
+    /// JWT Key ID (kid) used in JWT headers and JWKS selection
+    pub jwt_kid: String,
+
     /// JWT expiration time in seconds (for Minecraft JWT)
     pub jwt_expiration: i64,
 
@@ -33,9 +33,6 @@ pub struct AppState {
 
     /// OAuth configuration
     pub oauth_config: OAuthConfig,
-
-    /// Temporary OAuth state storage (state_token -> OAuthState)
-    pub oauth_states: Arc<tokio::sync::RwLock<HashMap<String, OAuthState>>>,
 
     /// WebAuthn instance for passkey operations
     pub webauthn: Arc<Webauthn>,

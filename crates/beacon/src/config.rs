@@ -112,6 +112,24 @@ pub struct ServeConfig {
         default_value = "http://localhost:8080"
     )]
     pub base_url: String,
+
+    /// Optional ES256 (P-256) private key in PKCS#8 DER format, encoded as base64.
+    ///
+    /// When set, JWT signing keys become stable across restarts and multiple instances.
+    /// Accepts standard base64 or base64url (no padding).
+    #[arg(long, env = "JWT_PRIVATE_KEY_DER_B64")]
+    pub jwt_private_key_der_b64: Option<String>,
+
+    /// Optional JWKS URL to mirror at `/.well-known/jwks.json`.
+    ///
+    /// Intended for distributed deployments where a single, shared JWKS must be served.
+    /// If set, the configured local signing key must match the selected remote JWKS public key.
+    #[arg(long, env = "JWKS_URL")]
+    pub jwks_url: Option<String>,
+
+    /// JWT Key ID (kid) used in JWT headers and for selecting a key in remote JWKS.
+    #[arg(long, env = "JWT_KID", default_value = "beacon-auth-key-1")]
+    pub jwt_kid: String,
 }
 
 impl ServeConfig {

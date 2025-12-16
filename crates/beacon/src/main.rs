@@ -11,7 +11,7 @@ use sea_orm::{ColumnTrait, Database, EntityTrait, QueryFilter, Set};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv()?;
+    dotenvy::dotenv().ok();
 
     // Parse CLI arguments
     let config = Config::parse();

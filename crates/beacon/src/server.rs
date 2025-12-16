@@ -7,7 +7,6 @@ use actix_cors::Cors;
 use actix_web::{middleware, web, App, HttpServer};
 use migration::MigratorTrait;
 use sea_orm::Database;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -29,13 +28,146 @@ use rust_embed::RustEmbed;
 #[folder = "../../dist/"] // Path relative to crates/auth_server/Cargo.toml
 struct Assets;
 
-pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
-    log::info!("Starting BeaconAuth API Server...");
+#[cfg(debug_assertions)]
+async fn serve_index_html() -> std::io::Result<actix_files::NamedFile> {
+    actix_files::NamedFile::open_async("./dist/index.html").await
+}
 
-    // 1. Generate ES256 (ECDSA P-256) keypair
-    log::info!("Generating ECDSA P-256 keypair...");
-    let (encoding_key, decoding_key, jwks_json) = crypto::generate_ecdsa_keypair()?;
-    log::info!("JWKS generated successfully");
+#[cfg(not(debug_assertions))]
+async fn serve_embedded_assets(req: actix_web::HttpRequest) -> actix_web::HttpResponse {
+    let path = req.path().trim_start_matches('/');
+    let path = if path.is_empty() { "index.html" } else { path };
+
+    if let Some(content) = Assets::get(path) {
+        let mime_type = mime_guess::from_path(path).first_or_octet_stream();
+        actix_web::HttpResponse::Ok()
+            .content_type(mime_type.as_ref())
+            .body(content.data.into_owned())
+    } else {
+        if let Some(content) = Assets::get("index.html") {
+            actix_web::HttpResponse::Ok()
+                .content_type("text/html")
+                .body(content.data.into_owned())
+        } else {
+            actix_web::HttpResponse::NotFound().body("404 Not Found")
+        }
+    }
+}
+
+pub fn build_api_routes() -> actix_web::Scope {
+    web::scope("/api/v1")
+        .route("/config", web::get().to(handlers::get_config))
+        .route("/login", web::post().to(handlers::login))
+        .route("/register", web::post().to(handlers::register))
+        .route("/logout", web::post().to(handlers::user::logout))
+        .route("/oauth/start", web::post().to(handlers::oauth_start))
+        .route("/oauth/callback", web::get().to(handlers::oauth_callback))
+        .route("/refresh", web::post().to(handlers::refresh_token))
+        .route("/minecraft-jwt", web::post().to(handlers::get_minecraft_jwt))
+        .route("/user/me", web::get().to(handlers::user::get_user_info))
+        .route(
+            "/user/change-password",
+            web::post().to(handlers::user::change_password),
+        )
+        .route(
+            "/passkey/register/start",
+            web::post().to(handlers::passkey::register_start),
+        )
+        .route(
+            "/passkey/register/finish",
+            web::post().to(handlers::passkey::register_finish),
+        )
+        .route("/passkey/auth/start", web::post().to(handlers::passkey::auth_start))
+        .route(
+            "/passkey/auth/finish",
+            web::post().to(handlers::passkey::auth_finish),
+        )
+        .route("/passkey/list", web::get().to(handlers::passkey::list_passkeys))
+        .route(
+            "/passkey/delete",
+            web::post().to(handlers::passkey::delete_passkey),
+        )
+}
+
+pub fn build_jwks_routes() -> actix_web::Scope {
+    web::scope("/.well-known").route("/jwks.json", web::get().to(handlers::get_jwks))
+}
+
+fn build_cors(cors_origins: &[String]) -> Cors {
+    let mut cors = Cors::default()
+        .allowed_methods(vec!["GET", "POST", "OPTIONS"])
+        .allowed_headers(vec![
+            actix_web::http::header::AUTHORIZATION,
+            actix_web::http::header::ACCEPT,
+            actix_web::http::header::CONTENT_TYPE,
+        ])
+        .max_age(3600);
+
+    for origin in cors_origins {
+        cors = cors.allowed_origin(origin);
+    }
+
+    cors
+}
+
+async fn init_jwt_material(
+    config: &ServeConfig,
+) -> anyhow::Result<(jsonwebtoken::EncodingKey, jsonwebtoken::DecodingKey, String)> {
+    let (encoding_key, local_decoding_key, local_jwks_json) = if let Some(b64) =
+        &config.jwt_private_key_der_b64
+    {
+        let der = crypto::decode_pkcs8_der_b64(b64)?;
+        crypto::ecdsa_keypair_from_pkcs8_der(&der, &config.jwt_kid)?
+    } else {
+        crypto::generate_ecdsa_keypair(&config.jwt_kid)?
+    };
+
+    if let Some(jwks_url) = &config.jwks_url {
+        if config.jwt_private_key_der_b64.is_none() {
+            anyhow::bail!(
+                "JWKS_URL requires JWT_PRIVATE_KEY_DER_B64 so this instance signs tokens with the same key served by the shared JWKS"
+            );
+        }
+
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()?;
+
+        let remote_jwks_json = client
+            .get(jwks_url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+
+        let (remote_decoding_key, selected_kid, remote_x, remote_y) =
+            crypto::decoding_key_from_jwks_json(&remote_jwks_json, Some(&config.jwt_kid))?;
+        let (local_x, local_y) =
+            crypto::ec_components_from_jwks_json(&local_jwks_json, Some(&config.jwt_kid))?;
+
+        if remote_x != local_x || remote_y != local_y {
+            anyhow::bail!(
+                "Remote JWKS key (kid='{selected_kid}') does not match the local signing key. Ensure all instances share the same JWT_PRIVATE_KEY_DER_B64 or point JWKS_URL to the matching key server."
+            );
+        }
+
+        Ok((encoding_key, remote_decoding_key, remote_jwks_json))
+    } else {
+        Ok((encoding_key, local_decoding_key, local_jwks_json))
+    }
+}
+
+/// Build shared application state (DB, migrations, JWT keys, WebAuthn, caches).
+///
+/// This is intentionally split out so alternative entrypoints (e.g., serverless) can reuse it.
+pub async fn build_app_state(config: &ServeConfig) -> anyhow::Result<web::Data<AppState>> {
+    log::info!("Starting BeaconAuth API Server initialization...");
+
+    // 1. JWT key material / JWKS
+    log::info!("Initializing ES256 key material...");
+    let (encoding_key, decoding_key, jwks_json) = init_jwt_material(config).await?;
+    log::info!("JWT/JWKS initialized successfully");
 
     // 2. Connect to database
     log::info!("Connecting to database: {}", config.database_url);
@@ -75,33 +207,38 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
         .max_capacity(10_000)
         .time_to_live(Duration::from_secs(5 * 60))
         .build();
-    
+
     let passkey_auth_cache = Cache::builder()
         .max_capacity(10_000)
         .time_to_live(Duration::from_secs(5 * 60))
         .build();
-    
+
     log::info!("Passkey state caches initialized with 5-minute TTL");
 
-    // 6. Create AppState
-    let app_state = web::Data::new(AppState {
+    Ok(web::Data::new(AppState {
         db: db.clone(),
         encoding_key,
         decoding_key,
         jwks_json,
+        jwt_kid: config.jwt_kid.clone(),
         jwt_expiration: config.jwt_expiration,
-        access_token_expiration: 900,  // 15 minutes
-        refresh_token_expiration: 2592000, // 30 days
+        access_token_expiration: 900, // 15 minutes
+        refresh_token_expiration: 2_592_000, // 30 days
         oauth_config,
-        oauth_states: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         webauthn,
         passkey_reg_states: passkey_reg_cache,
         passkey_auth_states: passkey_auth_cache,
-    });
+    }))
+}
+
+pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
+    log::info!("Starting BeaconAuth API Server...");
+
+    let app_state = build_app_state(&config).await?;
 
     // 5. Start control listener (Unix Domain Socket on Unix, Named Pipe on Windows)
     let control_socket = config.control_socket.clone();
-    let control_db = db.clone();
+    let control_db = app_state.db.clone();
 
     tokio::spawn(async move {
         if let Err(e) = run_control_listener(control_socket, control_db).await {
@@ -127,52 +264,14 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
     let cors_origins = config.cors_origin_list();
 
     HttpServer::new(move || {
-        // Configure CORS
-        let mut cors = Cors::default()
-            .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-            .allowed_headers(vec![
-                actix_web::http::header::AUTHORIZATION,
-                actix_web::http::header::ACCEPT,
-                actix_web::http::header::CONTENT_TYPE,
-            ])
-            .max_age(3600);
-
-        // Add all configured origins
-        for origin in &cors_origins {
-            cors = cors.allowed_origin(origin);
-        }
-
-        // Define API routes
-        let api_routes = web::scope("/api/v1")
-            .route("/config", web::get().to(handlers::get_config))
-            .route("/login", web::post().to(handlers::login))
-            .route("/register", web::post().to(handlers::register))
-            .route("/logout", web::post().to(handlers::user::logout))
-            .route("/oauth/start", web::post().to(handlers::oauth_start))
-            .route("/oauth/callback", web::get().to(handlers::oauth_callback))
-            .route("/refresh", web::post().to(handlers::refresh_token))
-            .route("/minecraft-jwt", web::post().to(handlers::get_minecraft_jwt))
-            .route("/user/me", web::get().to(handlers::user::get_user_info))
-            .route("/user/change-password", web::post().to(handlers::user::change_password))
-            .route("/passkey/register/start", web::post().to(handlers::passkey::register_start))
-            .route("/passkey/register/finish", web::post().to(handlers::passkey::register_finish))
-            .route("/passkey/auth/start", web::post().to(handlers::passkey::auth_start))
-            .route("/passkey/auth/finish", web::post().to(handlers::passkey::auth_finish))
-            .route("/passkey/list", web::get().to(handlers::passkey::list_passkeys))
-            .route("/passkey/delete", web::post().to(handlers::passkey::delete_passkey));
-
-        let jwks_route =
-            web::scope("/.well-known").route("/jwks.json", web::get().to(handlers::get_jwks));
+        let cors = build_cors(&cors_origins);
+        let api_routes = build_api_routes();
+        let jwks_route = build_jwks_routes();
 
         #[cfg(debug_assertions)]
         {
             // ***** DEBUG MODE *****
             // Serve from filesystem, allows hot-reloading
-
-            // SPA fallback function
-            async fn serve_index_html() -> std::io::Result<actix_files::NamedFile> {
-                actix_files::NamedFile::open_async("./dist/index.html").await
-            }
 
             App::new()
                 .app_data(app_state.clone())
@@ -195,30 +294,6 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
         {
             // ***** RELEASE MODE *****
             // Serve from embedded memory
-            use actix_web::{HttpRequest, HttpResponse};
-
-            // Handle static files and SPA fallback
-            async fn serve_embedded_assets(req: HttpRequest) -> HttpResponse {
-                let path = req.path().trim_start_matches('/');
-                let path = if path.is_empty() { "index.html" } else { path };
-
-                // Try to get the requested file
-                if let Some(content) = Assets::get(path) {
-                    let mime_type = mime_guess::from_path(path).first_or_octet_stream();
-                    HttpResponse::Ok()
-                        .content_type(mime_type.as_ref())
-                        .body(content.data.into_owned())
-                } else {
-                    // Fallback to index.html (for SPA routing)
-                    if let Some(content) = Assets::get("index.html") {
-                        HttpResponse::Ok()
-                            .content_type("text/html")
-                            .body(content.data.into_owned())
-                    } else {
-                        HttpResponse::NotFound().body("404 Not Found")
-                    }
-                }
-            }
 
             App::new()
                 .app_data(app_state.clone())
@@ -391,6 +466,9 @@ mod tests {
             google_client_id: None,
             google_client_secret: None,
             base_url: "http://localhost:8080".to_string(),
+            jwt_private_key_der_b64: None,
+            jwks_url: None,
+            jwt_kid: "beacon-auth-key-1".to_string(),
         };
 
         let origins = config.cors_origin_list();

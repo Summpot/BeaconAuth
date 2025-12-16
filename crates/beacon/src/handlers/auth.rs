@@ -25,7 +25,7 @@ fn generate_jwt<T: serde::Serialize>(
     claims: &T,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let mut header = Header::new(jsonwebtoken::Algorithm::ES256);
-    header.kid = Some("beacon-auth-key-1".to_string());
+    header.kid = Some(app_state.jwt_kid.clone());
     encode(&header, claims, &app_state.encoding_key)
 }
 

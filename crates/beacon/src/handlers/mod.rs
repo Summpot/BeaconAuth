@@ -17,7 +17,7 @@ use crate::{
     app_state::AppState,
     models::{
         ConfigResponse, ErrorResponse, LoginPayload, OAuthCallbackQuery,
-        OAuthStartPayload, OAuthStartResponse, OAuthState, RegisterPayload,
+        OAuthStartPayload, OAuthStartResponse, OAuthStateClaims, RegisterPayload,
     },
 };
 
@@ -230,21 +230,44 @@ pub async fn oauth_start(
 ) -> impl Responder {
     log::info!("OAuth start request for provider: {}", payload.provider);
 
-    // Generate state token
-    let state_token = Uuid::new_v4().to_string();
+    // Stateless OAuth state: encode as a signed JWT so callbacks work across instances.
+    let now = Utc::now();
+    let exp = now + chrono::Duration::minutes(10);
+    let state_id = Uuid::new_v4().to_string();
 
-    // Store OAuth state with optional challenge and redirect_port
-    let oauth_state = OAuthState {
+    let claims = OAuthStateClaims {
+        iss: app_state.oauth_config.redirect_base.clone(),
+        sub: state_id,
+        aud: "beaconauth-oauth".to_string(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        token_type: "oauth_state".to_string(),
         provider: payload.provider.clone(),
-        challenge: if payload.challenge.is_empty() { None } else { Some(payload.challenge.clone()) },
-        redirect_port: if payload.redirect_port == 0 { None } else { Some(payload.redirect_port) },
-        state_token: state_token.clone(),
+        challenge: if payload.challenge.is_empty() {
+            None
+        } else {
+            Some(payload.challenge.clone())
+        },
+        redirect_port: if payload.redirect_port == 0 {
+            None
+        } else {
+            Some(payload.redirect_port)
+        },
     };
 
-    {
-        let mut states = app_state.oauth_states.write().await;
-        states.insert(state_token.clone(), oauth_state);
-    }
+    let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
+    header.kid = Some(app_state.jwt_kid.clone());
+
+    let state_token = match jsonwebtoken::encode(&header, &claims, &app_state.encoding_key) {
+        Ok(t) => t,
+        Err(e) => {
+            log::error!("Failed to encode OAuth state JWT: {e}");
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Failed to start OAuth flow".to_string(),
+            });
+        }
+    };
 
     // Build authorization URL based on provider
     let authorization_url = match payload.provider.as_str() {
@@ -261,7 +284,7 @@ pub async fn oauth_start(
                     "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&scope=read:user user:email&state={}",
                     client_id,
                     urlencoding::encode(&redirect_uri),
-                    state_token
+                    urlencoding::encode(&state_token)
                 )
             } else {
                 log::error!("GitHub OAuth not configured");
@@ -284,7 +307,7 @@ pub async fn oauth_start(
                     "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope=openid email profile&state={}",
                     client_id,
                     urlencoding::encode(&redirect_uri),
-                    state_token
+                    urlencoding::encode(&state_token)
                 )
             } else {
                 log::error!("Google OAuth not configured");
@@ -318,19 +341,28 @@ pub async fn oauth_callback(
 ) -> impl Responder {
     log::info!("OAuth callback received with state: {}", query.state);
 
-    // 1. Retrieve OAuth state
-    let oauth_state = {
-        let mut states = app_state.oauth_states.write().await;
-        states.remove(&query.state)
-    };
+    // 1. Validate and decode stateless OAuth state
+    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::ES256);
+    validation.set_issuer(&[&app_state.oauth_config.redirect_base]);
+    validation.set_audience(&["beaconauth-oauth"]);
+    validation.validate_exp = true;
 
-    let oauth_state = match oauth_state {
-        Some(state) => state,
-        None => {
-            log::error!("Invalid or expired OAuth state: {}", query.state);
+    let oauth_state = match jsonwebtoken::decode::<OAuthStateClaims>(
+        &query.state,
+        &app_state.decoding_key,
+        &validation,
+    ) {
+        Ok(data) => data.claims,
+        Err(e) => {
+            log::error!("Invalid OAuth state token: {:?}", e);
             return HttpResponse::BadRequest().body("Invalid or expired OAuth state");
         }
     };
+
+    if oauth_state.token_type != "oauth_state" {
+        log::error!("Invalid OAuth state token_type: {}", oauth_state.token_type);
+        return HttpResponse::BadRequest().body("Invalid OAuth state");
+    }
 
     // 2. Exchange code for access token and get user info
     let (user_id, username) = match oauth_state.provider.as_str() {
