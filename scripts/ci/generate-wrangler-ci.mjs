@@ -2,9 +2,35 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-function runJson(cmd, args) {
+function execJson(cmd, args) {
   const out = execFileSync(cmd, args, { encoding: 'utf8' });
   return JSON.parse(out);
+}
+
+function execWranglerJson(args) {
+  // In cloudflare/wrangler-action, Wrangler is often invoked via `pnpm exec wrangler ...`
+  // and the `wrangler` binary may not be on PATH during preCommands.
+  const candidates = [
+    { cmd: 'wrangler', args },
+    { cmd: 'pnpm', args: ['exec', 'wrangler', ...args] },
+  ];
+
+  let lastErr;
+  for (const c of candidates) {
+    try {
+      return execJson(c.cmd, c.args);
+    } catch (e) {
+      // Only fall back on ENOENT (command not found). For other errors, surface them.
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'ENOENT') {
+        lastErr = e;
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  console.error("Wrangler command not found. Tried: 'wrangler' and 'pnpm exec wrangler'.");
+  throw lastErr ?? new Error('Wrangler not found');
 }
 
 function asArray(data) {
@@ -27,7 +53,7 @@ let d1Id = d1IdFromEnv;
 if (!d1Id) {
   let list;
   try {
-    list = runJson('wrangler', ['d1', 'list', '--json']);
+    list = execWranglerJson(['d1', 'list', '--json']);
   } catch (e) {
     console.error("Failed to run 'wrangler d1 list --json'. Is Wrangler authenticated and available?");
     throw e;
@@ -42,9 +68,17 @@ if (!d1Id) {
 
   if (!d1Id) {
     console.log(`D1 database '${d1Name}' not found; creating it...`);
-    execFileSync('wrangler', ['d1', 'create', d1Name], { stdio: 'inherit' });
+    try {
+      execFileSync('wrangler', ['d1', 'create', d1Name], { stdio: 'inherit' });
+    } catch (e) {
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'ENOENT') {
+        execFileSync('pnpm', ['exec', 'wrangler', 'd1', 'create', d1Name], { stdio: 'inherit' });
+      } else {
+        throw e;
+      }
+    }
 
-    const list2 = runJson('wrangler', ['d1', 'list', '--json']);
+    const list2 = execWranglerJson(['d1', 'list', '--json']);
     for (const it of asArray(list2)) {
       if (it?.name === d1Name) {
         d1Id = getD1Id(it);
