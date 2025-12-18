@@ -62,7 +62,8 @@ jobs:
           workingDirectory: crates/beacon-worker
           command: deploy --config wrangler.ci.toml
           preCommands: |
-            set -euo pipefail
+            # NOTE: preCommands runs under /bin/sh in wrangler-action; 'pipefail' is not POSIX.
+            set -eu
 
             echo "==> Installing worker-build (if needed)"
             cargo install worker-build --locked
@@ -143,11 +144,14 @@ jobs:
 
             echo "==> Syncing Worker secrets (optional)"
             put_secret() {
-              local name="$1"
-              local value="$2"
+              name="$1"
+              value="$2"
               if [ -n "$value" ]; then
                 echo "Setting secret: $name"
-                printf %s "$value" | wrangler secret put "$name" --config wrangler.ci.toml
+                tmpfile="$(mktemp)"
+                printf %s "$value" > "$tmpfile"
+                wrangler secret put "$name" --config wrangler.ci.toml < "$tmpfile"
+                rm -f "$tmpfile"
               else
                 echo "Skipping secret (not provided): $name"
               fi
@@ -199,5 +203,43 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          preCommands: |
+            # NOTE: preCommands runs under /bin/sh in wrangler-action; 'pipefail' is not POSIX.
+            set -eu
+
+            echo "==> Ensuring Cloudflare Pages project exists: ${PAGES_PROJECT_NAME}"
+            node - <<'NODE'
+            const { execFileSync } = require('node:child_process');
+
+            const projectName = (process.env.PAGES_PROJECT_NAME || '').trim();
+            if (!projectName) {
+              console.error('PAGES_PROJECT_NAME is not set');
+              process.exit(2);
+            }
+
+            function runJson(cmd, args) {
+              const out = execFileSync(cmd, args, { encoding: 'utf8' });
+              return JSON.parse(out);
+            }
+
+            let projects;
+            try {
+              projects = runJson('wrangler', ['pages', 'project', 'list', '--json']);
+            } catch (e) {
+              console.error('Failed to list Pages projects via wrangler.');
+              throw e;
+            }
+
+            const exists = Array.isArray(projects) && projects.some(p => p && p.name === projectName);
+            if (!exists) {
+              console.log(`Creating Pages project '${projectName}' (production branch: main)...`);
+              execFileSync('wrangler', ['pages', 'project', 'create', projectName, '--production-branch', 'main'], { stdio: 'inherit' });
+            } else {
+              console.log(`Pages project '${projectName}' already exists.`);
+            }
+            NODE
+
           # Non-sensitive; defaults to 'beaconauth' if not set.
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'beaconauth' }} --branch main
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'beaconauth' }} --branch main --commit-dirty=true
+        env:
+          PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'beaconauth' }}
