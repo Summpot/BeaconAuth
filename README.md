@@ -144,8 +144,11 @@ The recommended production setup is:
 
 The Worker expects a D1 binding named `DB`.
 
-- Create a D1 database named `beacon-auth` (or change `database_name` in `crates/beacon-worker/wrangler.toml`).
-- Apply the initial schema:
+Create a D1 database named `beacon-auth` (or change `database_name` in `crates/beacon-worker/wrangler.toml`).
+
+If you use the GitHub Actions workflow, it can **auto-create** the D1 database (when missing) and apply the schema automatically (see below).
+
+Apply the initial schema:
 
   - Migration SQL: `crates/beacon-worker/migrations/0001_init.sql`
 
@@ -153,7 +156,7 @@ The Worker expects a D1 binding named `DB`.
 
 In `crates/beacon-worker/wrangler.toml`:
 
-- Replace `database_id = "REPLACE_WITH_D1_DATABASE_ID"` with your real D1 database id.
+- Replace `database_id = "REPLACE_WITH_D1_DATABASE_ID"` with your real D1 database id (recommended for local/manual deploys).
 - Set `BASE_URL` to your public site origin (usually your Pages URL), e.g. `https://<project>.pages.dev` or your custom domain.
 
 For production, you should provide a stable ES256 private key so JWKS/JWTs remain valid across deployments:
@@ -182,13 +185,23 @@ Add the following **GitHub Actions secrets**:
 | `CLOUDFLARE_API_TOKEN` | Yes | Wrangler authentication (Workers + Pages) |
 | `CLOUDFLARE_ACCOUNT_ID` | Yes | Target Cloudflare account |
 | `CLOUDFLARE_PAGES_PROJECT_NAME` | Yes | Pages project name |
-| `CLOUDFLARE_WORKER_D1_DATABASE_ID` | Yes | Replaces `REPLACE_WITH_D1_DATABASE_ID` at deploy time |
+| `CLOUDFLARE_WORKER_D1_DATABASE_ID` | One of* | Replaces `REPLACE_WITH_D1_DATABASE_ID` at deploy time |
+| `CLOUDFLARE_WORKER_D1_DATABASE_NAME` | One of* | If `..._D1_DATABASE_ID` is not provided, CI will `wrangler d1 create` this database name (default: `beacon-auth`) |
 | `CLOUDFLARE_WORKER_BASE_URL` | Recommended | Sets `BASE_URL` in the Worker at deploy time |
 | `CLOUDFLARE_WORKER_JWT_PRIVATE_KEY_DER_B64` | Strongly recommended | Stable JWT signing key |
 | `CLOUDFLARE_WORKER_GITHUB_CLIENT_ID` | Optional | GitHub OAuth |
 | `CLOUDFLARE_WORKER_GITHUB_CLIENT_SECRET` | Optional | GitHub OAuth |
 | `CLOUDFLARE_WORKER_GOOGLE_CLIENT_ID` | Optional | Google OAuth |
 | `CLOUDFLARE_WORKER_GOOGLE_CLIENT_SECRET` | Optional | Google OAuth |
+
+\* Provide **at least one** of `CLOUDFLARE_WORKER_D1_DATABASE_ID` or `CLOUDFLARE_WORKER_D1_DATABASE_NAME`.
+
+The workflow uses `cloudflare/wrangler-action@v3` and will:
+
+- build the Worker with `worker-build --release`
+- resolve (or create) the D1 database and generate `wrangler.ci.toml`
+- apply `crates/beacon-worker/migrations/0001_init.sql` (idempotent)
+- deploy the Worker and deploy the frontend to Pages
 
 The workflow runs on pushes to `main` and can also be triggered manually.
 

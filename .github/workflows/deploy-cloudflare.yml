@@ -29,10 +29,6 @@ jobs:
   deploy-worker:
     name: Deploy beacon-worker (Workers)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: crates/beacon-worker
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,76 +54,119 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install Wrangler
-        run: npm i -g wrangler@3
+      - name: Build + migrate + deploy (wrangler-action)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: crates/beacon-worker
+          command: deploy --config wrangler.ci.toml
+          preCommands: |
+            set -euo pipefail
 
-      - name: Install worker-build
-        run: cargo install worker-build --locked
+            echo "==> Installing worker-build (if needed)"
+            cargo install worker-build --locked
 
-      - name: Build worker (Rust -> wasm + shim)
-        run: worker-build --release
+            echo "==> Building worker (Rust -> wasm + shim)"
+            worker-build --release
 
-      - name: Prepare Wrangler config (CI)
+            echo "==> Resolving D1 database id & generating wrangler.ci.toml"
+            python3 - <<'PY'
+            import json
+            import os
+            import re
+            import subprocess
+            from pathlib import Path
+
+            def sh(*args: str) -> str:
+                return subprocess.check_output(list(args), text=True).strip()
+
+            d1_id = (os.environ.get("D1_DATABASE_ID") or "").strip()
+            d1_name = (os.environ.get("D1_DATABASE_NAME") or "beacon-auth").strip()
+            base_url = (os.environ.get("BASE_URL") or "").strip()
+
+            if not d1_id:
+                raw = sh("wrangler", "d1", "list", "--json")
+                try:
+                    items = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    raise SystemExit(f"Failed to parse 'wrangler d1 list --json' output: {e}\n{raw}")
+
+                def get_id(item: dict) -> str | None:
+                    return item.get("uuid") or item.get("id") or item.get("database_id")
+
+                for it in items:
+                    if it.get("name") == d1_name:
+                        d1_id = (get_id(it) or "").strip()
+                        break
+
+                if not d1_id:
+                    print(f"D1 database '{d1_name}' not found; creating it...")
+                    subprocess.check_call(["wrangler", "d1", "create", d1_name])
+
+                    raw2 = sh("wrangler", "d1", "list", "--json")
+                    items2 = json.loads(raw2)
+                    for it in items2:
+                        if it.get("name") == d1_name:
+                            d1_id = (get_id(it) or "").strip()
+                            break
+
+            if not d1_id:
+                raise SystemExit(
+                    "Unable to resolve a D1 database id. Provide secrets.CLOUDFLARE_WORKER_D1_DATABASE_ID "
+                    "or secrets.CLOUDFLARE_WORKER_D1_DATABASE_NAME."
+                )
+
+            src = Path("wrangler.toml")
+            text = src.read_text(encoding="utf-8")
+
+            # Replace placeholder if present.
+            if "REPLACE_WITH_D1_DATABASE_ID" in text:
+                text = text.replace("REPLACE_WITH_D1_DATABASE_ID", d1_id)
+            else:
+                # Otherwise, patch an existing database_id line.
+                text, n = re.subn(r'(?m)^database_id\s*=\s*"[^"]*"\s*$', f'database_id = "{d1_id}"', text)
+                if n == 0:
+                    raise SystemExit("Could not find D1 database_id entry in wrangler.toml")
+
+            # Keep repo defaults unless a BASE_URL secret is provided.
+            if base_url:
+                text = text.replace('BASE_URL = "https://example.com"', f'BASE_URL = "{base_url}"')
+
+            out = Path("wrangler.ci.toml")
+            out.write_text(text, encoding="utf-8")
+            print(f"Wrote {out} (D1 name={d1_name}, id={d1_id})")
+            PY
+
+            echo "==> Applying D1 schema (idempotent)"
+            wrangler d1 execute DB --remote --yes --file migrations/0001_init.sql --config wrangler.ci.toml
+
+            echo "==> Syncing Worker secrets (optional)"
+            put_secret() {
+              local name="$1"
+              local value="$2"
+              if [ -n "$value" ]; then
+                echo "Setting secret: $name"
+                printf %s "$value" | wrangler secret put "$name" --config wrangler.ci.toml
+              else
+                echo "Skipping secret (not provided): $name"
+              fi
+            }
+
+            put_secret JWT_PRIVATE_KEY_DER_B64 "${JWT_PRIVATE_KEY_DER_B64:-}"
+            put_secret GITHUB_CLIENT_ID "${GITHUB_CLIENT_ID:-}"
+            put_secret GITHUB_CLIENT_SECRET "${GITHUB_CLIENT_SECRET:-}"
+            put_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-}"
+            put_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-}"
         env:
           D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_WORKER_D1_DATABASE_ID }}
+          D1_DATABASE_NAME: ${{ secrets.CLOUDFLARE_WORKER_D1_DATABASE_NAME }}
           BASE_URL: ${{ secrets.CLOUDFLARE_WORKER_BASE_URL }}
-        run: |
-          python - <<'PY'
-          import os
-          from pathlib import Path
-
-          src = Path('wrangler.toml')
-          text = src.read_text(encoding='utf-8')
-
-          d1 = (os.environ.get('D1_DATABASE_ID') or '').strip()
-          base_url = (os.environ.get('BASE_URL') or '').strip()
-
-          if d1:
-              text = text.replace('REPLACE_WITH_D1_DATABASE_ID', d1)
-
-          # Keep repo defaults unless a BASE_URL secret is provided.
-          if base_url:
-              text = text.replace('BASE_URL = "https://example.com"', f'BASE_URL = "{base_url}"')
-
-          out = Path('wrangler.ci.toml')
-          out.write_text(text, encoding='utf-8')
-          print(f'Wrote {out}')
-          PY
-
-      - name: Sync Worker secrets (optional)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           JWT_PRIVATE_KEY_DER_B64: ${{ secrets.CLOUDFLARE_WORKER_JWT_PRIVATE_KEY_DER_B64 }}
           GITHUB_CLIENT_ID: ${{ secrets.CLOUDFLARE_WORKER_GITHUB_CLIENT_ID }}
           GITHUB_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_WORKER_GITHUB_CLIENT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.CLOUDFLARE_WORKER_GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_WORKER_GOOGLE_CLIENT_SECRET }}
-        run: |
-          set -euo pipefail
-
-          put_secret() {
-            local name="$1"
-            local value="$2"
-            if [ -n "$value" ]; then
-              echo "Setting secret: $name"
-              printf %s "$value" | wrangler secret put "$name" --config wrangler.ci.toml
-            else
-              echo "Skipping secret (not provided): $name"
-            fi
-          }
-
-          put_secret JWT_PRIVATE_KEY_DER_B64 "${JWT_PRIVATE_KEY_DER_B64:-}"
-          put_secret GITHUB_CLIENT_ID "${GITHUB_CLIENT_ID:-}"
-          put_secret GITHUB_CLIENT_SECRET "${GITHUB_CLIENT_SECRET:-}"
-          put_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-}"
-          put_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-}"
-
-      - name: Deploy to Cloudflare Workers
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: wrangler deploy --config wrangler.ci.toml
 
   deploy-pages:
     name: Deploy frontend (Pages)
@@ -154,22 +193,9 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Install Wrangler
-        run: npm i -g wrangler@3
-
-      - name: Deploy to Cloudflare Pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${CLOUDFLARE_PAGES_PROJECT_NAME:-}" ]; then
-            echo "Missing secret: CLOUDFLARE_PAGES_PROJECT_NAME" >&2
-            exit 1
-          fi
-
-          wrangler pages deploy dist \
-            --project-name "$CLOUDFLARE_PAGES_PROJECT_NAME" \
-            --branch main
+      - name: Deploy to Cloudflare Pages (wrangler-action)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }} --branch main
