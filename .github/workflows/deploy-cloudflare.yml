@@ -72,72 +72,7 @@ jobs:
             worker-build --release
 
             echo "==> Resolving D1 database id & generating wrangler.ci.toml"
-            python3 - <<'PY'
-            import json
-            import os
-            import re
-            import subprocess
-            from pathlib import Path
-
-            def sh(*args: str) -> str:
-                return subprocess.check_output(list(args), text=True).strip()
-
-            d1_id = (os.environ.get("D1_DATABASE_ID") or "").strip()
-            d1_name = (os.environ.get("D1_DATABASE_NAME") or "beaconauth").strip()
-            base_url = (os.environ.get("BASE_URL") or "").strip()
-
-            if not d1_id:
-                raw = sh("wrangler", "d1", "list", "--json")
-                try:
-                    items = json.loads(raw)
-                except json.JSONDecodeError as e:
-                    raise SystemExit(f"Failed to parse 'wrangler d1 list --json' output: {e}\n{raw}")
-
-                def get_id(item: dict) -> str | None:
-                    return item.get("uuid") or item.get("id") or item.get("database_id")
-
-                for it in items:
-                    if it.get("name") == d1_name:
-                        d1_id = (get_id(it) or "").strip()
-                        break
-
-                if not d1_id:
-                    print(f"D1 database '{d1_name}' not found; creating it...")
-                    subprocess.check_call(["wrangler", "d1", "create", d1_name])
-
-                    raw2 = sh("wrangler", "d1", "list", "--json")
-                    items2 = json.loads(raw2)
-                    for it in items2:
-                        if it.get("name") == d1_name:
-                            d1_id = (get_id(it) or "").strip()
-                            break
-
-            if not d1_id:
-                raise SystemExit(
-                "Unable to resolve a D1 database id. Provide secrets.CLOUDFLARE_WORKER_D1_DATABASE_ID "
-                "or set vars.CLOUDFLARE_WORKER_D1_DATABASE_NAME (defaults to 'beaconauth')."
-                )
-
-            src = Path("wrangler.toml")
-            text = src.read_text(encoding="utf-8")
-
-            # Replace placeholder if present.
-            if "REPLACE_WITH_D1_DATABASE_ID" in text:
-                text = text.replace("REPLACE_WITH_D1_DATABASE_ID", d1_id)
-            else:
-                # Otherwise, patch an existing database_id line.
-                text, n = re.subn(r'(?m)^database_id\s*=\s*"[^"]*"\s*$', f'database_id = "{d1_id}"', text)
-                if n == 0:
-                    raise SystemExit("Could not find D1 database_id entry in wrangler.toml")
-
-            # Keep repo defaults unless a BASE_URL secret is provided.
-            if base_url:
-                text = text.replace('BASE_URL = "https://example.com"', f'BASE_URL = "{base_url}"')
-
-            out = Path("wrangler.ci.toml")
-            out.write_text(text, encoding="utf-8")
-            print(f"Wrote {out} (D1 name={d1_name}, id={d1_id})")
-            PY
+            node ../../scripts/ci/generate-wrangler-ci.mjs
 
             echo "==> Applying D1 schema (idempotent)"
             wrangler d1 execute DB --remote --yes --file migrations/0001_init.sql --config wrangler.ci.toml
@@ -208,36 +143,7 @@ jobs:
             set -eu
 
             echo "==> Ensuring Cloudflare Pages project exists: ${PAGES_PROJECT_NAME}"
-            node - <<'NODE'
-            const { execFileSync } = require('node:child_process');
-
-            const projectName = (process.env.PAGES_PROJECT_NAME || '').trim();
-            if (!projectName) {
-              console.error('PAGES_PROJECT_NAME is not set');
-              process.exit(2);
-            }
-
-            function runJson(cmd, args) {
-              const out = execFileSync(cmd, args, { encoding: 'utf8' });
-              return JSON.parse(out);
-            }
-
-            let projects;
-            try {
-              projects = runJson('wrangler', ['pages', 'project', 'list', '--json']);
-            } catch (e) {
-              console.error('Failed to list Pages projects via wrangler.');
-              throw e;
-            }
-
-            const exists = Array.isArray(projects) && projects.some(p => p && p.name === projectName);
-            if (!exists) {
-              console.log(`Creating Pages project '${projectName}' (production branch: main)...`);
-              execFileSync('wrangler', ['pages', 'project', 'create', projectName, '--production-branch', 'main'], { stdio: 'inherit' });
-            } else {
-              console.log(`Pages project '${projectName}' already exists.`);
-            }
-            NODE
+            node scripts/ci/ensure-pages-project.mjs
 
           # Non-sensitive; defaults to 'beaconauth' if not set.
           command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'beaconauth' }} --branch main --commit-dirty=true
