@@ -60,7 +60,16 @@ jobs:
           wrangler --version
 
       - name: Install worker-build (if needed)
-        run: cargo install worker-build --locked
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if command -v worker-build >/dev/null 2>&1; then
+            echo "worker-build already installed (from cache)."
+            worker-build --version || true
+          else
+            cargo install worker-build --locked
+          fi
 
       - name: Build worker (Rust -> wasm + shim)
         working-directory: crates/beacon-worker
@@ -74,6 +83,7 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_WORKER_D1_DATABASE_ID }}
           D1_DATABASE_NAME: ${{ vars.CLOUDFLARE_WORKER_D1_DATABASE_NAME || 'beaconauth' }}
           BASE_URL: ${{ secrets.CLOUDFLARE_WORKER_BASE_URL }}
+          PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'beaconauth' }}
         with:
           script: |
             const fs = require('node:fs');
@@ -85,7 +95,70 @@ jobs:
 
             const d1IdFromEnv = (process.env.D1_DATABASE_ID || '').trim();
             const d1Name = (process.env.D1_DATABASE_NAME || 'beaconauth').trim();
-            const baseUrl = (process.env.BASE_URL || '').trim();
+            const baseUrlFromEnv = (process.env.BASE_URL || '').trim();
+            const pagesProjectName = (process.env.PAGES_PROJECT_NAME || 'beaconauth').trim();
+            const accountId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+            const token = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
+
+            async function cfJson(url, init) {
+              const res = await fetch(url, init);
+              const text = await res.text();
+              let json;
+              try {
+                json = JSON.parse(text);
+              } catch {
+                throw new Error(`Cloudflare API returned non-JSON (HTTP ${res.status}): ${text}`);
+              }
+              if (!res.ok || json?.success === false) {
+                throw new Error(`Cloudflare API error (HTTP ${res.status}): ${text}`);
+              }
+              return json;
+            }
+
+            async function resolveBaseUrl() {
+              if (baseUrlFromEnv) return baseUrlFromEnv;
+              if (!token || !accountId) return '';
+
+              const headers = {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              };
+
+              // 1) Prefer Pages production URL (same-origin with frontend).
+              // Works well because `<project>.pages.dev` is stable.
+              try {
+                const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${encodeURIComponent(pagesProjectName)}`;
+                const proj = await cfJson(url, { headers });
+                const result = proj?.result;
+                const subdomain = (result?.subdomain || '').trim();
+                const domains = Array.isArray(result?.domains) ? result.domains : [];
+                // If a custom domain is attached, prefer it; otherwise fall back to pages.dev.
+                const custom = domains.find((d) => d && typeof d === 'string' && !d.endsWith('.pages.dev'));
+                if (custom) return `https://${custom}`;
+                if (subdomain) return `https://${subdomain}.pages.dev`;
+              } catch (e) {
+                console.log(`Pages BASE_URL auto-detect skipped: ${e?.message ?? e}`);
+              }
+
+              // 2) Fall back to workers.dev (works for basic API testing; same-origin routing is still recommended).
+              try {
+                const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`;
+                const sub = await cfJson(url, { headers });
+                const subdomain = (sub?.result?.subdomain || '').trim();
+                if (!subdomain) return '';
+
+                const wranglerToml = fs.readFileSync(path.join(workerDir, 'wrangler.toml'), 'utf8');
+                const nameMatch = wranglerToml.match(/^name\s*=\s*"([^"]+)"\s*$/m);
+                const scriptName = nameMatch ? nameMatch[1] : '';
+                if (!scriptName) return '';
+
+                return `https://${scriptName}.${subdomain}.workers.dev`;
+              } catch (e) {
+                console.log(`workers.dev BASE_URL auto-detect skipped: ${e?.message ?? e}`);
+              }
+
+              return '';
+            }
 
             function execJson(args) {
               const out = cp.execFileSync('wrangler', args, { encoding: 'utf8' });
@@ -151,9 +224,13 @@ jobs:
             // Align the CI config to the resolved database name.
             text = text.replace(/^database_name\s*=\s*"[^"]*"\s*$/gm, `database_name = "${d1Name}"`);
 
-            // Keep repo defaults unless BASE_URL is provided.
-            if (baseUrl) {
-              text = text.replace('BASE_URL = "https://example.com"', `BASE_URL = "${baseUrl}"`);
+            // Keep repo defaults unless BASE_URL can be resolved.
+            const resolvedBaseUrl = await resolveBaseUrl();
+            if (resolvedBaseUrl) {
+              text = text.replace('BASE_URL = "https://example.com"', `BASE_URL = "${resolvedBaseUrl}"`);
+            } else {
+              console.log('BASE_URL not provided and could not be auto-detected; leaving repo default in wrangler.toml.');
+              console.log('Tip: set secrets.CLOUDFLARE_WORKER_BASE_URL to your Pages/custom-domain origin for correct OAuth redirects and cookies.');
             }
 
             const outPath = path.join(workerDir, 'wrangler.ci.toml');
@@ -219,7 +296,7 @@ jobs:
             const path = require('node:path');
 
             const token = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
-            const baseUrl = (process.env.BASE_URL || '').trim();
+            let baseUrl = (process.env.BASE_URL || '').trim();
             const zoneIdFromEnv = (process.env.CLOUDFLARE_ZONE_ID || '').trim();
             const zoneNameFromEnv = (process.env.CLOUDFLARE_ZONE_NAME || '').trim();
 
@@ -228,8 +305,21 @@ jobs:
               return;
             }
 
+            const workerDir = path.join(process.env.GITHUB_WORKSPACE, 'crates', 'beacon-worker');
+
             if (!baseUrl) {
-              console.log('BASE_URL (secrets.CLOUDFLARE_WORKER_BASE_URL) not set; skipping route configuration.');
+              // Try to read the BASE_URL that was resolved during the wrangler.ci.toml generation step.
+              try {
+                const ciText = fs.readFileSync(path.join(workerDir, 'wrangler.ci.toml'), 'utf8');
+                const m = ciText.match(/^BASE_URL\s*=\s*"([^"]+)"\s*$/m);
+                if (m) baseUrl = m[1].trim();
+              } catch {
+                // ignore
+              }
+            }
+
+            if (!baseUrl) {
+              console.log('BASE_URL not set and could not be read from wrangler.ci.toml; skipping route configuration.');
               return;
             }
 
@@ -245,7 +335,6 @@ jobs:
               return;
             }
 
-            const workerDir = path.join(process.env.GITHUB_WORKSPACE, 'crates', 'beacon-worker');
             const wranglerToml = fs.readFileSync(path.join(workerDir, 'wrangler.toml'), 'utf8');
             const nameMatch = wranglerToml.match(/^name\s*=\s*"([^"]+)"\s*$/m);
             if (!nameMatch) throw new Error('Unable to determine Worker script name from crates/beacon-worker/wrangler.toml');
