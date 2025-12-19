@@ -345,9 +345,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Pages deploy should not require an explicit account id.
-          unset CLOUDFLARE_ACCOUNT_ID || true
-
           project="${PAGES_PROJECT:?PAGES_PROJECT is required}"
           upstream="${WORKER_ORIGIN:-}"
           if [ -z "$upstream" ]; then
@@ -426,8 +423,43 @@ jobs:
           }
           JS
 
+          echo "Ensuring Pages project exists: '$project'"
+          project_exists="$(wrangler pages project list --json 2>/dev/null | node - "$project" <<'NODE'
+          let input = '';
+          process.stdin.setEncoding('utf8');
+          process.stdin.on('data', (d) => (input += d));
+          process.stdin.on('end', () => {
+            const name = process.argv[2];
+            try {
+              const j = JSON.parse(input || 'null');
+              const arr = Array.isArray(j)
+                ? j
+                : Array.isArray(j?.result)
+                  ? j.result
+                  : Array.isArray(j?.projects)
+                    ? j.projects
+                    : [];
+              const ok = arr.some((p) => (p?.name || '').toString() === name);
+              process.stdout.write(ok ? 'true' : 'false');
+            } catch {
+              process.stdout.write('unknown');
+            }
+          });
+          NODE
+          )"
+
+          if [ "$project_exists" != "true" ]; then
+            echo "Pages project '$project' not found; creating it (production branch: main)..."
+            wrangler pages project create "$project" --production-branch "main"
+          else
+            echo "Pages project '$project' already exists."
+          fi
+
           echo "Deploying Pages project '$project' (proxy -> $upstream)"
-          wrangler pages deploy "$tmp_dir" --project-name "$project" --branch "main"
+          # Run from the temp directory so Wrangler doesn't auto-detect this repo's wrangler.toml/git state.
+          pushd "$tmp_dir" >/dev/null
+          wrangler pages deploy . --project-name "$project" --branch "main"
+          popd >/dev/null
 
           echo "Pages URL: https://$project.pages.dev" >> "$GITHUB_STEP_SUMMARY"
 
