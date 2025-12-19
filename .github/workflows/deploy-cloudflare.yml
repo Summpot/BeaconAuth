@@ -423,18 +423,10 @@ jobs:
           }
           JS
 
-          echo "Ensuring Pages project exists: '$project'"
-          if wrangler pages project list --json | jq -e --arg name "$project" '(if type=="array" then . else (.result // .projects // []) end) | any(.name == $name)' >/dev/null; then
-            echo "Pages project '$project' already exists."
-          else
-            echo "Pages project '$project' not found; creating it (production branch: main)..."
-            wrangler pages project create "$project" --production-branch "main"
-          fi
-
           echo "Deploying Pages project '$project' (proxy -> $upstream)"
           # Run from the temp directory so Wrangler doesn't auto-detect this repo's wrangler.toml/git state.
           pushd "$tmp_dir" >/dev/null
-          wrangler pages deploy . --project-name "$project" --branch "main"
+          wrangler pages deploy . --project-name "$project" --branch "main" --experimental-provision --experimental-auto-create
           popd >/dev/null
 
           echo "Pages URL: https://$project.pages.dev" >> "$GITHUB_STEP_SUMMARY"
