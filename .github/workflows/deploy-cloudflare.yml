@@ -9,9 +9,9 @@ on:
       - crates/beacon-core/**
       - Cargo.toml
       - Cargo.lock
+      - wrangler.toml
       - src/**
       - public/**
-      - scripts/**
       - package.json
       - pnpm-lock.yaml
       - rsbuild.config.ts
@@ -53,9 +53,6 @@ jobs:
       - name: Install dependencies (frontend)
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend + sync assets into Worker
-        run: node scripts/sync-worker-assets.mjs
-
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -69,7 +66,7 @@ jobs:
 
       - name: Install Wrangler CLI
         run: |
-          npm install -g wrangler@3
+          npm install -g wrangler@4
           wrangler --version
 
       - name: Resolve D1 id + generate wrangler.ci.toml
@@ -86,8 +83,13 @@ jobs:
             const path = require('node:path');
             const cp = require('node:child_process');
 
-            const workerDir = path.join(process.env.GITHUB_WORKSPACE, 'crates', 'beacon-worker');
-            process.chdir(workerDir);
+            const repoRoot = process.env.GITHUB_WORKSPACE;
+            if (!repoRoot) {
+              throw new Error('GITHUB_WORKSPACE is not set.');
+            }
+
+            const wranglerTomlPath = path.join(repoRoot, 'wrangler.toml');
+            process.chdir(repoRoot);
 
             const d1IdFromEnv = (process.env.D1_DATABASE_ID || '').trim();
             const d1Name = (process.env.D1_DATABASE_NAME || 'beacon-auth').trim();
@@ -165,7 +167,7 @@ jobs:
                 const subdomain = (sub?.result?.subdomain || '').trim();
                 if (!subdomain) return '';
 
-                const wranglerToml = fs.readFileSync(path.join(workerDir, 'wrangler.toml'), 'utf8');
+                const wranglerToml = fs.readFileSync(wranglerTomlPath, 'utf8');
                 const nameMatch = wranglerToml.match(/^name\s*=\s*"([^"]+)"\s*$/m);
                 const scriptName = nameMatch ? nameMatch[1] : '';
                 if (!scriptName) return '';
@@ -228,7 +230,7 @@ jobs:
               );
             }
 
-            const srcPath = path.join(workerDir, 'wrangler.toml');
+            const srcPath = wranglerTomlPath;
             let text = fs.readFileSync(srcPath, 'utf8');
 
             if (text.includes('REPLACE_WITH_D1_DATABASE_ID')) {
@@ -255,18 +257,16 @@ jobs:
               console.log('Tip: set secrets.CLOUDFLARE_WORKER_BASE_URL to your Worker custom domain origin if you need a stable issuer/redirect base.');
             }
 
-            const outPath = path.join(workerDir, 'wrangler.ci.toml');
+            const outPath = path.join(repoRoot, 'wrangler.ci.toml');
             fs.writeFileSync(outPath, text, 'utf8');
             console.log(`Wrote ${outPath} (D1 name=${d1Name}, id=${d1Id})`);
 
       - name: Apply D1 schema (idempotent)
-        working-directory: crates/beacon-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: wrangler d1 execute DB --remote --yes --file migrations/0001_init.sql --config wrangler.ci.toml
+        run: wrangler d1 execute DB --remote --yes --file crates/beacon-worker/migrations/0001_init.sql --config wrangler.ci.toml
 
       - name: Sync Worker secrets (optional)
-        working-directory: crates/beacon-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           JWT_PRIVATE_KEY_DER_B64: ${{ secrets.CLOUDFLARE_WORKER_JWT_PRIVATE_KEY_DER_B64 }}
@@ -296,7 +296,6 @@ jobs:
           put_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-}"
 
       - name: Deploy worker
-        working-directory: crates/beacon-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: wrangler deploy --config wrangler.ci.toml
