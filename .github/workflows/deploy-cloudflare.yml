@@ -423,6 +423,12 @@ jobs:
           }
           JS
 
+          cat > "$tmp_dir/wrangler.toml" <<TOML
+          name = "$project"
+          compatibility_date = "2025-12-18"
+          main = "_worker.js"
+          TOML
+
           echo "Deploying Pages project '$project' (proxy -> $upstream)"
           # Run from the temp directory so Wrangler doesn't auto-detect this repo's wrangler.toml/git state.
           pushd "$tmp_dir" >/dev/null
