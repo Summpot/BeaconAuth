@@ -705,31 +705,36 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     let method = req.method();
     let url = req.url()?;
-    let path = url.path().to_string();
+    let raw_path = url.path().to_string();
+    // Support deployments where the backend is mounted at a context path, e.g. `/api/*`.
+    // For example, when a Worker route is configured as `example.com/api/*`, requests will
+    // arrive with paths like `/api/v1/login`. We normalize to `/v1/login` for routing.
+    let path = raw_path.strip_prefix("/api").unwrap_or(raw_path.as_str());
+    let path = if path.is_empty() { "/" } else { path };
 
     // Endpoints that read request bodies must take ownership of the request.
-    if method == Method::Post && path == "/api/v1/login" {
+    if method == Method::Post && path == "/v1/login" {
         return handle_login(req, &env).await;
     }
-    if method == Method::Post && path == "/api/v1/register" {
+    if method == Method::Post && path == "/v1/register" {
         return handle_register(req, &env).await;
     }
-    if method == Method::Post && path == "/api/v1/user/change-password" {
+    if method == Method::Post && path == "/v1/user/change-password" {
         return handle_change_password(req, &env).await;
     }
-    if method == Method::Post && path == "/api/v1/minecraft-jwt" {
+    if method == Method::Post && path == "/v1/minecraft-jwt" {
         return handle_minecraft_jwt(req, &env).await;
     }
 
-    match (method, path.as_str()) {
-        (Method::Get, "/api/v1/config") => handle_get_config(&req, &env).await,
-        (Method::Post, "/api/v1/refresh") => handle_refresh(&req, &env).await,
-        (Method::Post, "/api/v1/logout") => handle_logout(&req, &env).await,
-        (Method::Get, "/api/v1/user/me") => handle_user_me(&req, &env).await,
+    match (method, path) {
+        (Method::Get, "/v1/config") => handle_get_config(&req, &env).await,
+        (Method::Post, "/v1/refresh") => handle_refresh(&req, &env).await,
+        (Method::Post, "/v1/logout") => handle_logout(&req, &env).await,
+        (Method::Get, "/v1/user/me") => handle_user_me(&req, &env).await,
         (Method::Get, "/.well-known/jwks.json") => handle_get_jwks(&req, &env).await,
 
         // Present-but-not-implemented endpoints in Workers.
-        (Method::Post, p) if p.starts_with("/api/v1/passkey/") => {
+        (Method::Post, p) if p.starts_with("/v1/passkey/") => {
             let resp = Response::from_json(&models::ErrorResponse {
                 error: "not_supported".to_string(),
                 message: "Passkey (WebAuthn) endpoints are not enabled in the Workers build yet".to_string(),
@@ -737,7 +742,7 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             .with_status(501);
             json_with_cors(&req, resp)
         }
-        (Method::Get, p) if p.starts_with("/api/v1/passkey/") => {
+        (Method::Get, p) if p.starts_with("/v1/passkey/") => {
             let resp = Response::from_json(&models::ErrorResponse {
                 error: "not_supported".to_string(),
                 message: "Passkey (WebAuthn) endpoints are not enabled in the Workers build yet".to_string(),
@@ -746,7 +751,7 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             json_with_cors(&req, resp)
         }
 
-        (Method::Post, p) if p.starts_with("/api/v1/oauth/") => {
+        (Method::Post, p) if p.starts_with("/v1/oauth/") => {
             let resp = Response::from_json(&models::ErrorResponse {
                 error: "not_supported".to_string(),
                 message: "OAuth endpoints are not enabled in the Workers build yet".to_string(),
@@ -754,7 +759,7 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             .with_status(501);
             json_with_cors(&req, resp)
         }
-        (Method::Get, p) if p.starts_with("/api/v1/oauth/") => {
+        (Method::Get, p) if p.starts_with("/v1/oauth/") => {
             let resp = Response::from_json(&models::ErrorResponse {
                 error: "not_supported".to_string(),
                 message: "OAuth endpoints are not enabled in the Workers build yet".to_string(),

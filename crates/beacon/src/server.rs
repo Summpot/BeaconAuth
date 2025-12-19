@@ -55,7 +55,7 @@ async fn serve_embedded_assets(req: actix_web::HttpRequest) -> actix_web::HttpRe
 }
 
 pub fn build_api_routes() -> actix_web::Scope {
-    web::scope("/api/v1")
+    web::scope("/v1")
         .route("/config", web::get().to(handlers::get_config))
         .route("/login", web::post().to(handlers::login))
         .route("/register", web::post().to(handlers::register))
@@ -87,6 +87,16 @@ pub fn build_api_routes() -> actix_web::Scope {
             "/passkey/delete",
             web::post().to(handlers::passkey::delete_passkey),
         )
+}
+
+/// All backend routes under the `/api` context path.
+///
+/// This enables same-origin deployment where the frontend is served at `/` and the backend lives
+/// at `/api/*` (e.g. Cloudflare Pages + Workers route on `/api/*`).
+pub fn build_api_context_routes() -> actix_web::Scope {
+    web::scope("/api")
+        .service(build_api_routes())
+        .service(build_jwks_routes())
 }
 
 pub fn build_jwks_routes() -> actix_web::Scope {
@@ -265,8 +275,8 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
 
     HttpServer::new(move || {
         let cors = build_cors(&cors_origins);
-        let api_routes = build_api_routes();
-        let jwks_route = build_jwks_routes();
+        let api_routes = build_api_context_routes();
+        let legacy_jwks_route = build_jwks_routes();
 
         #[cfg(debug_assertions)]
         {
@@ -278,7 +288,8 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
                 .wrap(middleware::Logger::default())
                 .wrap(cors)
                 .service(api_routes)
-                .service(jwks_route)
+                // Back-compat for deployments that still expose JWKS at `/.well-known/jwks.json`.
+                .service(legacy_jwks_route)
                 // Serve static assets from build output
                 .service(actix_files::Files::new("/static", "./dist/static"))
                 // favicon
@@ -300,7 +311,8 @@ pub async fn run_server(config: ServeConfig) -> anyhow::Result<()> {
                 .wrap(middleware::Logger::default())
                 .wrap(cors)
                 .service(api_routes)
-                .service(jwks_route)
+                // Back-compat for deployments that still expose JWKS at `/.well-known/jwks.json`.
+                .service(legacy_jwks_route)
                 // All other requests handled by embedded assets with SPA fallback
                 .default_service(web::to(serve_embedded_assets))
         }

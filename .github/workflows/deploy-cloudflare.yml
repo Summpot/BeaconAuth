@@ -205,6 +205,118 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: wrangler deploy --config wrangler.ci.toml
 
+      - name: Ensure Worker route for /api/* (optional)
+        uses: actions/github-script@v7
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BASE_URL: ${{ secrets.CLOUDFLARE_WORKER_BASE_URL }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_ZONE_NAME: ${{ vars.CLOUDFLARE_ZONE_NAME }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+
+            const token = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
+            const baseUrl = (process.env.BASE_URL || '').trim();
+            const zoneIdFromEnv = (process.env.CLOUDFLARE_ZONE_ID || '').trim();
+            const zoneNameFromEnv = (process.env.CLOUDFLARE_ZONE_NAME || '').trim();
+
+            if (!token) {
+              console.log('CLOUDFLARE_API_TOKEN not set; skipping route configuration.');
+              return;
+            }
+
+            if (!baseUrl) {
+              console.log('BASE_URL (secrets.CLOUDFLARE_WORKER_BASE_URL) not set; skipping route configuration.');
+              return;
+            }
+
+            let hostname;
+            try {
+              hostname = new URL(baseUrl).hostname;
+            } catch (e) {
+              throw new Error(`Invalid BASE_URL '${baseUrl}': ${e?.message ?? e}`);
+            }
+
+            if (hostname.endsWith('.pages.dev') || hostname.endsWith('.workers.dev')) {
+              console.log(`Host '${hostname}' is a Cloudflare-managed domain; Worker Routes for /api/* must be configured on a custom domain (zone). Skipping.`);
+              return;
+            }
+
+            const workerDir = path.join(process.env.GITHUB_WORKSPACE, 'crates', 'beacon-worker');
+            const wranglerToml = fs.readFileSync(path.join(workerDir, 'wrangler.toml'), 'utf8');
+            const nameMatch = wranglerToml.match(/^name\s*=\s*"([^"]+)"\s*$/m);
+            if (!nameMatch) throw new Error('Unable to determine Worker script name from crates/beacon-worker/wrangler.toml');
+            const scriptName = nameMatch[1];
+
+            const headers = {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            };
+
+            async function cfJson(url, init) {
+              const res = await fetch(url, init);
+              const text = await res.text();
+              let json;
+              try {
+                json = JSON.parse(text);
+              } catch {
+                throw new Error(`Cloudflare API returned non-JSON (HTTP ${res.status}): ${text}`);
+              }
+              if (!res.ok || json?.success === false) {
+                throw new Error(`Cloudflare API error (HTTP ${res.status}): ${text}`);
+              }
+              return json;
+            }
+
+            let zoneId = zoneIdFromEnv;
+            if (!zoneId) {
+              if (!zoneNameFromEnv) {
+                console.log('No CLOUDFLARE_ZONE_ID secret and no vars.CLOUDFLARE_ZONE_NAME provided; skipping route configuration.');
+                console.log('To enable automatic /api/* routing, set secrets.CLOUDFLARE_ZONE_ID (recommended) or vars.CLOUDFLARE_ZONE_NAME (your apex zone name, e.g. example.com).');
+                return;
+              }
+
+              const zonesUrl = `https://api.cloudflare.com/client/v4/zones?name=${encodeURIComponent(zoneNameFromEnv)}&per_page=50`;
+              const zones = await cfJson(zonesUrl, { headers });
+              const found = Array.isArray(zones?.result) ? zones.result[0] : null;
+              if (!found?.id) {
+                throw new Error(`Could not resolve zone id for zone name '${zoneNameFromEnv}'. Provide secrets.CLOUDFLARE_ZONE_ID instead.`);
+              }
+              zoneId = found.id;
+            }
+
+            const pattern = `${hostname}/api/*`;
+            const listUrl = `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`;
+            const list = await cfJson(listUrl, { headers });
+            const routes = Array.isArray(list?.result) ? list.result : [];
+
+            const existing = routes.find((r) => r?.pattern === pattern);
+            if (existing) {
+              if (existing.script === scriptName) {
+                console.log(`Worker route already present: ${pattern} -> ${scriptName}`);
+                return;
+              }
+
+              console.log(`Updating Worker route: ${pattern} (was -> ${existing.script}, now -> ${scriptName})`);
+              const putUrl = `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes/${existing.id}`;
+              await cfJson(putUrl, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ pattern, script: scriptName }),
+              });
+              return;
+            }
+
+            console.log(`Creating Worker route: ${pattern} -> ${scriptName}`);
+            await cfJson(listUrl, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ pattern, script: scriptName }),
+            });
+
   deploy-pages:
     name: Deploy frontend (Pages)
     runs-on: ubuntu-latest
