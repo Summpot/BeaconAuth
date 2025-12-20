@@ -52,11 +52,10 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Install worker-build from subtree
+      - name: Install worker-build
         uses: baptiste0928/cargo-install@v3
         with:
           crate: worker-build
-          args: --path ./thirdparty/worker-rs/worker-build
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
