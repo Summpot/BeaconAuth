@@ -151,6 +151,7 @@ jobs:
           const pagesBaseUrl = `https://${pagesName}.pages.dev`;
           const baseUrlFromEnv = String(process.env.BASE_URL ?? '').trim();
           const resolvedBaseUrl = baseUrlFromEnv || pagesBaseUrl;
+          const compatibilityDate = String(pagesCfg?.compatibility_date ?? '').trim();
 
           fs.appendFileSync(
             process.env.GITHUB_OUTPUT,
@@ -158,6 +159,7 @@ jobs:
               `worker_name=${pagesName}`,
               `pages_base_url=${pagesBaseUrl}`,
               `resolved_base_url=${resolvedBaseUrl}`,
+              `compatibility_date=${compatibilityDate}`,
               `wrangler_pages_config=${ciPagesConfigPath}`,
               `wrangler_workers_config=${ciWorkersConfigPath}`,
               '',
@@ -169,6 +171,28 @@ jobs:
           console.log(`Wrangler Pages config: ${ciPagesConfigPath}`);
           console.log(`Wrangler Worker config: ${ciWorkersConfigPath}`);
           NODE
+
+      - name: Ensure Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PAGES_PROJECT: ${{ steps.cfg.outputs.worker_name }}
+          COMPATIBILITY_DATE: ${{ steps.cfg.outputs.compatibility_date }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          project="${PAGES_PROJECT:?PAGES_PROJECT is required}"
+          compat="${COMPATIBILITY_DATE:-}"
+
+          echo "Ensuring Pages project '$project' exists (errors are safe to ignore):"
+
+          cmd=(pnpm exec wrangler pages project create "$project" --production-branch "main")
+          if [ -n "$compat" ]; then
+            cmd+=(--compatibility-date "$compat")
+          fi
+
+          "${cmd[@]}" || true
 
       - name: Build frontend (UI + Pages _worker.js)
         run: pnpm build
