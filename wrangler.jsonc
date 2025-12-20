@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "beaconauth",
+  "compatibility_date": "2025-12-18",
+  "main": "crates/beacon-worker/build/worker/shim.mjs",
+  "base_dir": "build",
+  "build": {
+    "command": "(command -v worker-build > /dev/null 2>&1 || cargo install -q --path ./thirdparty/worker-rs/worker-build) && pnpm build && worker-build --release crates/beacon-worker"
+  },
+  "rules": [
+    {
+      "type": "CompiledWasm",
+      "globs": [
+        "**/*.wasm",
+        "**/*.wasm?module"
+      ],
+      "fallthrough": false
+    }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "beacon-auth"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "PASSKEY_KV"
+    }
+  ],
+  "vars": {
+    "BASE_URL": "",
+    "JWT_KID": "beacon-auth-key-1",
+    "ACCESS_TOKEN_EXPIRATION": "900",
+    "REFRESH_TOKEN_EXPIRATION": "2592000",
+    "JWT_EXPIRATION": "3600"
+  }
+}

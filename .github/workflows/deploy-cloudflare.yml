@@ -9,7 +9,7 @@ on:
       - crates/beacon-core/**
       - Cargo.toml
       - Cargo.lock
-      - wrangler.toml
+      - wrangler.jsonc
       - src/**
       - public/**
       - package.json
@@ -72,242 +72,72 @@ jobs:
 
       - name: Install Wrangler CLI
         run: |
-          npm install -g wrangler@4
+          npm install -g wrangler@4.45.0
           wrangler --version
 
-      - name: Resolve D1 id + generate wrangler.ci.toml
-        id: wrangler_ci
-        uses: actions/github-script@v7
+      - name: Resolve deploy settings
+        id: cfg
+        env:
+          BASE_URL: ${{ secrets.CLOUDFLARE_WORKER_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const cfg = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8'));
+          const workerName = String(cfg?.name ?? '').trim();
+          if (!workerName) {
+            throw new Error('Could not resolve Worker name from wrangler.jsonc (expected: { "name": "..." })');
+          }
+
+          const pagesBaseUrl = `https://${workerName}.pages.dev`;
+          const baseUrlFromEnv = String(process.env.BASE_URL ?? '').trim();
+          const resolvedBaseUrl = baseUrlFromEnv || pagesBaseUrl;
+
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `worker_name=${workerName}\npages_base_url=${pagesBaseUrl}\nresolved_base_url=${resolvedBaseUrl}\n`,
+          );
+
+          console.log(`Worker name: ${workerName}`);
+          console.log(`BASE_URL: ${resolvedBaseUrl}`);
+          NODE
+
+      - name: Deploy worker
+        id: deploy_worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_WORKER_D1_DATABASE_ID }}
-          D1_DATABASE_NAME: ${{ vars.CLOUDFLARE_WORKER_D1_DATABASE_NAME || 'beacon-auth' }}
-          BASE_URL: ${{ secrets.CLOUDFLARE_WORKER_BASE_URL }}
-        with:
-          script: |
-            const fs = require('node:fs');
-            const path = require('node:path');
-            const cp = require('node:child_process');
+          BASE_URL: ${{ steps.cfg.outputs.resolved_base_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
 
-            const repoRoot = process.env.GITHUB_WORKSPACE;
-            if (!repoRoot) {
-              throw new Error('GITHUB_WORKSPACE is not set.');
-            }
+          out_file="$(mktemp)"
+          wrangler deploy --config wrangler.jsonc --var "BASE_URL:${BASE_URL}" 2>&1 | tee "$out_file"
 
-            const wranglerTomlPath = path.join(repoRoot, 'wrangler.toml');
-            process.chdir(repoRoot);
+          # Try to extract the workers.dev URL from `wrangler deploy` output.
+          worker_url="$(grep -Eo 'https://[^ ]+\.workers\.dev' "$out_file" | head -n 1 || true)"
+          if [ -z "$worker_url" ]; then
+            host_only="$(grep -Eo '[A-Za-z0-9.-]+\.workers\.dev' "$out_file" | head -n 1 || true)"
+            if [ -n "$host_only" ]; then
+              worker_url="https://$host_only"
+            fi
+          fi
 
-            const wranglerTomlRaw = fs.readFileSync(wranglerTomlPath, 'utf8');
-            const nameMatch = wranglerTomlRaw.match(/^name\s*=\s*"([^"]+)"\s*$/m);
-            const workerName = nameMatch ? String(nameMatch[1]).trim() : '';
-            if (!workerName) {
-              throw new Error('Could not resolve Worker name from wrangler.toml (expected: name = "...")');
-            }
+          if [ -n "$worker_url" ]; then
+            echo "Detected Worker URL: $worker_url"
+          else
+            echo "Could not detect Worker URL from deploy output."
+          fi
 
-            const d1IdFromEnv = (process.env.D1_DATABASE_ID || '').trim();
-            const d1Name = (process.env.D1_DATABASE_NAME || 'beacon-auth').trim();
-            const baseUrlFromEnv = (process.env.BASE_URL || '').trim();
-            const accountIdFromEnv = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
-            const token = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
-
-            if (!token) {
-              throw new Error('CLOUDFLARE_API_TOKEN is not set (required).');
-            }
-
-            async function cfJson(url, init) {
-              const res = await fetch(url, init);
-              const text = await res.text();
-              let json;
-              try {
-                json = JSON.parse(text);
-              } catch {
-                throw new Error(`Cloudflare API returned non-JSON (HTTP ${res.status}): ${text}`);
-              }
-              if (!res.ok || json?.success === false) {
-                throw new Error(`Cloudflare API error (HTTP ${res.status}): ${text}`);
-              }
-              return json;
-            }
-
-            async function resolveAccountId() {
-              if (accountIdFromEnv) return accountIdFromEnv;
-
-              const headers = {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              };
-
-              try {
-                const acc = await cfJson('https://api.cloudflare.com/client/v4/accounts?per_page=50', { headers });
-                const list = Array.isArray(acc?.result) ? acc.result : [];
-                if (list.length === 1 && list[0]?.id) return String(list[0].id).trim();
-                if (list.length > 1 && list[0]?.id) {
-                  console.log(
-                    `CLOUDFLARE_ACCOUNT_ID not provided; multiple accounts visible (${list.length}). Using the first account: ${list[0].name ?? list[0].id}`,
-                  );
-                  return String(list[0].id).trim();
-                }
-              } catch (e) {
-                console.log(`Account id auto-detect skipped: ${e?.message ?? e}`);
-              }
-
-              return '';
-            }
-
-            // If we can resolve an account id, export it so subsequent `wrangler` commands
-            // (d1 list/create/execute, deploy) do not require an explicit secret.
-            const resolvedAccountId = await resolveAccountId();
-            if (resolvedAccountId) {
-              core.exportVariable('CLOUDFLARE_ACCOUNT_ID', resolvedAccountId);
-              console.log(`Using Cloudflare account id: ${resolvedAccountId}`);
-            }
-
-            async function resolveWorkersDevUrl() {
-              const accountId = resolvedAccountId;
-              if (!accountId) return '';
-
-              const headers = {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              };
-
-              try {
-                const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`;
-                const sub = await cfJson(url, { headers });
-                const subdomain = (sub?.result?.subdomain || '').trim();
-                if (!subdomain) return '';
-                return `https://${workerName}.${subdomain}.workers.dev`;
-              } catch (e) {
-                console.log(`workers.dev URL auto-detect skipped: ${e?.message ?? e}`);
-              }
-
-              return '';
-            }
-
-            function stripAssetsSection(tomlText) {
-              const lines = tomlText.split(/\r?\n/);
-              const out = [];
-              let skipping = false;
-
-              for (const line of lines) {
-                if (!skipping && line.trim() === '[assets]') {
-                  skipping = true;
-                  continue;
-                }
-                if (skipping) {
-                  // Next TOML section starts at column 0 with '['.
-                  if (/^\[/.test(line)) {
-                    skipping = false;
-                    out.push(line);
-                  }
-                  continue;
-                }
-                out.push(line);
-              }
-
-              return out.join('\n');
-            }
-
-            function execJson(args) {
-              const out = cp.execFileSync('wrangler', args, { encoding: 'utf8' });
-              try {
-                return JSON.parse(out);
-              } catch (e) {
-                throw new Error(`Failed to parse JSON from: wrangler ${args.join(' ')}\n${out}`);
-              }
-            }
-
-            function asArray(data) {
-              if (Array.isArray(data)) return data;
-              if (data && Array.isArray(data.result)) return data.result;
-              if (data && Array.isArray(data.databases)) return data.databases;
-              return [];
-            }
-
-            function getId(item) {
-              return (item?.uuid ?? item?.id ?? item?.database_id ?? '').toString().trim();
-            }
-
-            let d1Id = d1IdFromEnv;
-            if (!d1Id) {
-              const list = execJson(['d1', 'list', '--json']);
-              for (const it of asArray(list)) {
-                if (it?.name === d1Name) {
-                  d1Id = getId(it);
-                  break;
-                }
-              }
-
-              if (!d1Id) {
-                console.log(`D1 database '${d1Name}' not found; creating it...`);
-                cp.execFileSync('wrangler', ['d1', 'create', d1Name], { stdio: 'inherit' });
-
-                const list2 = execJson(['d1', 'list', '--json']);
-                for (const it of asArray(list2)) {
-                  if (it?.name === d1Name) {
-                    d1Id = getId(it);
-                    break;
-                  }
-                }
-              }
-            }
-
-            if (!d1Id) {
-              throw new Error(
-                "Unable to resolve a D1 database id. Provide secrets.CLOUDFLARE_WORKER_D1_DATABASE_ID or set vars.CLOUDFLARE_WORKER_D1_DATABASE_NAME (defaults to 'beacon-auth').",
-              );
-            }
-
-            const srcPath = wranglerTomlPath;
-            let text = fs.readFileSync(srcPath, 'utf8');
-
-            if (text.includes('REPLACE_WITH_D1_DATABASE_ID')) {
-              text = text.replaceAll('REPLACE_WITH_D1_DATABASE_ID', d1Id);
-            } else {
-              const re = /^database_id\s*=\s*"[^"]*"\s*$/gm;
-              if (!re.test(text)) throw new Error('Could not find D1 database_id entry in wrangler.toml');
-              text = text.replace(re, `database_id = "${d1Id}"`);
-            }
-
-            // Align the CI config to the resolved database name.
-            text = text.replace(/^database_name\s*=\s*"[^"]*"\s*$/gm, `database_name = "${d1Name}"`);
-
-            // CI deploy: API Worker only. Cloudflare Pages serves UI assets.
-            text = stripAssetsSection(text);
-
-            // BASE_URL is the external origin users interact with (Pages domain or custom domain).
-            // Default to https://<pages_project>.pages.dev unless explicitly provided.
-            const pagesBaseUrl = `https://${workerName}.pages.dev`;
-            const resolvedBaseUrl = baseUrlFromEnv || pagesBaseUrl;
-            if (resolvedBaseUrl) {
-              const re = /^BASE_URL\s*=\s*"[^"]*"\s*$/gm;
-              if (!re.test(text)) {
-                throw new Error('Could not find BASE_URL entry in wrangler.toml');
-              }
-              text = text.replace(re, `BASE_URL = "${resolvedBaseUrl}"`);
-            }
-
-            // Used by Pages proxy as a fallback upstream if deploy output parsing fails.
-            const resolvedWorkerUrl = await resolveWorkersDevUrl();
-            if (!resolvedWorkerUrl) {
-              console.log('Could not auto-detect workers.dev URL; Pages deploy will rely on deploy output parsing.');
-            }
-
-            const outPath = path.join(repoRoot, 'wrangler.ci.toml');
-            fs.writeFileSync(outPath, text, 'utf8');
-            console.log(`Wrote ${outPath} (D1 name=${d1Name}, id=${d1Id})`);
-
-            core.setOutput('worker_name', workerName);
-            core.setOutput('d1_name', d1Name);
-            core.setOutput('d1_id', d1Id);
-            core.setOutput('pages_base_url', pagesBaseUrl);
-            core.setOutput('resolved_base_url', resolvedBaseUrl || '');
-            core.setOutput('resolved_worker_url', resolvedWorkerUrl || '');
+          echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
 
       - name: Apply D1 schema (idempotent)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: wrangler d1 execute DB --remote --yes --file crates/beacon-worker/migrations/0001_init.sql --config wrangler.ci.toml
+        run: wrangler d1 execute DB --remote --yes --file crates/beacon-worker/migrations/0001_init.sql --config wrangler.jsonc
 
       - name: Sync Worker secrets (optional)
         env:
@@ -326,7 +156,7 @@ jobs:
             local value="$2"
             if [ -n "$value" ]; then
               echo "Setting secret: $name"
-              printf %s "$value" | wrangler secret put "$name" --config wrangler.ci.toml
+              printf %s "$value" | wrangler secret put "$name" --config wrangler.jsonc
             else
               echo "Skipping secret (not provided): $name"
             fi
@@ -338,38 +168,10 @@ jobs:
           put_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-}"
           put_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-}"
 
-      - name: Deploy worker
-        id: deploy_worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          out_file="$(mktemp)"
-          wrangler deploy --config wrangler.ci.toml 2>&1 | tee "$out_file"
-
-          # Try to extract the workers.dev URL from `wrangler deploy` output.
-          worker_url="$(grep -Eo 'https://[^ ]+\.workers\.dev' "$out_file" | head -n 1 || true)"
-          if [ -z "$worker_url" ]; then
-            host_only="$(grep -Eo '[A-Za-z0-9.-]+\.workers\.dev' "$out_file" | head -n 1 || true)"
-            if [ -n "$host_only" ]; then
-              worker_url="https://$host_only"
-            fi
-          fi
-
-          if [ -n "$worker_url" ]; then
-            echo "Detected Worker URL: $worker_url"
-          else
-            echo "Could not detect Worker URL from deploy output; Pages deploy will fall back to resolved_worker_url (if available)."
-          fi
-
-          echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
-
       - name: Prepare Pages _worker.js (proxy /api to Worker)
         env:
-          PAGES_PROJECT: ${{ steps.wrangler_ci.outputs.worker_name }}
-          WORKER_ORIGIN: ${{ steps.deploy_worker.outputs.worker_url || steps.wrangler_ci.outputs.resolved_worker_url }}
+          PAGES_PROJECT: ${{ steps.cfg.outputs.worker_name }}
+          WORKER_ORIGIN: ${{ steps.deploy_worker.outputs.worker_url }}
         shell: bash
         run: |
           set -euo pipefail
@@ -377,7 +179,7 @@ jobs:
           project="${PAGES_PROJECT:?PAGES_PROJECT is required}"
           upstream="${WORKER_ORIGIN:-}"
           if [ -z "$upstream" ]; then
-            echo "::error::WORKER_ORIGIN is empty; could not infer Worker URL from deploy output (preferred) or resolved_worker_url (fallback)."
+            echo "::error::WORKER_ORIGIN is empty; could not infer Worker URL from deploy output."
             exit 1
           fi
 
@@ -488,7 +290,7 @@ jobs:
       - name: Deploy Pages (UI)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PAGES_PROJECT: ${{ steps.wrangler_ci.outputs.worker_name }}
+          PAGES_PROJECT: ${{ steps.cfg.outputs.worker_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -496,11 +298,10 @@ jobs:
           project="${PAGES_PROJECT:?PAGES_PROJECT is required}"
           echo "Deploying Pages project '$project' from ./dist"
 
-          # Run from dist/ so Wrangler doesn't auto-detect this repo's wrangler.toml/git state.
+          # Run from dist/ so Wrangler doesn't auto-detect this repo's wrangler.jsonc/git state.
           pushd "dist" >/dev/null
           wrangler pages deploy . --project-name "$project" --branch "main" --experimental-provision --experimental-auto-create
           popd >/dev/null
 
           echo "Pages URL: https://$project.pages.dev" >> "$GITHUB_STEP_SUMMARY"
 
-      

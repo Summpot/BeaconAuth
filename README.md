@@ -125,90 +125,62 @@ cargo build --workspace --release
 # The binary will be at target/release/beacon
 ```
 
-## Cloudflare Deployment (Single Worker)
+## Cloudflare Deployment (Worker + Pages)
 
-This repository deploys to Cloudflare as a **single Worker**:
+This repository ships a Cloudflare deployment that keeps the browser on a **single origin** while still separating concerns:
 
-- **Full-stack Worker**: `crates/beacon-worker` (Rust/WASM) using **D1** for storage.
-- **Frontend** (React): built at repo root and served via **Workers Static Assets** from the same Worker.
+- **API Worker**: `crates/beacon-worker` (Rust/WASM) using **D1** + **Workers KV**.
+- **Frontend** (React): deployed to **Cloudflare Pages**.
 
-This avoids cross-origin issues by keeping the UI and API on the **same origin**:
+To avoid cross-origin headaches, the Pages deployment includes a small `dist/_worker.js` that proxies these paths to the API Worker:
 
-- UI: `/` (and SPA routes like `/login`)
-- API: `/api/v1/*`
-- JWKS: `/.well-known/jwks.json` (and also `/api/.well-known/jwks.json`)
+- `/api/*`
+- `/v1/*`
+- `/.well-known/*`
 
-### One-time Cloudflare setup
+Everything else (SPA routes like `/login`) is served as static content from Pages.
 
-#### 1) Create and migrate the D1 database
+### Wrangler config
 
-The Worker expects a D1 binding named `DB`.
+The primary Wrangler config is `wrangler.jsonc` at repo root.
 
-Create a D1 database named `beacon-auth` (or change `database_name` in `crates/beacon-worker/wrangler.toml`).
+This repo is configured for **Automatic provisioning**:
 
-If you use the GitHub Actions workflow, it can **auto-create** the D1 database (when missing) and apply the schema automatically (see below).
-
-Apply the initial schema:
-
-  - Migration SQL: `crates/beacon-worker/migrations/0001_init.sql`
-
-#### 2) Configure Worker vars and secrets
-
-In `crates/beacon-worker/wrangler.toml`:
-
-- Replace `database_id = "REPLACE_WITH_D1_DATABASE_ID"` with your real D1 database id (recommended for local/manual deploys).
-- `BASE_URL` is optional in the repo config (CI will try to auto-detect a `*.workers.dev` URL). If you use a custom domain and want a stable issuer/redirect base, set it explicitly.
-
-For production, you should provide a stable ES256 private key so JWKS/JWTs remain valid across deployments:
-
-- `JWT_PRIVATE_KEY_DER_B64` (secret): base64-encoded PKCS#8 DER P-256 private key.
-
-Optional OAuth secrets (only needed if you enable those providers):
-
-- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- D1 binding: `DB` (configured with `database_name`, no hard-coded `database_id`)
+- KV binding: `PASSKEY_KV` (no hard-coded namespace id)
 
 ### GitHub Actions deployment
 
-This repo includes a workflow that deploys the Worker:
+Workflow:
 
 - `.github/workflows/deploy-cloudflare.yml`
 
-Add the following **GitHub Actions secrets**:
+Required **GitHub Actions secrets**:
 
 | Secret | Required | Used for |
 |---|---:|---|
-| `CLOUDFLARE_API_TOKEN` | Yes | Wrangler authentication (deploy + D1 operations) |
-| `CLOUDFLARE_ACCOUNT_ID` | Optional | Helps BASE_URL auto-detect; if omitted CI will try to pick the first accessible account |
-| `CLOUDFLARE_WORKER_D1_DATABASE_ID` | One of* | Replaces `REPLACE_WITH_D1_DATABASE_ID` at deploy time |
-| `CLOUDFLARE_WORKER_D1_DATABASE_NAME` | One of* | If `..._D1_DATABASE_ID` is not provided, CI will `wrangler d1 create` this database name (default: `beacon-auth`) |
-| `CLOUDFLARE_WORKER_BASE_URL` | Recommended | Sets `BASE_URL` in the Worker at deploy time |
-| `CLOUDFLARE_WORKER_JWT_PRIVATE_KEY_DER_B64` | Strongly recommended | Stable JWT signing key |
+| `CLOUDFLARE_API_TOKEN` | Yes | Wrangler authentication (deploy + D1 operations + secrets) |
+
+Recommended / optional secrets:
+
+| Secret | Required | Used for |
+|---|---:|---|
+| `CLOUDFLARE_WORKER_BASE_URL` | Recommended | Sets `BASE_URL` for issuer + OAuth redirects + WebAuthn RP origin. If omitted, CI defaults to `https://<workerName>.pages.dev`. |
+| `CLOUDFLARE_WORKER_JWT_PRIVATE_KEY_DER_B64` | Strongly recommended | Stable ES256 signing key (base64-encoded PKCS#8 DER P-256 private key) |
 | `CLOUDFLARE_WORKER_GITHUB_CLIENT_ID` | Optional | GitHub OAuth |
 | `CLOUDFLARE_WORKER_GITHUB_CLIENT_SECRET` | Optional | GitHub OAuth |
 | `CLOUDFLARE_WORKER_GOOGLE_CLIENT_ID` | Optional | Google OAuth |
 | `CLOUDFLARE_WORKER_GOOGLE_CLIENT_SECRET` | Optional | Google OAuth |
 
-\* Provide **at least one** of `CLOUDFLARE_WORKER_D1_DATABASE_ID` or `CLOUDFLARE_WORKER_D1_DATABASE_NAME`.
-
 The workflow will:
 
 - build the frontend (React)
-- sync `dist/` into `crates/beacon-worker/assets/`
-- build the Worker with `worker-build --release`
-- resolve (or create) the D1 database and generate `wrangler.ci.toml`
-- apply `crates/beacon-worker/migrations/0001_init.sql` (idempotent)
-- deploy the Worker (serving both UI + API)
+- deploy the API Worker (Automatic provisioning will create/link D1 + KV if needed)
+- apply the schema `crates/beacon-worker/migrations/0001_init.sql` (idempotent)
+- sync Worker secrets (when provided)
+- deploy Pages from `dist/` and generate `dist/_worker.js` as the proxy layer
 
 The workflow runs on pushes to `main` and can also be triggered manually.
-
-### Routing
-
-No special `/api/*` route mapping is needed anymore because the Worker serves both UI and API.
-
-If you want a custom domain (instead of `*.workers.dev`), configure a Worker route / custom domain in Cloudflare and set `BASE_URL` accordingly.
-
-> Note: The Workers build currently does not enable Passkey/WebAuthn endpoints.
 
 ## Auth Server Deployment
 
