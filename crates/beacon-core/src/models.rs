@@ -78,6 +78,10 @@ pub struct OAuthStateClaims {
     pub provider: String,
     pub challenge: Option<String>,
     pub redirect_port: Option<u16>,
+
+    /// When present, the OAuth flow is being used to link this provider identity
+    /// to an already-authenticated user.
+    pub link_user_id: Option<i32>,
 }
 
 /// JWT Claims structure
@@ -138,6 +142,22 @@ pub struct MinecraftJwtRequest {
 pub struct MinecraftJwtResponse {
     #[serde(rename = "redirectUrl")]
     pub redirect_url: String,
+}
+
+/// Linked identity info (e.g. an OAuth provider account linked to the canonical user).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IdentityInfo {
+    pub id: i32,
+    pub provider: String,
+    pub provider_user_id: String,
+}
+
+/// Response for GET /api/v1/identities
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IdentitiesResponse {
+    pub identities: Vec<IdentityInfo>,
+    pub has_password: bool,
+    pub passkey_count: i64,
 }
 
 // -------------------- Passkey models (optional feature) --------------------

@@ -62,10 +62,16 @@ pub fn build_api_routes() -> actix_web::Scope {
         .route("/register", web::post().to(handlers::register))
         .route("/logout", web::post().to(handlers::user::logout))
         .route("/oauth/start", web::post().to(handlers::oauth_start))
+        .route("/oauth/link/start", web::post().to(handlers::oauth_link_start))
         .route("/oauth/callback", web::get().to(handlers::oauth_callback))
         .route("/refresh", web::post().to(handlers::refresh_token))
         .route("/minecraft-jwt", web::post().to(handlers::get_minecraft_jwt))
         .route("/user/me", web::get().to(handlers::user::get_user_info))
+        .route("/identities", web::get().to(handlers::identity::list_identities))
+        .route(
+            "/identities/{id}",
+            web::delete().to(handlers::identity::delete_identity_by_id),
+        )
         .route(
             "/user/change-password",
             web::post().to(handlers::user::change_password),

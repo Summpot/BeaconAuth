@@ -1,5 +1,6 @@
 // Re-export all handlers
 pub mod auth;
+pub mod identity;
 pub mod passkey;
 pub mod user;
 
@@ -9,8 +10,9 @@ pub use auth::{get_minecraft_jwt, refresh_token};
 // Keep original handlers here
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
+use entity::identity as identity_entity;
 use entity::user as user_entity;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use uuid::Uuid;
 
 use crate::{
@@ -243,6 +245,7 @@ pub async fn oauth_start(
         iat: now.timestamp(),
         token_type: "oauth_state".to_string(),
         provider: payload.provider.clone(),
+        link_user_id: None,
         challenge: if payload.challenge.is_empty() {
             None
         } else {
@@ -333,6 +336,130 @@ pub async fn oauth_start(
     HttpResponse::Ok().json(OAuthStartResponse { authorization_url })
 }
 
+/// POST /api/v1/oauth/link/start
+///
+/// Starts an OAuth flow intended to *link* an additional identity to an existing logged-in user.
+///
+/// This endpoint is required because `SameSite=Strict` cookies will not be sent on the
+/// cross-site OAuth callback request, so we embed the linking user_id in the signed state JWT.
+pub async fn oauth_link_start(
+    app_state: web::Data<AppState>,
+    req: HttpRequest,
+    payload: web::Json<OAuthStartPayload>,
+) -> impl Responder {
+    let user_id = match extract_session_user(&req, &app_state) {
+        Ok(id) => id,
+        Err(_) => {
+            return HttpResponse::Unauthorized().json(ErrorResponse {
+                error: "unauthorized".to_string(),
+                message: "Not authenticated".to_string(),
+            });
+        }
+    };
+
+    log::info!(
+        "OAuth link start request for provider: {} (user_id={})",
+        payload.provider,
+        user_id
+    );
+
+    let now = Utc::now();
+    let exp = now + chrono::Duration::minutes(10);
+    let state_id = Uuid::new_v4().to_string();
+
+    let claims = OAuthStateClaims {
+        iss: app_state.oauth_config.redirect_base.clone(),
+        sub: state_id,
+        aud: "beaconauth-oauth".to_string(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        token_type: "oauth_state".to_string(),
+        provider: payload.provider.clone(),
+        link_user_id: Some(user_id),
+        challenge: if payload.challenge.is_empty() {
+            None
+        } else {
+            Some(payload.challenge.clone())
+        },
+        redirect_port: if payload.redirect_port == 0 {
+            None
+        } else {
+            Some(payload.redirect_port)
+        },
+    };
+
+    let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
+    header.kid = Some(app_state.jwt_kid.clone());
+
+    let state_token = match jsonwebtoken::encode(&header, &claims, &app_state.encoding_key) {
+        Ok(t) => t,
+        Err(e) => {
+            log::error!("Failed to encode OAuth state JWT: {e}");
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Failed to start OAuth flow".to_string(),
+            });
+        }
+    };
+
+    let authorization_url = match payload.provider.as_str() {
+        "github" => {
+            if let (Some(client_id), Some(_)) = (
+                &app_state.oauth_config.github_client_id,
+                &app_state.oauth_config.github_client_secret,
+            ) {
+                let redirect_uri = format!(
+                    "{}/api/v1/oauth/callback",
+                    app_state.oauth_config.redirect_base
+                );
+                format!(
+                    "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&scope=read:user user:email&state={}",
+                    client_id,
+                    urlencoding::encode(&redirect_uri),
+                    urlencoding::encode(&state_token)
+                )
+            } else {
+                log::error!("GitHub OAuth not configured");
+                return HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                    error: "oauth_not_configured".to_string(),
+                    message: "GitHub OAuth is not configured".to_string(),
+                });
+            }
+        }
+        "google" => {
+            if let (Some(client_id), Some(_)) = (
+                &app_state.oauth_config.google_client_id,
+                &app_state.oauth_config.google_client_secret,
+            ) {
+                let redirect_uri = format!(
+                    "{}/api/v1/oauth/callback",
+                    app_state.oauth_config.redirect_base
+                );
+                format!(
+                    "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope=openid email profile&state={}",
+                    client_id,
+                    urlencoding::encode(&redirect_uri),
+                    urlencoding::encode(&state_token)
+                )
+            } else {
+                log::error!("Google OAuth not configured");
+                return HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                    error: "oauth_not_configured".to_string(),
+                    message: "Google OAuth is not configured".to_string(),
+                });
+            }
+        }
+        _ => {
+            return HttpResponse::BadRequest().json(ErrorResponse {
+                error: "invalid_provider".to_string(),
+                message: "Unsupported OAuth provider".to_string(),
+            });
+        }
+    };
+
+    HttpResponse::Ok().json(OAuthStartResponse { authorization_url })
+}
+
 /// GET /api/v1/oauth/callback
 /// Handle OAuth callback and set session cookies
 pub async fn oauth_callback(
@@ -365,7 +492,7 @@ pub async fn oauth_callback(
     }
 
     // 2. Exchange code for access token and get user info
-    let (user_id, username) = match oauth_state.provider.as_str() {
+    let (provider_user_id, derived_username) = match oauth_state.provider.as_str() {
         "github" => match exchange_github_code(&app_state, &query.code).await {
             Ok((id, name)) => (id, name),
             Err(e) => {
@@ -385,48 +512,182 @@ pub async fn oauth_callback(
         }
     };
 
-    // 3. Find or create user
-    let db_user = match user_entity::Entity::find()
-        .filter(user_entity::Column::Username.eq(&username))
+    // 3. Resolve the canonical user via identities (provider + provider_user_id).
+    let provider = oauth_state.provider.clone();
+    let existing_identity = match identity_entity::Entity::find()
+        .filter(identity_entity::Column::Provider.eq(&provider))
+        .filter(identity_entity::Column::ProviderUserId.eq(&provider_user_id))
         .one(&app_state.db)
         .await
     {
-        Ok(Some(user)) => user,
-        Ok(None) => {
-            // Create new user with OAuth
+        Ok(v) => v,
+        Err(e) => {
+            log::error!("Database error (identity lookup): {}", e);
+            return HttpResponse::InternalServerError().body("Database error");
+        }
+    };
+
+    let db_user = if let Some(identity) = existing_identity {
+        if let Some(link_user_id) = oauth_state.link_user_id {
+            if identity.user_id != link_user_id {
+                return HttpResponse::Conflict().json(ErrorResponse {
+                    error: "identity_already_linked".to_string(),
+                    message: "That provider account is already linked to a different user".to_string(),
+                });
+            }
+        }
+
+        match user_entity::Entity::find_by_id(identity.user_id)
+            .one(&app_state.db)
+            .await
+        {
+            Ok(Some(user)) => user,
+            Ok(None) => {
+                log::error!("Identity references missing user_id={}", identity.user_id);
+                return HttpResponse::InternalServerError().body("Invalid identity mapping");
+            }
+            Err(e) => {
+                log::error!("Database error (user lookup): {}", e);
+                return HttpResponse::InternalServerError().body("Database error");
+            }
+        }
+    } else if let Some(link_user_id) = oauth_state.link_user_id {
+        // Link flow: attach identity to the specified existing user.
+        let user = match user_entity::Entity::find_by_id(link_user_id)
+            .one(&app_state.db)
+            .await
+        {
+            Ok(Some(u)) => u,
+            Ok(None) => {
+                return HttpResponse::NotFound().json(ErrorResponse {
+                    error: "user_not_found".to_string(),
+                    message: "User not found".to_string(),
+                });
+            }
+            Err(e) => {
+                log::error!("Database error (link user lookup): {}", e);
+                return HttpResponse::InternalServerError().body("Database error");
+            }
+        };
+
+        let now = Utc::now();
+        let new_identity = identity_entity::ActiveModel {
+            user_id: Set(link_user_id),
+            provider: Set(provider.clone()),
+            provider_user_id: Set(provider_user_id.clone()),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+
+        // Best-effort insert; if it raced, load again.
+        match new_identity.insert(&app_state.db).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string().to_ascii_lowercase();
+                if msg.contains("unique") {
+                    // Someone else inserted; fine.
+                } else {
+                    log::error!("Failed to insert identity: {}", e);
+                    return HttpResponse::InternalServerError().body("Failed to link identity");
+                }
+            }
+        }
+
+        user
+    } else {
+        // Login/registration flow: migrate legacy users by `password_hash` and backfill identity.
+        let legacy_hash = format!("oauth_{}_{}", provider, provider_user_id);
+
+        let mut user = match user_entity::Entity::find()
+            .filter(user_entity::Column::PasswordHash.eq(&legacy_hash))
+            .one(&app_state.db)
+            .await
+        {
+            Ok(u) => u,
+            Err(e) => {
+                log::error!("Database error (legacy user lookup): {}", e);
+                return HttpResponse::InternalServerError().body("Database error");
+            }
+        };
+
+        if user.is_none() {
+            // Create a new OAuth-only user.
             let now = Utc::now();
+
+            let base = derived_username.clone();
+            let mut candidate = base.clone();
+            for i in 0..=100 {
+                let existing = user_entity::Entity::find()
+                    .filter(user_entity::Column::Username.eq(&candidate))
+                    .one(&app_state.db)
+                    .await;
+
+                match existing {
+                    Ok(None) => break,
+                    Ok(Some(_)) => {
+                        candidate = format!("{}_{}", base, i + 1);
+                        continue;
+                    }
+                    Err(e) => {
+                        log::error!("Database error (username check): {}", e);
+                        return HttpResponse::InternalServerError().body("Database error");
+                    }
+                }
+            }
+
             let new_user = user_entity::ActiveModel {
-                username: Set(username.clone()),
-                password_hash: Set(format!("oauth_{}_{}", oauth_state.provider, user_id)), // Not a real password
+                username: Set(candidate),
+                password_hash: Set(legacy_hash.clone()),
                 created_at: Set(now),
                 updated_at: Set(now),
                 ..Default::default()
             };
 
-            match user_entity::Entity::insert(new_user).exec(&app_state.db).await {
-                Ok(result) => {
-                    match user_entity::Entity::find_by_id(result.last_insert_id)
-                        .one(&app_state.db)
-                        .await
-                    {
-                        Ok(Some(user)) => user,
-                        _ => {
-                            log::error!("Failed to retrieve newly created user");
-                            return HttpResponse::InternalServerError()
-                                .body("Failed to create user");
-                        }
-                    }
-                }
+            let inserted = match user_entity::Entity::insert(new_user).exec(&app_state.db).await {
+                Ok(r) => r.last_insert_id,
                 Err(e) => {
                     log::error!("Failed to create user: {}", e);
                     return HttpResponse::InternalServerError().body("Failed to create user");
                 }
+            };
+
+            user = match user_entity::Entity::find_by_id(inserted).one(&app_state.db).await {
+                Ok(u) => u,
+                Err(e) => {
+                    log::error!("Failed to reload inserted user: {}", e);
+                    return HttpResponse::InternalServerError().body("Failed to create user");
+                }
+            };
+        }
+
+        let Some(user) = user else {
+            return HttpResponse::InternalServerError().body("Failed to resolve user");
+        };
+
+        let now = Utc::now();
+        let new_identity = identity_entity::ActiveModel {
+            user_id: Set(user.id),
+            provider: Set(provider.clone()),
+            provider_user_id: Set(provider_user_id.clone()),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        match new_identity.insert(&app_state.db).await {
+            Ok(_) => {}
+            Err(e) => {
+                let msg = e.to_string().to_ascii_lowercase();
+                if msg.contains("unique") {
+                    // Someone else inserted; fine.
+                } else {
+                    log::error!("Failed to insert identity: {}", e);
+                    return HttpResponse::InternalServerError().body("Failed to persist identity");
+                }
             }
         }
-        Err(e) => {
-            log::error!("Database error: {}", e);
-            return HttpResponse::InternalServerError().body("Database error");
-        }
+
+        user
     };
 
     // 4. Create session tokens
@@ -439,7 +700,12 @@ pub async fn oauth_callback(
             }
         };
 
-    log::info!("OAuth authentication successful for user: {}", username);
+    log::info!(
+        "OAuth authentication successful for user: {} (provider={}, provider_user_id={})",
+        db_user.username,
+        provider,
+        provider_user_id
+    );
 
     // 5. Redirect to OAuth complete page with cookies set
     HttpResponse::Found()

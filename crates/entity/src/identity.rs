@@ -1,0 +1,42 @@
+use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[sea_orm(table_name = "identities")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+
+    /// Foreign key to users table
+    pub user_id: i32,
+
+    /// Identity provider (e.g. "github", "google")
+    pub provider: String,
+
+    /// Provider-scoped stable user identifier (e.g. GitHub numeric id as string)
+    pub provider_user_id: String,
+
+    pub created_at: ChronoDateTimeUtc,
+
+    pub updated_at: ChronoDateTimeUtc,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::UserId",
+        to = "super::user::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    User,
+}
+
+impl Related<super::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::User.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}
