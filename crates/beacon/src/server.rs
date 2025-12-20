@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use moka::sync::Cache;
+use redis::aio::ConnectionManager;
 
 
 #[cfg(unix)]
@@ -84,6 +85,10 @@ pub fn build_api_routes() -> actix_web::Scope {
         )
         .route("/passkey/list", web::get().to(handlers::passkey::list_passkeys))
         .route(
+            "/passkey/{id}",
+            web::delete().to(handlers::passkey::delete_passkey_by_id),
+        )
+        .route(
             "/passkey/delete",
             web::post().to(handlers::passkey::delete_passkey),
         )
@@ -105,7 +110,7 @@ pub fn build_jwks_routes() -> actix_web::Scope {
 
 fn build_cors(cors_origins: &[String]) -> Cors {
     let mut cors = Cors::default()
-        .allowed_methods(vec!["GET", "POST", "OPTIONS"])
+        .allowed_methods(vec!["GET", "POST", "DELETE", "OPTIONS"])
         .allowed_headers(vec![
             actix_web::http::header::AUTHORIZATION,
             actix_web::http::header::ACCEPT,
@@ -212,7 +217,23 @@ pub async fn build_app_state(config: &ServeConfig) -> anyhow::Result<web::Data<A
 
     log::info!("WebAuthn initialized for RP: {}", rp_id);
 
-    // 5. Initialize moka caches for passkey state (5-minute TTL)
+    // 5. Optional Redis-backed ceremony state store (5-minute TTL)
+    let passkey_redis: Option<ConnectionManager> = if let Some(url) = config
+        .redis_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        log::info!("Initializing Redis passkey state store...");
+        let client = redis::Client::open(url)?;
+        let manager = ConnectionManager::new(client).await?;
+        log::info!("Redis passkey state store initialized");
+        Some(manager)
+    } else {
+        None
+    };
+
+    // 6. Initialize moka caches for passkey state (5-minute TTL)
     let passkey_reg_cache = Cache::builder()
         .max_capacity(10_000)
         .time_to_live(Duration::from_secs(5 * 60))
@@ -236,6 +257,7 @@ pub async fn build_app_state(config: &ServeConfig) -> anyhow::Result<web::Data<A
         refresh_token_expiration: 2_592_000, // 30 days
         oauth_config,
         webauthn,
+        passkey_redis,
         passkey_reg_states: passkey_reg_cache,
         passkey_auth_states: passkey_auth_cache,
     }))
@@ -477,6 +499,7 @@ mod tests {
             github_client_secret: None,
             google_client_id: None,
             google_client_secret: None,
+            redis_url: None,
             base_url: "http://localhost:8080".to_string(),
             jwt_private_key_der_b64: None,
             jwks_url: None,

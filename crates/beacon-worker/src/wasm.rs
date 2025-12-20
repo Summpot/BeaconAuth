@@ -1,11 +1,22 @@
 use std::sync::OnceLock;
 
 use beacon_core::{crypto, models};
+use beacon_passkey::{
+    extract_challenge_from_client_data_b64url, AuthenticationState, AuthResult,
+    CreationChallengeResponse, PublicKeyCredential as PasskeyPublicKeyCredential,
+    RegisterPublicKeyCredential, RegistrationState, RequestChallengeResponse, RpConfig,
+    StoredPasskey,
+};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
+use chrono::TimeZone;
 use jsonwebtoken::{encode, Header};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use url::Url;
+use uuid::Uuid;
 use worker::*;
 
 #[derive(Clone)]
@@ -22,6 +33,8 @@ struct JwtState {
 }
 
 static JWT_STATE: OnceLock<JwtState> = OnceLock::new();
+
+static PASSKEY_RP: OnceLock<RpConfig> = OnceLock::new();
 
 fn env_string(env: &Env, key: &str) -> Option<String> {
     env.var(key).ok().map(|v| v.to_string()).filter(|s| !s.is_empty())
@@ -78,13 +91,38 @@ fn get_jwt_state(env: &Env) -> Result<&'static JwtState> {
         .expect("JWT_STATE must be initialized after set()"))
 }
 
+fn init_passkey_rp(env: &Env) -> Result<RpConfig> {
+    let base_url = env_string(env, "BASE_URL").unwrap_or_else(|| "http://localhost:8080".to_string());
+    let rp_origin = Url::parse(&base_url)
+        .map_err(|e| Error::RustError(format!("Invalid BASE_URL '{base_url}': {e}")))?;
+
+    let rp_id = rp_origin
+        .host_str()
+        .ok_or_else(|| Error::RustError("BASE_URL must include a host".to_string()))?
+        .to_string();
+
+    Ok(RpConfig::new(rp_id, rp_origin, "BeaconAuth"))
+}
+
+fn get_passkey_rp(env: &Env) -> Result<&'static RpConfig> {
+    if let Some(rp) = PASSKEY_RP.get() {
+        return Ok(rp);
+    }
+
+    let rp = init_passkey_rp(env)?;
+    let _ = PASSKEY_RP.set(rp);
+    Ok(PASSKEY_RP
+        .get()
+        .expect("PASSKEY_RP must be initialized after set()"))
+}
+
 fn json_with_cors(req: &Request, mut resp: Response) -> Result<Response> {
     let origin = req.headers().get("Origin")?.unwrap_or_else(|| "*".to_string());
 
     resp.headers_mut().set("Access-Control-Allow-Origin", &origin)?;
     resp.headers_mut().set("Access-Control-Allow-Credentials", "true")?;
     resp.headers_mut().set("Access-Control-Allow-Headers", "Content-Type, Authorization")?;
-    resp.headers_mut().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")?;
+    resp.headers_mut().set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")?;
     Ok(resp)
 }
 
@@ -128,6 +166,22 @@ fn sign_jwt<T: Serialize>(state: &JwtState, claims: &T) -> Result<String> {
     let mut header = Header::new(jsonwebtoken::Algorithm::ES256);
     header.kid = Some(state.kid.clone());
     encode(&header, claims, &state.encoding_key).map_err(|e| Error::RustError(e.to_string()))
+}
+
+fn error_response(req: &Request, status: u16, error: &str, message: impl Into<String>) -> Result<Response> {
+    let resp = Response::from_json(&models::ErrorResponse {
+        error: error.to_string(),
+        message: message.into(),
+    })?
+    .with_status(status);
+    json_with_cors(req, resp)
+}
+
+fn internal_error_response(req: &Request, context: &str, err: &dyn std::fmt::Display) -> Result<Response> {
+    // Log detailed server-side context for diagnostics.
+    // Client receives a stable, non-sensitive message.
+    console_log!("{context}: {err}");
+    error_response(req, 500, "internal_error", context)
 }
 
 fn verify_access_token(state: &JwtState, token: &str) -> std::result::Result<i32, String> {
@@ -175,6 +229,60 @@ fn new_family_id() -> String {
     base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, token_bytes)
 }
 
+const PASSKEY_STATE_TTL_SECS: u64 = 5 * 60;
+
+fn passkey_reg_state_key(user_id: i64) -> String {
+    format!("passkey:reg:{user_id}")
+}
+
+fn passkey_auth_state_key(challenge_b64: &str) -> String {
+    format!("passkey:auth:{challenge_b64}")
+}
+
+fn ts_to_rfc3339(ts: i64) -> String {
+    Utc.timestamp_opt(ts, 0)
+        .single()
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_else(|| ts.to_string())
+}
+
+fn passkey_kv(env: &Env) -> Result<KvStore> {
+    env.kv("PASSKEY_KV")
+}
+
+async fn kv_put_json<T: Serialize>(kv: &KvStore, key: &str, value: &T, ttl_secs: u64) -> Result<()> {
+    let json = serde_json::to_string(value).map_err(|e| Error::RustError(e.to_string()))?;
+    kv.put(key, json)
+        .map_err(|e| Error::RustError(e.to_string()))?
+        .expiration_ttl(ttl_secs)
+        .execute()
+        .await
+        .map_err(|e| Error::RustError(e.to_string()))?;
+    Ok(())
+}
+
+async fn kv_get_json<T: DeserializeOwned>(kv: &KvStore, key: &str) -> Result<Option<T>> {
+    let value = kv
+        .get(key)
+        .text()
+        .await
+        .map_err(|e| Error::RustError(e.to_string()))?;
+
+    let Some(value) = value else {
+        return Ok(None);
+    };
+
+    let parsed = serde_json::from_str(&value).map_err(|e| Error::RustError(e.to_string()))?;
+    Ok(Some(parsed))
+}
+
+async fn kv_delete(kv: &KvStore, key: &str) -> Result<()> {
+    kv.delete(key)
+        .await
+        .map_err(|e| Error::RustError(e.to_string()))?;
+    Ok(())
+}
+
 #[derive(Deserialize)]
 struct UserRow {
     id: i64,
@@ -189,6 +297,61 @@ struct RefreshTokenRow {
     family_id: String,
     expires_at: i64,
     revoked: i64,
+}
+
+#[derive(Deserialize, Clone)]
+struct PasskeyDbRow {
+    id: i64,
+    user_id: i64,
+    credential_id: String,
+    credential_data: String,
+    name: String,
+    last_used_at: Option<i64>,
+    created_at: i64,
+}
+
+#[derive(Deserialize)]
+struct PasskeyRegisterStartRequest {
+    name: String,
+}
+
+#[derive(Serialize)]
+struct PasskeyRegisterStartResponse {
+    creation_options: CreationChallengeResponse,
+}
+
+#[derive(Deserialize)]
+struct PasskeyRegisterFinishRequest {
+    credential: RegisterPublicKeyCredential,
+    name: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PasskeyAuthStartResponse {
+    request_options: RequestChallengeResponse,
+}
+
+#[derive(Deserialize)]
+struct PasskeyAuthFinishRequest {
+    credential: PasskeyPublicKeyCredential,
+}
+
+#[derive(Serialize)]
+struct PasskeyInfo {
+    id: i64,
+    name: String,
+    created_at: String,
+    last_used_at: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PasskeyList {
+    passkeys: Vec<PasskeyInfo>,
+}
+
+#[derive(Deserialize)]
+struct PasskeyDeleteRequest {
+    id: i64,
 }
 
 async fn d1(env: &Env) -> Result<D1Database> {
@@ -209,9 +372,94 @@ async fn d1_user_by_id(db: &D1Database, id: i64) -> Result<Option<UserRow>> {
         .await
 }
 
+async fn d1_passkeys_by_user_id(db: &D1Database, user_id: i64) -> Result<Vec<PasskeyDbRow>> {
+    let result = db.prepare(
+        "SELECT id, user_id, credential_id, credential_data, name, last_used_at, created_at FROM passkeys WHERE user_id = ?1 ORDER BY created_at DESC",
+    )
+    .bind(&[user_id.into()])?
+    .all()
+    .await?;
+
+    result.results::<PasskeyDbRow>()
+}
+
+async fn d1_passkeys_all(db: &D1Database) -> Result<Vec<PasskeyDbRow>> {
+    let result = db.prepare(
+        "SELECT id, user_id, credential_id, credential_data, name, last_used_at, created_at FROM passkeys ORDER BY created_at DESC",
+    )
+    .all()
+    .await?;
+
+    result.results::<PasskeyDbRow>()
+}
+
+async fn d1_passkey_by_id(db: &D1Database, id: i64) -> Result<Option<PasskeyDbRow>> {
+    db.prepare(
+        "SELECT id, user_id, credential_id, credential_data, name, last_used_at, created_at FROM passkeys WHERE id = ?1",
+    )
+    .bind(&[id.into()])?
+    .first::<PasskeyDbRow>(None)
+    .await
+}
+
+async fn d1_passkey_by_credential_id(db: &D1Database, credential_id: &str) -> Result<Option<PasskeyDbRow>> {
+    db.prepare(
+        "SELECT id, user_id, credential_id, credential_data, name, last_used_at, created_at FROM passkeys WHERE credential_id = ?1",
+    )
+    .bind(&[credential_id.into()])?
+    .first::<PasskeyDbRow>(None)
+    .await
+}
+
+async fn d1_insert_passkey(
+    db: &D1Database,
+    user_id: i64,
+    credential_id: &str,
+    credential_data: &str,
+    name: &str,
+) -> Result<i64> {
+    let ts = now_ts();
+    db.prepare(
+        "INSERT INTO passkeys (user_id, credential_id, credential_data, name, last_used_at, created_at) VALUES (?1, ?2, ?3, ?4, NULL, ?5)",
+    )
+    .bind(&[
+        user_id.into(),
+        credential_id.into(),
+        credential_data.into(),
+        name.into(),
+        ts.into(),
+    ])?
+    .run()
+    .await?;
+
+    let Some(row) = d1_passkey_by_credential_id(db, credential_id).await? else {
+        return Err(Error::RustError("Inserted passkey could not be reloaded".to_string()));
+    };
+
+    Ok(row.id)
+}
+
+async fn d1_update_passkey_usage(db: &D1Database, id: i64, credential_data: &str, last_used_at: i64) -> Result<()> {
+    db.prepare("UPDATE passkeys SET credential_data = ?1, last_used_at = ?2 WHERE id = ?3")
+        .bind(&[credential_data.into(), last_used_at.into(), id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+async fn d1_delete_passkey_by_id(db: &D1Database, id: i64) -> Result<()> {
+    db.prepare("DELETE FROM passkeys WHERE id = ?1")
+        .bind(&[id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
 async fn d1_insert_user(db: &D1Database, username: &str, password_hash: &str) -> Result<i64> {
     let ts = now_ts();
-    let result = db
+    // NOTE: D1's `last_row_id` metadata is not always available/reliable across environments.
+    // Insert and then fetch the created row by unique username.
+    db
         .prepare(
             "INSERT INTO users (username, password_hash, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
         )
@@ -219,10 +467,11 @@ async fn d1_insert_user(db: &D1Database, username: &str, password_hash: &str) ->
         .run()
         .await?;
 
-    Ok(result
-        .meta()?
-        .and_then(|m| m.last_row_id)
-        .unwrap_or(0))
+    let Some(user) = d1_user_by_username(db, username).await? else {
+        return Err(Error::RustError("Inserted user could not be reloaded".to_string()));
+    };
+
+    Ok(user.id)
 }
 
 async fn d1_update_user_password(db: &D1Database, user_id: i64, new_hash: &str) -> Result<()> {
@@ -305,9 +554,18 @@ async fn handle_get_jwks(req: &Request, env: &Env) -> Result<Response> {
 }
 
 async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = match d1(env).await {
+        Ok(db) => db,
+        Err(e) => return internal_error_response(&req, "Failed to open database binding", &e),
+    };
 
-    let payload: models::RegisterPayload = req.json().await?;
+    let payload: models::RegisterPayload = match req.json().await {
+        Ok(p) => p,
+        Err(e) => {
+            console_log!("Invalid JSON in /v1/register: {e}");
+            return error_response(&req, 400, "invalid_json", "Invalid JSON body");
+        }
+    };
 
     if payload.username.is_empty() || payload.username.len() > 50 {
         let resp = Response::from_json(&models::ErrorResponse {
@@ -327,21 +585,43 @@ async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
         return json_with_cors(&req, resp);
     }
 
-    if d1_user_by_username(&db, &payload.username).await?.is_some() {
-        let resp = Response::from_json(&models::ErrorResponse {
-            error: "username_taken".to_string(),
-            message: "Username already exists".to_string(),
-        })?
-        .with_status(409);
-        return json_with_cors(&req, resp);
+    match d1_user_by_username(&db, &payload.username).await {
+        Ok(Some(_)) => {
+            return error_response(&req, 409, "username_taken", "Username already exists");
+        }
+        Ok(None) => {}
+        Err(e) => return internal_error_response(&req, "Failed to check existing username", &e),
+    };
+
+    let password_hash = match bcrypt::hash(&payload.password, bcrypt::DEFAULT_COST) {
+        Ok(h) => h,
+        Err(e) => return internal_error_response(&req, "Failed to hash password", &e),
+    };
+
+    let user_id = match d1_insert_user(&db, &payload.username, &password_hash).await {
+        Ok(id) => id,
+        Err(e) => {
+            // Handle a potential race on username creation (unique constraint) gracefully.
+            let msg = e.to_string();
+            if msg.to_ascii_lowercase().contains("unique") {
+                return error_response(&req, 409, "username_taken", "Username already exists");
+            }
+            return internal_error_response(&req, "Failed to create user", &e);
+        }
+    };
+
+    if user_id <= 0 {
+        return internal_error_response(
+            &req,
+            "Failed to create user (invalid inserted id)",
+            &"insert returned non-positive id",
+        );
     }
 
-    let password_hash = bcrypt::hash(&payload.password, bcrypt::DEFAULT_COST)
-        .map_err(|e| Error::RustError(e.to_string()))?;
-
-    let user_id = d1_insert_user(&db, &payload.username, &password_hash).await?;
-
-    let jwt = get_jwt_state(env)?;
+    let jwt = match get_jwt_state(env) {
+        Ok(jwt) => jwt,
+        Err(e) => return internal_error_response(&req, "Failed to initialize JWT state", &e),
+    };
     let now = Utc::now();
 
     let access_exp = now + chrono::Duration::seconds(jwt.access_token_expiration);
@@ -353,14 +633,19 @@ async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
         token_type: "access".to_string(),
     };
 
-    let access_token = sign_jwt(jwt, &access_claims)?;
+    let access_token = match sign_jwt(jwt, &access_claims) {
+        Ok(t) => t,
+        Err(e) => return internal_error_response(&req, "Failed to sign access token", &e),
+    };
 
     let refresh_token = new_refresh_token();
     let token_hash = sha256_hex(&refresh_token);
     let family_id = new_family_id();
     let refresh_exp = now.timestamp() + jwt.refresh_token_expiration;
 
-    d1_insert_refresh_token(&db, user_id, &token_hash, &family_id, refresh_exp).await?;
+    if let Err(e) = d1_insert_refresh_token(&db, user_id, &token_hash, &family_id, refresh_exp).await {
+        return internal_error_response(&req, "Failed to persist refresh token", &e);
+    }
 
     let mut resp = Response::from_json(&json!({ "success": true }))?;
     let headers = resp.headers_mut();
@@ -625,6 +910,363 @@ async fn handle_logout(req: &Request, env: &Env) -> Result<Response> {
     json_with_cors(req, resp)
 }
 
+async fn handle_passkey_register_start(mut req: Request, env: &Env) -> Result<Response> {
+    let db = d1(env).await?;
+    let jwt = get_jwt_state(env)?;
+    let rp = get_passkey_rp(env)?;
+    let kv = match passkey_kv(env) {
+        Ok(kv) => kv,
+        Err(_) => {
+            return error_response(
+                &req,
+                501,
+                "not_configured",
+                "PASSKEY_KV binding is required for passkey endpoints",
+            );
+        }
+    };
+
+    let _body: PasskeyRegisterStartRequest = match req.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            console_log!("Invalid JSON in /v1/passkey/register/start: {e}");
+            return error_response(&req, 400, "invalid_json", "Invalid JSON body");
+        }
+    };
+
+    let Some(access_token) = get_cookie(&req, "access_token")? else {
+        return error_response(&req, 401, "unauthorized", "Not authenticated");
+    };
+
+    let user_id = match verify_access_token(jwt, &access_token) {
+        Ok(id) => id as i64,
+        Err(e) => return error_response(&req, 401, "invalid_token", e),
+    };
+
+    let Some(user) = d1_user_by_id(&db, user_id).await? else {
+        return error_response(&req, 404, "user_not_found", "User not found");
+    };
+
+    let existing_passkeys = d1_passkeys_by_user_id(&db, user_id).await?;
+    let exclude_credentials: Vec<Vec<u8>> = existing_passkeys
+        .iter()
+        .filter_map(|pk| BASE64.decode(&pk.credential_id).ok())
+        .collect();
+
+    let user_uuid = Uuid::from_u128(user.id as u128);
+    let (ccr, reg_state) = beacon_passkey::start_passkey_registration(
+        rp,
+        user_uuid.as_bytes(),
+        &user.username,
+        &user.username,
+        if exclude_credentials.is_empty() {
+            None
+        } else {
+            Some(exclude_credentials)
+        },
+    );
+
+    kv_put_json(
+        &kv,
+        &passkey_reg_state_key(user_id),
+        &reg_state,
+        PASSKEY_STATE_TTL_SECS,
+    )
+    .await?;
+
+    let resp = Response::from_json(&PasskeyRegisterStartResponse {
+        creation_options: ccr,
+    })?;
+    json_with_cors(&req, resp)
+}
+
+async fn handle_passkey_register_finish(mut req: Request, env: &Env) -> Result<Response> {
+    let db = d1(env).await?;
+    let jwt = get_jwt_state(env)?;
+    let rp = get_passkey_rp(env)?;
+    let kv = match passkey_kv(env) {
+        Ok(kv) => kv,
+        Err(_) => {
+            return error_response(
+                &req,
+                501,
+                "not_configured",
+                "PASSKEY_KV binding is required for passkey endpoints",
+            );
+        }
+    };
+
+    let body: PasskeyRegisterFinishRequest = match req.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            console_log!("Invalid JSON in /v1/passkey/register/finish: {e}");
+            return error_response(&req, 400, "invalid_json", "Invalid JSON body");
+        }
+    };
+
+    let Some(access_token) = get_cookie(&req, "access_token")? else {
+        return error_response(&req, 401, "unauthorized", "Not authenticated");
+    };
+
+    let user_id = match verify_access_token(jwt, &access_token) {
+        Ok(id) => id as i64,
+        Err(e) => return error_response(&req, 401, "invalid_token", e),
+    };
+
+    let state_key = passkey_reg_state_key(user_id);
+    let reg_state: RegistrationState = match kv_get_json(&kv, &state_key).await? {
+        Some(s) => s,
+        None => return error_response(&req, 400, "no_registration", "No registration in progress"),
+    };
+    // Remove after retrieval to prevent replays.
+    let _ = kv_delete(&kv, &state_key).await;
+
+    let stored = beacon_passkey::finish_passkey_registration(rp, &body.credential, &reg_state)
+        .map_err(|e| Error::RustError(format!("Passkey registration failed: {} ({})", e.message, e.code)))?;
+
+    let credential_data = serde_json::to_string(&stored).map_err(|e| Error::RustError(e.to_string()))?;
+
+    // Store credential_id in the DB as standard base64 (to match the rest of the codebase).
+    let raw_id_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(&body.credential.raw_id)
+        .map_err(|_| Error::RustError("Invalid credential rawId".to_string()))?;
+    let credential_id_b64 = BASE64.encode(&raw_id_bytes);
+    let name = body.name.unwrap_or_else(|| "Passkey".to_string());
+
+    let passkey_id = match d1_insert_passkey(&db, user_id, &credential_id_b64, &credential_data, &name).await {
+        Ok(id) => id,
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.to_ascii_lowercase().contains("unique") {
+                return error_response(&req, 409, "passkey_exists", "Passkey already exists");
+            }
+            return internal_error_response(&req, "Failed to persist passkey", &e);
+        }
+    };
+
+    let resp = Response::from_json(&json!({
+        "success": true,
+        "passkey_id": passkey_id,
+    }))?
+    .with_status(201);
+    json_with_cors(&req, resp)
+}
+
+async fn handle_passkey_auth_start(mut req: Request, env: &Env) -> Result<Response> {
+    let db = d1(env).await?;
+    let rp = get_passkey_rp(env)?;
+    let kv = match passkey_kv(env) {
+        Ok(kv) => kv,
+        Err(_) => {
+            return error_response(
+                &req,
+                501,
+                "not_configured",
+                "PASSKEY_KV binding is required for passkey endpoints",
+            );
+        }
+    };
+
+    // Body is optional in the web UI; treat missing/invalid JSON as empty.
+    let body: serde_json::Value = req.json().await.unwrap_or_else(|_| json!({}));
+    let username = body.get("username").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    let (allow_credential_ids, has_any_passkeys) = if let Some(username) = username {
+        let Some(user) = d1_user_by_username(&db, &username).await? else {
+            return error_response(&req, 404, "user_not_found", "User not found");
+        };
+        let passkeys = d1_passkeys_by_user_id(&db, user.id).await?;
+        if passkeys.is_empty() {
+            return error_response(&req, 404, "no_passkeys", "No passkeys found");
+        }
+        let ids = passkeys
+            .into_iter()
+            .filter_map(|pk| BASE64.decode(pk.credential_id).ok())
+            .collect::<Vec<_>>();
+        (Some(ids), true)
+    } else {
+        // Discoverable credentials: do not send allowCredentials.
+        let passkeys = d1_passkeys_all(&db).await?;
+        (None, !passkeys.is_empty())
+    };
+
+    if !has_any_passkeys {
+        return error_response(&req, 404, "no_passkeys", "No passkeys found");
+    }
+
+    let (rcr, auth_state) = beacon_passkey::start_passkey_authentication(rp, allow_credential_ids);
+
+    let challenge_str = rcr.public_key.challenge.clone();
+    kv_put_json(
+        &kv,
+        &passkey_auth_state_key(&challenge_str),
+        &auth_state,
+        PASSKEY_STATE_TTL_SECS,
+    )
+    .await?;
+
+    let resp = Response::from_json(&PasskeyAuthStartResponse { request_options: rcr })?;
+    json_with_cors(&req, resp)
+}
+
+async fn handle_passkey_auth_finish(mut req: Request, env: &Env) -> Result<Response> {
+    let db = d1(env).await?;
+    let jwt = get_jwt_state(env)?;
+    let rp = get_passkey_rp(env)?;
+    let kv = match passkey_kv(env) {
+        Ok(kv) => kv,
+        Err(_) => {
+            return error_response(
+                &req,
+                501,
+                "not_configured",
+                "PASSKEY_KV binding is required for passkey endpoints",
+            );
+        }
+    };
+
+    let body: PasskeyAuthFinishRequest = match req.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            console_log!("Invalid JSON in /v1/passkey/auth/finish: {e}");
+            return error_response(&req, 400, "invalid_json", "Invalid JSON body");
+        }
+    };
+
+    let challenge_b64 = extract_challenge_from_client_data_b64url(&body.credential.response.client_data_json)
+        .map_err(|e| Error::RustError(format!("Invalid clientDataJSON: {} ({})", e.message, e.code)))?;
+
+    let state_key = passkey_auth_state_key(&challenge_b64);
+    let auth_state: AuthenticationState = match kv_get_json(&kv, &state_key).await? {
+        Some(s) => s,
+        None => return error_response(&req, 400, "no_auth", "No authentication in progress"),
+    };
+    // Remove after retrieval to prevent replays.
+    let _ = kv_delete(&kv, &state_key).await;
+
+    // Determine credential ID and load stored passkey.
+    let raw_id_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(&body.credential.raw_id)
+        .map_err(|_| Error::RustError("Invalid credential rawId".to_string()))?;
+    let credential_id_b64 = BASE64.encode(&raw_id_bytes);
+    let Some(passkey_row) = d1_passkey_by_credential_id(&db, &credential_id_b64).await? else {
+        return error_response(&req, 404, "passkey_not_found", "Passkey not found");
+    };
+
+    let mut stored_passkey: StoredPasskey = serde_json::from_str(&passkey_row.credential_data)
+        .map_err(|e| Error::RustError(format!("Invalid stored passkey data: {e}")))?;
+
+    let AuthResult { new_sign_count } = beacon_passkey::finish_passkey_authentication(
+        rp,
+        &body.credential,
+        &auth_state,
+        &stored_passkey,
+    )
+    .map_err(|e| Error::RustError(format!("Passkey authentication failed: {} ({})", e.message, e.code)))?;
+
+    stored_passkey.sign_count = new_sign_count;
+    let updated_data = serde_json::to_string(&stored_passkey)
+        .map_err(|e| Error::RustError(e.to_string()))?;
+
+    let used_ts = now_ts();
+    d1_update_passkey_usage(&db, passkey_row.id, &updated_data, used_ts).await?;
+
+    let Some(user) = d1_user_by_id(&db, passkey_row.user_id).await? else {
+        return error_response(&req, 404, "user_not_found", "User not found");
+    };
+
+    // Create a new session (same behavior as password login).
+    let now = Utc::now();
+    let access_exp = now + chrono::Duration::seconds(jwt.access_token_expiration);
+    let access_claims = models::SessionClaims {
+        iss: jwt.issuer.clone(),
+        sub: (user.id as i32).to_string(),
+        aud: "beaconauth-web".to_string(),
+        exp: access_exp.timestamp(),
+        token_type: "access".to_string(),
+    };
+    let access_token = sign_jwt(jwt, &access_claims)?;
+
+    let refresh_token = new_refresh_token();
+    let token_hash = sha256_hex(&refresh_token);
+    let family_id = new_family_id();
+    let refresh_exp = now.timestamp() + jwt.refresh_token_expiration;
+    d1_insert_refresh_token(&db, user.id, &token_hash, &family_id, refresh_exp).await?;
+
+    let mut resp = Response::from_json(&json!({ "success": true, "username": user.username }))?;
+    let headers = resp.headers_mut();
+    append_set_cookie(headers, &cookie_kv("access_token", &access_token, jwt.access_token_expiration))?;
+    append_set_cookie(headers, &cookie_kv("refresh_token", &refresh_token, jwt.refresh_token_expiration))?;
+    json_with_cors(&req, resp)
+}
+
+async fn handle_passkey_list(req: &Request, env: &Env) -> Result<Response> {
+    let db = d1(env).await?;
+    let jwt = get_jwt_state(env)?;
+
+    let Some(access_token) = get_cookie(req, "access_token")? else {
+        return error_response(req, 401, "unauthorized", "Not authenticated");
+    };
+
+    let user_id = match verify_access_token(jwt, &access_token) {
+        Ok(id) => id as i64,
+        Err(e) => return error_response(req, 401, "invalid_token", e),
+    };
+
+    let passkeys = d1_passkeys_by_user_id(&db, user_id).await?;
+    let list = PasskeyList {
+        passkeys: passkeys
+            .into_iter()
+            .map(|pk| PasskeyInfo {
+                id: pk.id,
+                name: pk.name,
+                created_at: ts_to_rfc3339(pk.created_at),
+                last_used_at: pk.last_used_at.map(ts_to_rfc3339),
+            })
+            .collect(),
+    };
+
+    let resp = Response::from_json(&list)?;
+    json_with_cors(req, resp)
+}
+
+async fn handle_passkey_delete_by_id(req: &Request, env: &Env, id: i64) -> Result<Response> {
+    let db = d1(env).await?;
+    let jwt = get_jwt_state(env)?;
+
+    let Some(access_token) = get_cookie(req, "access_token")? else {
+        return error_response(req, 401, "unauthorized", "Not authenticated");
+    };
+
+    let user_id = match verify_access_token(jwt, &access_token) {
+        Ok(id) => id as i64,
+        Err(e) => return error_response(req, 401, "invalid_token", e),
+    };
+
+    let Some(passkey) = d1_passkey_by_id(&db, id).await? else {
+        return error_response(req, 404, "passkey_not_found", "Passkey not found");
+    };
+
+    if passkey.user_id != user_id {
+        return error_response(req, 403, "forbidden", "Not your passkey");
+    }
+
+    d1_delete_passkey_by_id(&db, id).await?;
+    let resp = Response::from_json(&json!({ "success": true }))?;
+    json_with_cors(req, resp)
+}
+
+async fn handle_passkey_delete(mut req: Request, env: &Env) -> Result<Response> {
+    let body: PasskeyDeleteRequest = match req.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            console_log!("Invalid JSON in /v1/passkey/delete: {e}");
+            return error_response(&req, 400, "invalid_json", "Invalid JSON body");
+        }
+    };
+    handle_passkey_delete_by_id(&req, env, body.id).await
+}
+
 async fn handle_minecraft_jwt(mut req: Request, env: &Env) -> Result<Response> {
     let jwt = get_jwt_state(env)?;
 
@@ -749,6 +1391,21 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     if method == Method::Post && path == "/v1/register" {
         return handle_register(req, &env).await;
     }
+    if method == Method::Post && path == "/v1/passkey/register/start" {
+        return handle_passkey_register_start(req, &env).await;
+    }
+    if method == Method::Post && path == "/v1/passkey/register/finish" {
+        return handle_passkey_register_finish(req, &env).await;
+    }
+    if method == Method::Post && path == "/v1/passkey/auth/start" {
+        return handle_passkey_auth_start(req, &env).await;
+    }
+    if method == Method::Post && path == "/v1/passkey/auth/finish" {
+        return handle_passkey_auth_finish(req, &env).await;
+    }
+    if method == Method::Post && path == "/v1/passkey/delete" {
+        return handle_passkey_delete(req, &env).await;
+    }
     if method == Method::Post && path == "/v1/user/change-password" {
         return handle_change_password(req, &env).await;
     }
@@ -763,22 +1420,18 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         (Method::Get, "/v1/user/me") => handle_user_me(&req, &env).await,
         (Method::Get, "/.well-known/jwks.json") => handle_get_jwks(&req, &env).await,
 
-        // Present-but-not-implemented endpoints in Workers.
-        (Method::Post, p) if p.starts_with("/v1/passkey/") => {
-            let resp = Response::from_json(&models::ErrorResponse {
-                error: "not_supported".to_string(),
-                message: "Passkey (WebAuthn) endpoints are not enabled in the Workers build yet".to_string(),
-            })?
-            .with_status(501);
-            json_with_cors(&req, resp)
-        }
-        (Method::Get, p) if p.starts_with("/v1/passkey/") => {
-            let resp = Response::from_json(&models::ErrorResponse {
-                error: "not_supported".to_string(),
-                message: "Passkey (WebAuthn) endpoints are not enabled in the Workers build yet".to_string(),
-            })?
-            .with_status(501);
-            json_with_cors(&req, resp)
+        (Method::Get, "/v1/passkey/list") => handle_passkey_list(&req, &env).await,
+        (Method::Delete, p) if p.starts_with("/v1/passkey/") => {
+            let Some(id_str) = p.strip_prefix("/v1/passkey/") else {
+                return not_found(&req);
+            };
+
+            let id = match id_str.parse::<i64>() {
+                Ok(id) => id,
+                Err(_) => return error_response(&req, 400, "invalid_passkey_id", "Invalid passkey id"),
+            };
+
+            handle_passkey_delete_by_id(&req, &env, id).await
         }
 
         (Method::Post, p) if p.starts_with("/v1/oauth/") => {
@@ -798,7 +1451,7 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             json_with_cors(&req, resp)
         }
 
-        (Method::Get, _) | (Method::Post, _) => not_found(&req),
+        (Method::Get, _) | (Method::Post, _) | (Method::Delete, _) => not_found(&req),
         _ => method_not_allowed(&req),
     }
 }

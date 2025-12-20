@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beacon-core = { workspace = true }
+beacon-passkey = { workspace = true }
 
 anyhow = { workspace = true }
 base64 = { workspace = true }
@@ -21,6 +22,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 urlencoding = { workspace = true }
+
+# Passkeys / WebAuthn (wasm-safe)
+url = { workspace = true }
+uuid = { workspace = true, features = ["js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 worker = { workspace = true }

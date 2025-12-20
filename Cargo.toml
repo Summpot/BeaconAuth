@@ -7,6 +7,7 @@ members = [
 [workspace.dependencies]
 # Workspace crates
 beacon-core = { path = "crates/beacon-core", default-features = false }
+beacon-passkey = { path = "crates/beacon-passkey", default-features = false }
 entity = { path = "crates/entity" }
 migration = { path = "crates/migration" }
 
@@ -62,6 +63,9 @@ webauthn-rs-proto = "0.5"
 
 # Cache
 moka = { version = "0.12", features = ["sync"] }
+
+# Redis (optional distributed ceremony state store)
+redis = { version = "1.0", features = ["tokio-comp", "connection-manager"] }
 
 # Serverless
 lambda-web = "0.2.1"

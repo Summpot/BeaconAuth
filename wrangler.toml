@@ -34,6 +34,10 @@ binding = "DB"
 database_name = "beacon-auth"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 
+[[kv_namespaces]]
+binding = "PASSKEY_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
 [vars]
 BASE_URL = ""
 JWT_KID = "beacon-auth-key-1"

@@ -113,6 +113,14 @@ pub struct ServeConfig {
     )]
     pub base_url: String,
 
+    /// Optional Redis connection URL.
+    ///
+    /// When set, BeaconAuth stores temporary WebAuthn ceremony state (registration/authentication)
+    /// in Redis with a short TTL to support multi-instance deployments.
+    /// When unset, BeaconAuth falls back to in-memory moka caches.
+    #[arg(long, env = "REDIS_URL")]
+    pub redis_url: Option<String>,
+
     /// Optional ES256 (P-256) private key in PKCS#8 DER format, encoded as base64.
     ///
     /// When set, JWT signing keys become stable across restarts and multiple instances.

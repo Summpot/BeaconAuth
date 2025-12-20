@@ -4,6 +4,7 @@ use std::sync::Arc;
 use webauthn_rs::Webauthn;
 use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration};
 use moka::sync::Cache;
+use redis::aio::ConnectionManager;
 
 /// Shared application state
 pub struct AppState {
@@ -36,6 +37,12 @@ pub struct AppState {
 
     /// WebAuthn instance for passkey operations
     pub webauthn: Arc<Webauthn>,
+
+    /// Optional Redis connection manager for distributed passkey ceremony state.
+    ///
+    /// When present, handlers will store/retrieve `PasskeyRegistration` and `PasskeyAuthentication`
+    /// states in Redis with a short TTL.
+    pub passkey_redis: Option<ConnectionManager>,
 
     /// Temporary passkey registration state storage (user_id -> PasskeyRegistration)
     /// Uses moka cache with 5-minute TTL to avoid state serialization

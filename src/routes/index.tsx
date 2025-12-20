@@ -45,7 +45,7 @@ function HomePage() {
     queryKey: queryKeys.userMe(),
     queryFn: async (): Promise<UserInfo | null> => {
       try {
-        return await apiClient<UserInfo>('/api/v1/user/me');
+        return await apiClient<UserInfo>('/api/v1/user/me', { requiresAuth: false });
       } catch {
         return null;
       }

@@ -70,8 +70,11 @@ urlencoding.workspace = true
 reqwest = { workspace = true }
 
 # WebAuthn
-webauthn-rs = { workspace = true }
+webauthn-rs = { workspace = true, features = ["danger-allow-state-serialisation"] }
 webauthn-rs-proto = { workspace = true }
+
+# Redis (optional)
+redis = { workspace = true }
 
 # Cache
 moka = { workspace = true }

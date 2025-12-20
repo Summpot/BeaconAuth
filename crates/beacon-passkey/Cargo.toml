@@ -1,0 +1,17 @@
+[package]
+name = "beacon-passkey"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+base64 = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+url = { workspace = true }
+p256 = { workspace = true, features = ["ecdsa"] }
+
+# CBOR parsing for attestation/authenticator data.
+serde_cbor_2 = "0.13"

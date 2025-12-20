@@ -1,6 +1,9 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use base64::{engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD as BASE64URL}, Engine};
+use redis::AsyncCommands;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use webauthn_rs::prelude::*;
 
 use crate::app_state::AppState;
@@ -10,6 +13,60 @@ use crate::models::{
     PasskeyRegisterFinishRequest, PasskeyRegisterStartRequest, PasskeyRegisterStartResponse,
 };
 use entity::{passkey, user};
+
+const PASSKEY_STATE_TTL_SECS: u64 = 5 * 60;
+
+fn redis_reg_key(user_id: i32) -> String {
+    format!("beaconauth:passkey:reg:{user_id}")
+}
+
+fn redis_auth_key(challenge_b64: &str) -> String {
+    format!("beaconauth:passkey:auth:{challenge_b64}")
+}
+
+async fn redis_set_json<T: Serialize>(
+    redis: &redis::aio::ConnectionManager,
+    key: &str,
+    value: &T,
+) -> actix_web::Result<()> {
+    let json = serde_json::to_string(value).map_err(actix_web::error::ErrorInternalServerError)?;
+    let mut conn = redis.clone();
+    let _: () = conn
+        .set_ex(key, json, PASSKEY_STATE_TTL_SECS)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(())
+}
+
+async fn redis_get_json<T: DeserializeOwned>(
+    redis: &redis::aio::ConnectionManager,
+    key: &str,
+) -> actix_web::Result<Option<T>> {
+    let mut conn = redis.clone();
+    let value: Option<String> = conn
+        .get(key)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+
+    let Some(value) = value else {
+        return Ok(None);
+    };
+
+    let parsed = serde_json::from_str(&value).map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Some(parsed))
+}
+
+async fn redis_del(
+    redis: &redis::aio::ConnectionManager,
+    key: &str,
+) -> actix_web::Result<()> {
+    let mut conn = redis.clone();
+    let _: () = conn
+        .del(key)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(())
+}
 
 /// POST /api/v1/passkey/register/start
 pub async fn register_start(
@@ -55,10 +112,14 @@ pub async fn register_start(
             actix_web::error::ErrorInternalServerError("Failed to start registration")
         })?;
 
-    // Store registration state in cache (5-minute TTL)
-    app_state
-        .passkey_reg_states
-        .insert(user_id, passkey_registration);
+    // Store registration state (5-minute TTL)
+    if let Some(redis) = &app_state.passkey_redis {
+        redis_set_json(redis, &redis_reg_key(user_id), &passkey_registration).await?;
+    } else {
+        app_state
+            .passkey_reg_states
+            .insert(user_id, passkey_registration);
+    }
 
     Ok(HttpResponse::Ok().json(PasskeyRegisterStartResponse {
         creation_options: ccr,
@@ -73,14 +134,21 @@ pub async fn register_finish(
 ) -> actix_web::Result<HttpResponse> {
     let user_id = extract_session_user(&req, &app_state)?;
 
-    // Retrieve registration state from cache
-    let passkey_registration = app_state
-        .passkey_reg_states
-        .get(&user_id)
-        .ok_or_else(|| actix_web::error::ErrorBadRequest("No registration in progress"))?;
-    
-    // Remove from cache after retrieval
-    app_state.passkey_reg_states.invalidate(&user_id);
+    // Retrieve registration state
+    let passkey_registration = if let Some(redis) = &app_state.passkey_redis {
+        let key = redis_reg_key(user_id);
+        let state: Option<PasskeyRegistration> = redis_get_json(redis, &key).await?;
+        // Remove after retrieval to prevent replays.
+        let _ = redis_del(redis, &key).await;
+        state.ok_or_else(|| actix_web::error::ErrorBadRequest("No registration in progress"))?
+    } else {
+        let state = app_state
+            .passkey_reg_states
+            .get(&user_id)
+            .ok_or_else(|| actix_web::error::ErrorBadRequest("No registration in progress"))?;
+        app_state.passkey_reg_states.invalidate(&user_id);
+        state
+    };
 
     // Finish registration
     let passkey = app_state
@@ -178,9 +246,13 @@ pub async fn auth_start(
     // Store authentication state in cache using challenge as key (5-minute TTL)
     // Use base64url encoding (no padding) to match WebAuthn client_data_json format
     let challenge_str = BASE64URL.encode(rcr.public_key.challenge.as_ref());
-    app_state
-        .passkey_auth_states
-        .insert(challenge_str.clone(), passkey_authentication);
+    if let Some(redis) = &app_state.passkey_redis {
+        redis_set_json(redis, &redis_auth_key(&challenge_str), &passkey_authentication).await?;
+    } else {
+        app_state
+            .passkey_auth_states
+            .insert(challenge_str.clone(), passkey_authentication);
+    }
 
     Ok(HttpResponse::Ok().json(PasskeyAuthStartResponse {
         request_options: rcr,
@@ -210,17 +282,27 @@ pub async fn auth_finish(
         .and_then(|v| v.as_str())
         .ok_or_else(|| actix_web::error::ErrorBadRequest("Challenge not found in client data"))?;
 
-    // Retrieve authentication state from cache using the challenge
-    let passkey_authentication = app_state
-        .passkey_auth_states
-        .get(challenge_b64)
-        .ok_or_else(|| {
+    // Retrieve authentication state using the challenge
+    let passkey_authentication = if let Some(redis) = &app_state.passkey_redis {
+        let key = redis_auth_key(challenge_b64);
+        let state: Option<PasskeyAuthentication> = redis_get_json(redis, &key).await?;
+        // Remove after retrieval to prevent replays.
+        let _ = redis_del(redis, &key).await;
+        state.ok_or_else(|| {
             log::error!("No authentication state found for challenge: {}", challenge_b64);
             actix_web::error::ErrorBadRequest("No authentication in progress")
-        })?;
-    
-    // Remove from cache after retrieval
-    app_state.passkey_auth_states.invalidate(challenge_b64);
+        })?
+    } else {
+        let state = app_state
+            .passkey_auth_states
+            .get(challenge_b64)
+            .ok_or_else(|| {
+                log::error!("No authentication state found for challenge: {}", challenge_b64);
+                actix_web::error::ErrorBadRequest("No authentication in progress")
+            })?;
+        app_state.passkey_auth_states.invalidate(challenge_b64);
+        state
+    };
 
     // Finish authentication
     let auth_result = app_state
@@ -346,6 +428,41 @@ pub async fn delete_passkey(
 ) -> actix_web::Result<HttpResponse> {
     let user_id = extract_session_user(&req, &app_state)?;
     let passkey_id = body.id;
+
+    // Find passkey and verify ownership
+    let passkey_model = passkey::Entity::find_by_id(passkey_id)
+        .one(&app_state.db)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?
+        .ok_or_else(|| actix_web::error::ErrorNotFound("Passkey not found"))?;
+
+    if passkey_model.user_id != user_id {
+        return Err(actix_web::error::ErrorForbidden("Not your passkey"));
+    }
+
+    // Delete passkey
+    passkey::Entity::delete_by_id(passkey_id)
+        .exec(&app_state.db)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+
+    log::info!("User {} deleted passkey {}", user_id, passkey_id);
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+    })))
+}
+
+/// DELETE /api/v1/passkey/{id}
+///
+/// Route alias for the web UI (matches the frontend's DELETE call).
+pub async fn delete_passkey_by_id(
+    req: HttpRequest,
+    app_state: web::Data<AppState>,
+    id: web::Path<i32>,
+) -> actix_web::Result<HttpResponse> {
+    let user_id = extract_session_user(&req, &app_state)?;
+    let passkey_id = id.into_inner();
 
     // Find passkey and verify ownership
     let passkey_model = passkey::Entity::find_by_id(passkey_id)
