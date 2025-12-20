@@ -5,6 +5,12 @@ on:
     branches:
       - main
       - develop
+    paths:
+      - '!crates/beacon-worker/**'
+      - '!wrangler.jsonc'
+      - '!wrangler.workers.jsonc'
+      - '!rslib.config.ts'
+      - '!.github/workflows/deploy-cloudflare.yml'
   pull_request:
     branches:
       - main

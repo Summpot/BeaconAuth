@@ -16,6 +16,7 @@ on:
       - package.json
       - pnpm-lock.yaml
       - rsbuild.config.ts
+      - rslib.config.ts
       - tsconfig.json
       - .github/workflows/deploy-cloudflare.yml
   workflow_dispatch:
