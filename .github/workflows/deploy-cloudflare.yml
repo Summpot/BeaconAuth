@@ -72,7 +72,7 @@ jobs:
 
       - name: Install Wrangler CLI
         run: |
-          npm install -g wrangler@4.45.0
+          npm install -g wrangler@4
           wrangler --version
 
       - name: Resolve deploy settings
