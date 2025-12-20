@@ -5,8 +5,9 @@
 	"main": "crates/beacon-worker/build/worker/shim.mjs",
 	"base_dir": "build",
 	"observability": {
+		"enabled": true,
 		"logs": {
-			"enabled": false,
+			"enabled": true,
 			"head_sampling_rate": 1,
 			"invocation_logs": true,
 			"persist": true
