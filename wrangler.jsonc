@@ -17,21 +17,14 @@
       "fallthrough": false
     }
   ],
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": true
-  },
   "d1_databases": [
     {
-      "binding": "DB",
-      "database_name": "beacon-auth"
+      "binding": "DB"
     }
   ],
   "kv_namespaces": [
     {
-      "binding": "PASSKEY_KV"
+      "binding": "KV"
     }
   ],
   "vars": {
