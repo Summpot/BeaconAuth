@@ -1,6 +1,6 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -17,6 +17,10 @@ const RootLayout = () => {
         },
       })
   );
+
+  useEffect(() => {
+    document.title = 'BeaconAuth';
+  }, []);
 
   return (
     <ThemeProvider defaultTheme="system" storageKey="beaconauth-ui-theme">
