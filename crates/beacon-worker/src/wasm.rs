@@ -246,6 +246,11 @@ fn ts_to_rfc3339(ts: i64) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
+fn d1_number(value: i64) -> Value {
+    // D1 currently rejects JavaScript BigInt parameters, so always pass numeric values.
+    (value as f64).into()
+}
+
 fn kv(env: &Env) -> Result<KvStore> {
     env.kv("KV")
 }
@@ -367,7 +372,7 @@ async fn d1_user_by_username(db: &D1Database, username: &str) -> Result<Option<U
 
 async fn d1_user_by_id(db: &D1Database, id: i64) -> Result<Option<UserRow>> {
     db.prepare("SELECT id, username, password_hash FROM users WHERE id = ?1")
-        .bind(&[id.into()])?
+    .bind(&[d1_number(id)])?
         .first::<UserRow>(None)
         .await
 }
@@ -376,7 +381,7 @@ async fn d1_passkeys_by_user_id(db: &D1Database, user_id: i64) -> Result<Vec<Pas
     let result = db.prepare(
         "SELECT id, user_id, credential_id, credential_data, name, last_used_at, created_at FROM passkeys WHERE user_id = ?1 ORDER BY created_at DESC",
     )
-    .bind(&[user_id.into()])?
+    .bind(&[d1_number(user_id)])?
     .all()
     .await?;
 
@@ -397,7 +402,7 @@ async fn d1_passkey_by_id(db: &D1Database, id: i64) -> Result<Option<PasskeyDbRo
     db.prepare(
         "SELECT id, user_id, credential_id, credential_data, name, last_used_at, created_at FROM passkeys WHERE id = ?1",
     )
-    .bind(&[id.into()])?
+    .bind(&[d1_number(id)])?
     .first::<PasskeyDbRow>(None)
     .await
 }
@@ -423,11 +428,11 @@ async fn d1_insert_passkey(
         "INSERT INTO passkeys (user_id, credential_id, credential_data, name, last_used_at, created_at) VALUES (?1, ?2, ?3, ?4, NULL, ?5)",
     )
     .bind(&[
-        user_id.into(),
+        d1_number(user_id),
         credential_id.into(),
         credential_data.into(),
         name.into(),
-        ts.into(),
+        d1_number(ts),
     ])?
     .run()
     .await?;
@@ -441,7 +446,11 @@ async fn d1_insert_passkey(
 
 async fn d1_update_passkey_usage(db: &D1Database, id: i64, credential_data: &str, last_used_at: i64) -> Result<()> {
     db.prepare("UPDATE passkeys SET credential_data = ?1, last_used_at = ?2 WHERE id = ?3")
-        .bind(&[credential_data.into(), last_used_at.into(), id.into()])?
+        .bind(&[
+            credential_data.into(),
+            d1_number(last_used_at),
+            d1_number(id),
+        ])?
         .run()
         .await?;
     Ok(())
@@ -449,7 +458,7 @@ async fn d1_update_passkey_usage(db: &D1Database, id: i64, credential_data: &str
 
 async fn d1_delete_passkey_by_id(db: &D1Database, id: i64) -> Result<()> {
     db.prepare("DELETE FROM passkeys WHERE id = ?1")
-        .bind(&[id.into()])?
+        .bind(&[d1_number(id)])?
         .run()
         .await?;
     Ok(())
@@ -463,7 +472,11 @@ async fn d1_insert_user(db: &D1Database, username: &str, password_hash: &str) ->
         .prepare(
             "INSERT INTO users (username, password_hash, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
         )
-        .bind(&[username.into(), password_hash.into(), ts.into()])?
+        .bind(&[
+            username.into(),
+            password_hash.into(),
+            d1_number(ts),
+        ])?
         .run()
         .await?;
 
@@ -477,7 +490,11 @@ async fn d1_insert_user(db: &D1Database, username: &str, password_hash: &str) ->
 async fn d1_update_user_password(db: &D1Database, user_id: i64, new_hash: &str) -> Result<()> {
     let ts = now_ts();
     db.prepare("UPDATE users SET password_hash = ?1, updated_at = ?2 WHERE id = ?3")
-        .bind(&[new_hash.into(), ts.into(), user_id.into()])?
+        .bind(&[
+            new_hash.into(),
+            d1_number(ts),
+            d1_number(user_id),
+        ])?
         .run()
         .await?;
     Ok(())
@@ -495,11 +512,11 @@ async fn d1_insert_refresh_token(
         "INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at, revoked, created_at) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
     )
     .bind(&[
-        user_id.into(),
+        d1_number(user_id),
         token_hash.into(),
         family_id.into(),
-        expires_at.into(),
-        ts.into(),
+        d1_number(expires_at),
+        d1_number(ts),
     ])?
     .run()
     .await?;
@@ -517,7 +534,7 @@ async fn d1_refresh_token_by_hash(db: &D1Database, token_hash: &str) -> Result<O
 
 async fn d1_revoke_refresh_token_by_id(db: &D1Database, id: i64) -> Result<()> {
     db.prepare("UPDATE refresh_tokens SET revoked = 1 WHERE id = ?1")
-        .bind(&[id.into()])?
+        .bind(&[d1_number(id)])?
         .run()
         .await?;
     Ok(())
@@ -525,7 +542,7 @@ async fn d1_revoke_refresh_token_by_id(db: &D1Database, id: i64) -> Result<()> {
 
 async fn d1_revoke_all_refresh_tokens_for_user(db: &D1Database, user_id: i64) -> Result<()> {
     db.prepare("UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?1")
-        .bind(&[user_id.into()])?
+        .bind(&[d1_number(user_id)])?
         .run()
         .await?;
     Ok(())
