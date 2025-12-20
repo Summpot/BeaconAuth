@@ -150,7 +150,7 @@ This repo uses **two** Wrangler configs at the repo root:
 This repo is configured for **Automatic provisioning**:
 
 - D1 binding: `DB` (configured with `database_name`, no hard-coded `database_id`)
-- KV binding: `PASSKEY_KV` (no hard-coded namespace id)
+- KV binding: `KV` (no hard-coded namespace id)
 
 ### GitHub Actions deployment
 

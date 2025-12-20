@@ -246,8 +246,8 @@ fn ts_to_rfc3339(ts: i64) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
-fn passkey_kv(env: &Env) -> Result<KvStore> {
-    env.kv("PASSKEY_KV")
+fn kv(env: &Env) -> Result<KvStore> {
+    env.kv("KV")
 }
 
 async fn kv_put_json<T: Serialize>(kv: &KvStore, key: &str, value: &T, ttl_secs: u64) -> Result<()> {
@@ -914,14 +914,14 @@ async fn handle_passkey_register_start(mut req: Request, env: &Env) -> Result<Re
     let db = d1(env).await?;
     let jwt = get_jwt_state(env)?;
     let rp = get_passkey_rp(env)?;
-    let kv = match passkey_kv(env) {
+    let kv = match kv(env) {
         Ok(kv) => kv,
         Err(_) => {
             return error_response(
                 &req,
                 501,
                 "not_configured",
-                "PASSKEY_KV binding is required for passkey endpoints",
+                "KV binding is required for passkey endpoints",
             );
         }
     };
@@ -984,14 +984,14 @@ async fn handle_passkey_register_finish(mut req: Request, env: &Env) -> Result<R
     let db = d1(env).await?;
     let jwt = get_jwt_state(env)?;
     let rp = get_passkey_rp(env)?;
-    let kv = match passkey_kv(env) {
+    let kv = match kv(env) {
         Ok(kv) => kv,
         Err(_) => {
             return error_response(
                 &req,
                 501,
                 "not_configured",
-                "PASSKEY_KV binding is required for passkey endpoints",
+                "KV binding is required for passkey endpoints",
             );
         }
     };
@@ -1055,14 +1055,14 @@ async fn handle_passkey_register_finish(mut req: Request, env: &Env) -> Result<R
 async fn handle_passkey_auth_start(mut req: Request, env: &Env) -> Result<Response> {
     let db = d1(env).await?;
     let rp = get_passkey_rp(env)?;
-    let kv = match passkey_kv(env) {
+    let kv = match kv(env) {
         Ok(kv) => kv,
         Err(_) => {
             return error_response(
                 &req,
                 501,
                 "not_configured",
-                "PASSKEY_KV binding is required for passkey endpoints",
+                "KV binding is required for passkey endpoints",
             );
         }
     };
@@ -1113,14 +1113,14 @@ async fn handle_passkey_auth_finish(mut req: Request, env: &Env) -> Result<Respo
     let db = d1(env).await?;
     let jwt = get_jwt_state(env)?;
     let rp = get_passkey_rp(env)?;
-    let kv = match passkey_kv(env) {
+    let kv = match kv(env) {
         Ok(kv) => kv,
         Err(_) => {
             return error_response(
                 &req,
                 501,
                 "not_configured",
-                "PASSKEY_KV binding is required for passkey endpoints",
+                "KV binding is required for passkey endpoints",
             );
         }
     };
