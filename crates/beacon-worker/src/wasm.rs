@@ -552,7 +552,7 @@ async fn d1_revoke_all_refresh_tokens_for_user(db: &D1Database, user_id: i64) ->
 
 async fn handle_get_config(req: &Request, env: &Env) -> Result<Response> {
     // We can infer OAuth config from env variables, even if Workers OAuth routes are not enabled yet.
-    let github_ok = env_string(env, "GH_CLIENT_ID").is_some() && env_string(env, "GH_CLIENT_SECRET").is_some();
+    let github_ok = env_string(env, "GITHUB_CLIENT_ID").is_some() && env_string(env, "GITHUB_CLIENT_SECRET").is_some();
     let google_ok = env_string(env, "GOOGLE_CLIENT_ID").is_some() && env_string(env, "GOOGLE_CLIENT_SECRET").is_some();
 
     let body = models::ConfigResponse {

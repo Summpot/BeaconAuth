@@ -204,8 +204,8 @@ beacon serve --help
 | `--database-url` | `DATABASE_URL` | `sqlite://./beacon_auth.db?mode=rwc` | Database connection URL |
 | `--jwt-expiration` | `JWT_EXPIRATION` | `3600` | JWT expiration time in seconds |
 | `--cors-origins` | `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Allowed CORS origins |
-| `--github-client-id` | `GH_CLIENT_ID` | - | GitHub OAuth client ID |
-| `--github-client-secret` | `GH_CLIENT_SECRET` | - | GitHub OAuth client secret |
+| `--github-client-id` | `GITHUB_CLIENT_ID` | - | GitHub OAuth client ID |
+| `--github-client-secret` | `GITHUB_CLIENT_SECRET` | - | GitHub OAuth client secret |
 | `--google-client-id` | `GOOGLE_CLIENT_ID` | - | Google OAuth client ID |
 | `--google-client-secret` | `GOOGLE_CLIENT_SECRET` | - | Google OAuth client secret |
 | `--oauth-redirect-base` | `OAUTH_REDIRECT_BASE` | `http://localhost:8080` | OAuth redirect base URL |
@@ -221,8 +221,8 @@ JWT_EXPIRATION=7200
 CORS_ORIGINS=http://localhost:3000
 
 # Optional: OAuth providers
-GH_CLIENT_ID=your_github_client_id
-GH_CLIENT_SECRET=your_github_client_secret
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 OAUTH_REDIRECT_BASE=https://auth.example.com
@@ -259,8 +259,8 @@ beacon delete-user --username username
 4. Copy the Client ID and Client Secret
 5. Set environment variables:
    ```bash
-  export GH_CLIENT_ID=your_client_id
-  export GH_CLIENT_SECRET=your_client_secret
+   export GITHUB_CLIENT_ID=your_client_id
+   export GITHUB_CLIENT_SECRET=your_client_secret
    ```
 
 #### Google OAuth
@@ -300,8 +300,8 @@ services:
       DATABASE_URL: sqlite:///app/data/beacon_auth.db
       BIND_ADDRESS: 0.0.0.0:8080
       JWT_EXPIRATION: 7200
-      GH_CLIENT_ID: ${GH_CLIENT_ID}
-      GH_CLIENT_SECRET: ${GH_CLIENT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       OAUTH_REDIRECT_BASE: https://auth.example.com

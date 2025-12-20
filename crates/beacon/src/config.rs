@@ -89,11 +89,11 @@ pub struct ServeConfig {
     pub log_level: String,
 
     /// GitHub OAuth Client ID
-    #[arg(long, env = "GH_CLIENT_ID")]
+    #[arg(long, env = "GITHUB_CLIENT_ID")]
     pub github_client_id: Option<String>,
 
     /// GitHub OAuth Client Secret
-    #[arg(long, env = "GH_CLIENT_SECRET")]
+    #[arg(long, env = "GITHUB_CLIENT_SECRET")]
     pub github_client_secret: Option<String>,
 
     /// Google OAuth Client ID
