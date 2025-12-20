@@ -13,7 +13,7 @@ use chrono::TimeZone;
 use jsonwebtoken::{encode, Header};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use url::Url;
 use uuid::Uuid;
