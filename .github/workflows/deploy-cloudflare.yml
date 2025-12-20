@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   deploy-worker:
-    name: Deploy beacon-worker (API + Assets)
+    name: Deploy beacon-worker (API) + Pages (UI)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -162,9 +162,7 @@ jobs:
               console.log(`Using Cloudflare account id: ${resolvedAccountId}`);
             }
 
-            async function resolveBaseUrl() {
-              if (baseUrlFromEnv) return baseUrlFromEnv;
-
+            async function resolveWorkersDevUrl() {
               const accountId = resolvedAccountId;
               if (!accountId) return '';
 
@@ -173,19 +171,41 @@ jobs:
                 'Content-Type': 'application/json',
               };
 
-              // Fall back to workers.dev (single Worker serves both UI + API).
               try {
                 const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`;
                 const sub = await cfJson(url, { headers });
                 const subdomain = (sub?.result?.subdomain || '').trim();
                 if (!subdomain) return '';
-
                 return `https://${workerName}.${subdomain}.workers.dev`;
               } catch (e) {
-                console.log(`workers.dev BASE_URL auto-detect skipped: ${e?.message ?? e}`);
+                console.log(`workers.dev URL auto-detect skipped: ${e?.message ?? e}`);
               }
 
               return '';
+            }
+
+            function stripAssetsSection(tomlText) {
+              const lines = tomlText.split(/\r?\n/);
+              const out = [];
+              let skipping = false;
+
+              for (const line of lines) {
+                if (!skipping && line.trim() === '[assets]') {
+                  skipping = true;
+                  continue;
+                }
+                if (skipping) {
+                  // Next TOML section starts at column 0 with '['.
+                  if (/^\[/.test(line)) {
+                    skipping = false;
+                    out.push(line);
+                  }
+                  continue;
+                }
+                out.push(line);
+              }
+
+              return out.join('\n');
             }
 
             function execJson(args) {
@@ -252,17 +272,25 @@ jobs:
             // Align the CI config to the resolved database name.
             text = text.replace(/^database_name\s*=\s*"[^"]*"\s*$/gm, `database_name = "${d1Name}"`);
 
-            // Keep repo defaults unless BASE_URL can be resolved.
-            const resolvedBaseUrl = await resolveBaseUrl();
+            // CI deploy: API Worker only. Cloudflare Pages serves UI assets.
+            text = stripAssetsSection(text);
+
+            // BASE_URL is the external origin users interact with (Pages domain or custom domain).
+            // Default to https://<pages_project>.pages.dev unless explicitly provided.
+            const pagesBaseUrl = `https://${workerName}.pages.dev`;
+            const resolvedBaseUrl = baseUrlFromEnv || pagesBaseUrl;
             if (resolvedBaseUrl) {
               const re = /^BASE_URL\s*=\s*"[^"]*"\s*$/gm;
               if (!re.test(text)) {
                 throw new Error('Could not find BASE_URL entry in wrangler.toml');
               }
               text = text.replace(re, `BASE_URL = "${resolvedBaseUrl}"`);
-            } else {
-              console.log('BASE_URL not provided and could not be auto-detected; leaving repo default in wrangler.toml.');
-              console.log('Tip: set secrets.CLOUDFLARE_WORKER_BASE_URL to your Worker custom domain origin if you need a stable issuer/redirect base.');
+            }
+
+            // Used by Pages proxy as a fallback upstream if deploy output parsing fails.
+            const resolvedWorkerUrl = await resolveWorkersDevUrl();
+            if (!resolvedWorkerUrl) {
+              console.log('Could not auto-detect workers.dev URL; Pages deploy will rely on deploy output parsing.');
             }
 
             const outPath = path.join(repoRoot, 'wrangler.ci.toml');
@@ -272,7 +300,9 @@ jobs:
             core.setOutput('worker_name', workerName);
             core.setOutput('d1_name', d1Name);
             core.setOutput('d1_id', d1Id);
-            core.setOutput('resolved_base_url', resolvedBaseUrl || baseUrlFromEnv || '');
+            core.setOutput('pages_base_url', pagesBaseUrl);
+            core.setOutput('resolved_base_url', resolvedBaseUrl || '');
+            core.setOutput('resolved_worker_url', resolvedWorkerUrl || '');
 
       - name: Apply D1 schema (idempotent)
         env:
@@ -331,16 +361,15 @@ jobs:
           if [ -n "$worker_url" ]; then
             echo "Detected Worker URL: $worker_url"
           else
-            echo "Could not detect Worker URL from deploy output; Pages proxy step will fall back to resolved_base_url (if available)."
+            echo "Could not detect Worker URL from deploy output; Pages deploy will fall back to resolved_worker_url (if available)."
           fi
 
           echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy Pages proxy (short *.pages.dev)
+      - name: Prepare Pages _worker.js (proxy /api to Worker)
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PAGES_PROJECT: ${{ steps.wrangler_ci.outputs.worker_name }}
-          WORKER_ORIGIN: ${{ steps.deploy_worker.outputs.worker_url || steps.wrangler_ci.outputs.resolved_base_url }}
+          WORKER_ORIGIN: ${{ steps.deploy_worker.outputs.worker_url || steps.wrangler_ci.outputs.resolved_worker_url }}
         shell: bash
         run: |
           set -euo pipefail
@@ -348,7 +377,7 @@ jobs:
           project="${PAGES_PROJECT:?PAGES_PROJECT is required}"
           upstream="${WORKER_ORIGIN:-}"
           if [ -z "$upstream" ]; then
-            echo "::error::WORKER_ORIGIN is empty; could not infer Worker URL from deploy output (preferred) or resolved_base_url (fallback)."
+            echo "::error::WORKER_ORIGIN is empty; could not infer Worker URL from deploy output (preferred) or resolved_worker_url (fallback)."
             exit 1
           fi
 
@@ -356,26 +385,36 @@ jobs:
             upstream="https://$upstream"
           fi
 
-          tmp_dir="$(mktemp -d)"
-          cat > "$tmp_dir/index.html" <<'HTML'
-          <!doctype html>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>BeaconAuth</title>
-          <p>BeaconAuth Pages proxy.</p>
-          HTML
+          if [ ! -d "dist" ]; then
+            echo "::error::dist/ not found. Expected frontend build output at ./dist."
+            exit 1
+          fi
 
-          # Deploy a Pages project that reverse-proxies all requests to the Worker.
-          # This keeps the short *.pages.dev domain in the browser while the Worker handles logic.
-          cat > "$tmp_dir/_worker.js" <<JS
+          # Pages deployment: static assets in ./dist plus a single _worker.js.
+          # Only /api, /v1, and /.well-known are proxied to the API Worker.
+          cat > "dist/_worker.js" <<JS
           const UPSTREAM_ORIGIN = ${upstream@Q};
           const UPSTREAM = new URL(UPSTREAM_ORIGIN);
 
-          addEventListener('fetch', (event) => {
-            event.respondWith(handle(event.request));
-          });
+          const PROXY_PREFIXES = [
+            '/api',
+            '/v1',
+            '/.well-known',
+          ];
 
-          async function handle(request) {
+          function shouldProxy(pathname) {
+            for (const p of PROXY_PREFIXES) {
+              if (pathname === p || pathname.startsWith(p + '/')) return true;
+            }
+            return false;
+          }
+
+          function isHtmlRequest(request) {
+            const accept = request.headers.get('Accept') || '';
+            return accept.includes('text/html');
+          }
+
+          async function proxyToWorker(request) {
             const url = new URL(request.url);
             const upstreamUrl = new URL(request.url);
             upstreamUrl.protocol = UPSTREAM.protocol;
@@ -398,7 +437,7 @@ jobs:
 
             let resp = await fetch(new Request(upstreamUrl.toString(), init));
 
-            // If the upstream sends absolute redirects back to *.workers.dev, rewrite them to this Pages host.
+            // If the upstream sends absolute redirects back to the Worker host, rewrite them to this Pages host.
             const location = resp.headers.get('Location');
             if (location) {
               try {
@@ -421,17 +460,44 @@ jobs:
 
             return resp;
           }
+
+          export default {
+            async fetch(request, env, ctx) {
+              const url = new URL(request.url);
+
+              if (shouldProxy(url.pathname)) {
+                return proxyToWorker(request);
+              }
+
+              // Serve static assets from Pages.
+              const resp = await env.ASSETS.fetch(request);
+
+              // SPA fallback: for HTML navigations, serve index.html on 404.
+              if ((request.method === 'GET' || request.method === 'HEAD') && resp.status === 404 && isHtmlRequest(request)) {
+                const indexReq = new Request(new URL('/index.html', url), request);
+                return env.ASSETS.fetch(indexReq);
+              }
+
+              return resp;
+            },
+          };
           JS
 
-          cat > "$tmp_dir/wrangler.toml" <<TOML
-          name = "$project"
-          compatibility_date = "2025-12-18"
-          main = "_worker.js"
-          TOML
+          echo "Wrote dist/_worker.js (Pages project: $project, proxy -> $upstream)"
 
-          echo "Deploying Pages project '$project' (proxy -> $upstream)"
-          # Run from the temp directory so Wrangler doesn't auto-detect this repo's wrangler.toml/git state.
-          pushd "$tmp_dir" >/dev/null
+      - name: Deploy Pages (UI)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PAGES_PROJECT: ${{ steps.wrangler_ci.outputs.worker_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          project="${PAGES_PROJECT:?PAGES_PROJECT is required}"
+          echo "Deploying Pages project '$project' from ./dist"
+
+          # Run from dist/ so Wrangler doesn't auto-detect this repo's wrangler.toml/git state.
+          pushd "dist" >/dev/null
           wrangler pages deploy . --project-name "$project" --branch "main" --experimental-provision --experimental-auto-create
           popd >/dev/null
 
