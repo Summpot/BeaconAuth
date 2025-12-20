@@ -71,6 +71,10 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Run worker-build
+        run:
+          worker-build --release crates/beacon-worker
+
       - name: Resolve deploy settings
         id: cfg
         env:
