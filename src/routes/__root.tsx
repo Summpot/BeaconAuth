@@ -1,8 +1,9 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router';
+import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { AnimatePresence, MotionConfig, motion } from '@/lib/motion';
 
 const RootLayout = () => {
   const [queryClient] = useState(
@@ -18,6 +19,8 @@ const RootLayout = () => {
       })
   );
 
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
   useEffect(() => {
     document.title = 'BeaconAuth';
   }, []);
@@ -25,13 +28,27 @@ const RootLayout = () => {
   return (
     <ThemeProvider defaultTheme="system" storageKey="beaconauth-ui-theme">
       <QueryClientProvider client={queryClient}>
-        <div className="min-h-screen bg-background text-foreground relative">
-          {/* Theme toggle in top right corner */}
-          <div className="fixed top-4 right-4 z-50">
-            <ThemeToggle />
+        <MotionConfig reducedMotion="user">
+          <div className="min-h-screen bg-background text-foreground relative">
+            {/* Theme toggle in top right corner */}
+            <div className="fixed top-4 right-4 z-50">
+              <ThemeToggle />
+            </div>
+
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                // Keyed by pathname so route changes animate.
+                key={pathname}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
           </div>
-          <Outlet />
-        </div>
+        </MotionConfig>
       </QueryClientProvider>
     </ThemeProvider>
   );

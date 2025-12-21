@@ -224,6 +224,16 @@ public abstract class ServerLoginPacketListenerImplMixin {
             },
             () -> {
                 BEACON_LOGGER.info("BeaconAuth negotiation finished successfully for {}", gameProfile.getName());
+
+                // IMPORTANT: ServerLoginHandler may update the GameProfile UUID after BeaconAuth verification.
+                // Copy it back so the server uses a stable per-account UUID (not username-derived).
+                if (beaconAuth$handler != null) {
+                    GameProfile updated = beaconAuth$handler.getCurrentGameProfile();
+                    if (updated != null) {
+                        this.gameProfile = updated;
+                    }
+                }
+
                 beaconAuth$handler = null;
                 beaconAuth$setState("READY_TO_ACCEPT");
                 return kotlin.Unit.INSTANCE;

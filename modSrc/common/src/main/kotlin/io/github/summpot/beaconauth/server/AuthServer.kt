@@ -33,6 +33,19 @@ object AuthServer {
     private var initialized = false
 
     /**
+     * Deterministically derive a stable UUID for a BeaconAuth user.
+     *
+     * IMPORTANT: This MUST NOT depend on the Minecraft in-game username, otherwise a player could
+     * impersonate another player by changing their username on offline-mode servers.
+     */
+    private fun stableUuidForSubject(subject: String): UUID {
+        // Using Java's name-based UUID (v3) gives us a deterministic mapping without extra deps.
+        // Collisions are practically irrelevant here because the input space is the BeaconAuth user id.
+        val name = "beaconauth:user:$subject"
+        return UUID.nameUUIDFromBytes(name.toByteArray(Charsets.UTF_8))
+    }
+
+    /**
      * Initialize server-side authentication
      * Loads configuration and sets up JWT key provider
      * Safe to call multiple times - will only initialize once
@@ -162,13 +175,18 @@ object AuthServer {
         return "${BeaconAuthConfig.getAuthBaseUrl()}/login?challenge=$challenge&redirect_port=$redirectPort"
     }
 
-    data class VerificationResult(val success: Boolean, val message: String, val username: String? = null)
+    data class VerificationResult(
+        val success: Boolean,
+        val message: String,
+        val username: String? = null,
+        val stableUuid: UUID? = null,
+    )
 
     /**
      * Verify JWT and PKCE data for a player profile during the login phase.
      */
     @JvmStatic
-    fun verifyForProfile(profileId: UUID, profileName: String, jwt: String, verifier: String): VerificationResult {
+    fun verifyForProfile(profileName: String, jwt: String, verifier: String): VerificationResult {
         return try {
             ensureInitialized()
             val processor = jwtProcessor ?: throw SecurityException("JWT processor not initialized")
@@ -180,9 +198,13 @@ object AuthServer {
             }
 
             val username = claims.getStringClaim("username") ?: profileName
-            authenticatedPlayers.add(profileId)
-            logger.info("✓ Authentication successful for $profileName (user: $username, id: ${claims.subject})")
-            VerificationResult(true, "Welcome, $username!", username)
+            val subject = claims.subject ?: throw SecurityException("JWT missing subject")
+            val stableUuid = stableUuidForSubject(subject)
+            authenticatedPlayers.add(stableUuid)
+            logger.info(
+                "✓ Authentication successful for $profileName (user: $username, subject: $subject, stableUuid: $stableUuid)"
+            )
+            VerificationResult(true, "Welcome, $username!", username, stableUuid)
         } catch (e: com.nimbusds.jose.RemoteKeySourceException) {
             logger.error("✗ Failed to fetch JWKS for $profileName: ${e.message}")
             VerificationResult(false, "Cannot contact authentication server")

@@ -7,7 +7,6 @@ import io.github.summpot.beaconauth.login.LoginVerificationStatus
 import io.github.summpot.beaconauth.login.ServerLoginNegotiation
 import io.github.summpot.beaconauth.server.AuthServer.VerificationResult
 import io.netty.buffer.Unpooled
-import net.minecraft.core.UUIDUtil
 import net.minecraft.network.Connection
 import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.network.chat.Component
@@ -35,6 +34,12 @@ class ServerLoginHandler(
 
     private val negotiation = ServerLoginNegotiation()
     private var transactionCounter = 0
+
+    /**
+     * Expose the current GameProfile (potentially updated with a stable UUID) back to the mixin.
+     */
+    val currentGameProfile: GameProfile?
+        get() = gameProfile
 
     fun tick() {
         negotiation.incrementTick()
@@ -149,12 +154,6 @@ class ServerLoginHandler(
         }
 
         val statusOrdinal = data.readVarInt()
-        var profileId = profile.id
-        if (profileId == null) {
-            profileId = UUIDUtil.createOfflinePlayerUUID(profile.name)
-            gameProfile = GameProfile(profileId, profile.name)
-            logger.debug("Generated offline UUID for ${profile.name}")
-        }
 
         val status = LoginVerificationStatus.values()[
             statusOrdinal.coerceIn(0, LoginVerificationStatus.values().size - 1)
@@ -165,8 +164,15 @@ class ServerLoginHandler(
             LoginVerificationStatus.SUCCESS -> {
                 val jwt = data.readUtf(4096)
                 val verifier = data.readUtf(512)
-                val result = AuthServer.verifyForProfile(profileId, profile.name, jwt, verifier)
+                val result = AuthServer.verifyForProfile(profile.name, jwt, verifier)
                 if (result.success) {
+                    val stableUuid = result.stableUuid
+                    if (stableUuid != null) {
+                        // Replace the login profile UUID with a stable per-account UUID.
+                        // This prevents account takeover on offline-mode servers via username changes.
+                        gameProfile = GameProfile(stableUuid, profile.name)
+                        logger.info("Using stable UUID for ${profile.name}: $stableUuid")
+                    }
                     logger.info("✓ Verification successful for ${profile.name}")
                     finish()
                 } else {

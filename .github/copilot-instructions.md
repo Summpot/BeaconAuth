@@ -7,6 +7,14 @@
 * Integration over isolation: when adding or changing functionality, also update imports, wiring, and call sites in the same pass.
 * Ask for user confirmation only when genuinely ambiguous (requirements, security tradeoffs, or irreversible changes).
 
+### TEMPORARY (Pre-release) Rule
+
+This project has not been released yet.
+
+* You do NOT need to consider backwards compatibility.
+* If you need to adjust the database schema, you MAY directly edit the existing migration files (instead of creating additive migrations).
+* This rule is temporary and will be removed at release time.
+
 ## 2) Language & Communication
 
 * User-facing chat responses: use the same language as the user’s request.

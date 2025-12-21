@@ -1,4 +1,0 @@
--- NOTE: This migration has been merged into `0001_init.sql`.
---
--- The project is still pre-release, so we keep a single initial migration.
--- Leaving this file as a no-op avoids accidental duplicate schema changes if it is applied.
