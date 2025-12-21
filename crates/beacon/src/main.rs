@@ -5,9 +5,9 @@ use beacon_lib::{
 };
 use chrono::Utc;
 use clap::Parser;
-use entity::user;
+use entity::{identity, user};
 use migration::MigratorTrait;
-use sea_orm::{ColumnTrait, Database, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Database, EntityTrait, QueryFilter, Set};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -83,13 +83,23 @@ async fn create_user(username: &str, password: &str) -> anyhow::Result<()> {
     let now = Utc::now();
     let new_user = user::ActiveModel {
         username: Set(username.to_string()),
-        password_hash: Set(password_hash),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
     };
 
     let result = user::Entity::insert(new_user).exec(&db).await?;
+
+    let new_identity = identity::ActiveModel {
+        user_id: Set(result.last_insert_id),
+        provider: Set("password".to_string()),
+        provider_user_id: Set(username.to_string()),
+        password_hash: Set(Some(password_hash)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+    new_identity.insert(&db).await?;
 
     println!("✅ User created successfully!");
     println!("   ID: {}", result.last_insert_id);

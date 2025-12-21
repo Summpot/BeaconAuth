@@ -25,6 +25,7 @@ impl MigrationTrait for Migration {
                             .string()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(Identities::PasswordHash).string())
                     .col(
                         ColumnDef::new(Identities::CreatedAt)
                             .timestamp_with_time_zone()
@@ -85,6 +86,7 @@ enum Identities {
     UserId,
     Provider,
     ProviderUserId,
+    PasswordHash,
     CreatedAt,
     UpdatedAt,
 }

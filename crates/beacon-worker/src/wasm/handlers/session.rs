@@ -6,9 +6,9 @@ use worker::{Env, Error, Request, Response, Result};
 use crate::wasm::{
     cookies::{append_set_cookie, clear_cookie, cookie_kv, get_cookie},
     db::{
-        d1, d1_insert_refresh_token, d1_insert_user, d1_refresh_token_by_hash,
-        d1_revoke_all_refresh_tokens_for_user, d1_revoke_refresh_token_by_id, d1_update_user_password,
-        d1_user_by_id, d1_user_by_username,
+        d1, d1_insert_identity, d1_insert_refresh_token, d1_insert_user, d1_password_identity_by_identifier,
+        d1_password_identity_by_user_id, d1_refresh_token_by_hash, d1_revoke_all_refresh_tokens_for_user,
+        d1_revoke_refresh_token_by_id, d1_update_password_identity_hash, d1_user_by_id, d1_user_by_username,
     },
     http::{error_response, internal_error_response, json_with_cors},
     jwt::{sign_jwt, verify_access_token},
@@ -61,7 +61,7 @@ pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
         Err(e) => return internal_error_response(&req, "Failed to hash password", &e),
     };
 
-    let user_id = match d1_insert_user(&db, &payload.username, &password_hash).await {
+    let user_id = match d1_insert_user(&db, &payload.username).await {
         Ok(id) => id,
         Err(e) => {
             // Handle a potential race on username creation (unique constraint) gracefully.
@@ -72,6 +72,15 @@ pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
             return internal_error_response(&req, "Failed to create user", &e);
         }
     };
+
+    // Create the password identity for this user.
+    if let Err(e) = d1_insert_identity(&db, user_id, "password", &payload.username, Some(&password_hash)).await {
+        let msg = e.to_string();
+        if msg.to_ascii_lowercase().contains("unique") {
+            return error_response(&req, 409, "username_taken", "Username already exists");
+        }
+        return internal_error_response(&req, "Failed to create password identity", &e);
+    }
 
     if user_id <= 0 {
         return internal_error_response(
@@ -123,7 +132,7 @@ pub async fn handle_login(mut req: Request, env: &Env) -> Result<Response> {
 
     let payload: models::LoginPayload = req.json().await?;
 
-    let Some(user) = d1_user_by_username(&db, &payload.username).await? else {
+    let Some(identity) = d1_password_identity_by_identifier(&db, &payload.username).await? else {
         let resp = Response::from_json(&models::ErrorResponse {
             error: "unauthorized".to_string(),
             message: "Invalid username or password".to_string(),
@@ -132,7 +141,20 @@ pub async fn handle_login(mut req: Request, env: &Env) -> Result<Response> {
         return json_with_cors(&req, resp);
     };
 
-    let password_valid = bcrypt::verify(&payload.password, &user.password_hash).unwrap_or(false);
+    let Some(password_hash) = identity.password_hash.as_deref() else {
+        let resp = Response::from_json(&models::ErrorResponse {
+            error: "unauthorized".to_string(),
+            message: "Invalid username or password".to_string(),
+        })?
+        .with_status(401);
+        return json_with_cors(&req, resp);
+    };
+
+    let Some(user) = d1_user_by_id(&db, identity.user_id).await? else {
+        return internal_error_response(&req, "Identity references missing user", &"user missing");
+    };
+
+    let password_valid = bcrypt::verify(&payload.password, password_hash).unwrap_or(false);
     if !password_valid {
         let resp = Response::from_json(&models::ErrorResponse {
             error: "unauthorized".to_string(),
@@ -326,20 +348,31 @@ pub async fn handle_change_password(mut req: Request, env: &Env) -> Result<Respo
         return json_with_cors(&req, resp);
     };
 
-    let password_valid = bcrypt::verify(&payload.current_password, &user.password_hash).unwrap_or(false);
-    if !password_valid {
-        let resp = Response::from_json(&models::ErrorResponse {
-            error: "invalid_password".to_string(),
-            message: "Current password is incorrect".to_string(),
-        })?
-        .with_status(401);
-        return json_with_cors(&req, resp);
+    let existing = d1_password_identity_by_user_id(&db, user_id).await?;
+    if let Some(identity) = existing.as_ref() {
+        let Some(existing_hash) = identity.password_hash.as_deref() else {
+            return internal_error_response(&req, "Password identity is missing password_hash", &"invalid row");
+        };
+
+        let password_valid = bcrypt::verify(&payload.current_password, existing_hash).unwrap_or(false);
+        if !password_valid {
+            let resp = Response::from_json(&models::ErrorResponse {
+                error: "invalid_password".to_string(),
+                message: "Current password is incorrect".to_string(),
+            })?
+            .with_status(401);
+            return json_with_cors(&req, resp);
+        }
     }
 
     let new_hash = bcrypt::hash(&payload.new_password, bcrypt::DEFAULT_COST)
         .map_err(|e| Error::RustError(e.to_string()))?;
 
-    d1_update_user_password(&db, user_id, &new_hash).await?;
+    if existing.is_some() {
+        d1_update_password_identity_hash(&db, user_id, &new_hash).await?;
+    } else {
+        d1_insert_identity(&db, user_id, "password", &user.username, Some(&new_hash)).await?;
+    }
 
     let resp = Response::from_json(&json!({ "success": true }))?;
     json_with_cors(&req, resp)

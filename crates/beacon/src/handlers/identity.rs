@@ -1,5 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse};
-use entity::{identity, passkey, user};
+use entity::{identity, passkey};
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait};
 
 use crate::{
@@ -8,31 +8,12 @@ use crate::{
     models::{ErrorResponse, IdentitiesResponse, IdentityInfo},
 };
 
-fn password_hash_looks_like_bcrypt(hash: &str) -> bool {
-    // Lightweight heuristic: bcrypt hashes typically start with "$2".
-    hash.starts_with("$2") && hash.len() >= 20
-}
-
 /// GET /api/v1/identities
 pub async fn list_identities(
     req: HttpRequest,
     app_state: web::Data<AppState>,
 ) -> actix_web::Result<HttpResponse> {
     let user_id = extract_session_user(&req, &app_state)?;
-
-    let user_model = match user::Entity::find_by_id(user_id)
-        .one(&app_state.db)
-        .await
-        .map_err(actix_web::error::ErrorInternalServerError)?
-    {
-        Some(u) => u,
-        None => {
-            return Ok(HttpResponse::NotFound().json(ErrorResponse {
-                error: "user_not_found".to_string(),
-                message: "User not found".to_string(),
-            }));
-        }
-    };
 
     let identities = identity::Entity::find()
         .filter(identity::Column::UserId.eq(user_id))
@@ -47,6 +28,10 @@ pub async fn list_identities(
         .await
         .map_err(actix_web::error::ErrorInternalServerError)? as i64;
 
+    let has_password = identities
+        .iter()
+        .any(|i| i.provider == "password" && i.password_hash.as_deref().is_some());
+
     let resp = IdentitiesResponse {
         identities: identities
             .into_iter()
@@ -56,7 +41,7 @@ pub async fn list_identities(
                 provider_user_id: i.provider_user_id,
             })
             .collect(),
-        has_password: password_hash_looks_like_bcrypt(&user_model.password_hash),
+        has_password,
         passkey_count,
     };
 
@@ -77,21 +62,6 @@ pub async fn delete_identity_by_id(
         .begin()
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
-
-    let user_model = match user::Entity::find_by_id(user_id)
-        .one(&txn)
-        .await
-        .map_err(actix_web::error::ErrorInternalServerError)?
-    {
-        Some(u) => u,
-        None => {
-            let _ = txn.rollback().await;
-            return Ok(HttpResponse::NotFound().json(ErrorResponse {
-                error: "user_not_found".to_string(),
-                message: "User not found".to_string(),
-            }));
-        }
-    };
 
     let identity_model = match identity::Entity::find_by_id(identity_id)
         .one(&txn)
@@ -128,12 +98,9 @@ pub async fn delete_identity_by_id(
         .await
         .map_err(actix_web::error::ErrorInternalServerError)? as i64;
 
-    let has_password = password_hash_looks_like_bcrypt(&user_model.password_hash);
-
     let remaining_identities = (identities_count - 1).max(0);
     let remaining_methods = remaining_identities
-        + if passkey_count > 0 { 1 } else { 0 }
-        + if has_password { 1 } else { 0 };
+        + if passkey_count > 0 { 1 } else { 0 };
 
     if remaining_methods <= 0 {
         let _ = txn.rollback().await;

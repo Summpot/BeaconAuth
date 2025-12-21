@@ -1,5 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
-use entity::user;
+use entity::{identity, user};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use chrono::Utc;
 
@@ -114,14 +114,42 @@ pub async fn change_password(
         }
     };
 
-    // Verify current password
-    let password_valid = bcrypt::verify(&payload.current_password, &user.password_hash).unwrap_or(false);
+    // Load existing password identity if present.
+    let existing_password_identity = match identity::Entity::find()
+        .filter(identity::Column::UserId.eq(user_id))
+        .filter(identity::Column::Provider.eq("password"))
+        .one(&app_state.db)
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            log::error!("Database error (password identity lookup): {}", e);
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Database error occurred".to_string(),
+            });
+        }
+    };
 
-    if !password_valid {
-        return HttpResponse::Unauthorized().json(ErrorResponse {
-            error: "invalid_password".to_string(),
-            message: "Current password is incorrect".to_string(),
-        });
+    if let Some(ref identity_model) = existing_password_identity {
+        let Some(existing_hash) = identity_model.password_hash.as_deref() else {
+            log::error!("Password identity missing password_hash (id={})", identity_model.id);
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Invalid password identity".to_string(),
+            });
+        };
+
+        // Verify current password.
+        let password_valid =
+            bcrypt::verify(&payload.current_password, existing_hash).unwrap_or(false);
+
+        if !password_valid {
+            return HttpResponse::Unauthorized().json(ErrorResponse {
+                error: "invalid_password".to_string(),
+                message: "Current password is incorrect".to_string(),
+            });
+        }
     }
 
     // Validate new password
@@ -144,22 +172,49 @@ pub async fn change_password(
         }
     };
 
-    // Update password in database
-    let mut user_active: user::ActiveModel = user.into();
-    user_active.password_hash = Set(new_password_hash);
-    user_active.updated_at = Set(Utc::now());
+    // Upsert password identity.
+    let now = Utc::now();
+    if let Some(identity_model) = existing_password_identity {
+        let mut active: identity::ActiveModel = identity_model.into();
+        active.password_hash = Set(Some(new_password_hash));
+        active.updated_at = Set(now);
 
-    match user_active.update(&app_state.db).await {
-        Ok(_) => {
-            log::info!("Password changed successfully for user ID: {}", user_id);
-            HttpResponse::Ok().json(serde_json::json!({ "success": true }))
+        match active.update(&app_state.db).await {
+            Ok(_) => {
+                log::info!("Password changed successfully for user ID: {}", user_id);
+                HttpResponse::Ok().json(serde_json::json!({ "success": true }))
+            }
+            Err(e) => {
+                log::error!("Failed to update password identity: {}", e);
+                HttpResponse::InternalServerError().json(ErrorResponse {
+                    error: "internal_error".to_string(),
+                    message: "Failed to update password".to_string(),
+                })
+            }
         }
-        Err(e) => {
-            log::error!("Failed to update password: {}", e);
-            HttpResponse::InternalServerError().json(ErrorResponse {
-                error: "internal_error".to_string(),
-                message: "Failed to update password".to_string(),
-            })
+    } else {
+        let new_identity = identity::ActiveModel {
+            user_id: Set(user_id),
+            provider: Set("password".to_string()),
+            provider_user_id: Set(user.username.clone()),
+            password_hash: Set(Some(new_password_hash)),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+
+        match new_identity.insert(&app_state.db).await {
+            Ok(_) => {
+                log::info!("Password set successfully for user ID: {}", user_id);
+                HttpResponse::Ok().json(serde_json::json!({ "success": true }))
+            }
+            Err(e) => {
+                log::error!("Failed to insert password identity: {}", e);
+                HttpResponse::InternalServerError().json(ErrorResponse {
+                    error: "internal_error".to_string(),
+                    message: "Failed to update password".to_string(),
+                })
+            }
         }
     }
 }

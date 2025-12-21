@@ -16,6 +16,10 @@ pub struct Model {
     /// Provider-scoped stable user identifier (e.g. GitHub numeric id as string)
     pub provider_user_id: String,
 
+    /// When provider == "password", this stores the bcrypt password hash.
+    /// For OAuth/passkey providers this is NULL.
+    pub password_hash: Option<String>,
+
     pub created_at: ChronoDateTimeUtc,
 
     pub updated_at: ChronoDateTimeUtc,

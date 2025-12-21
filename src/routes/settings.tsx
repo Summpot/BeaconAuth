@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ChevronLeft, Loader2, Plus, Key, X, Lightbulb, Trash2 } from 'lucide-react';
+import { ChevronLeft, Loader2, Plus, Key, X, Lightbulb, Trash2, Link2, Github, Chrome, Mail } from 'lucide-react';
 
 const passwordChangeSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
@@ -24,8 +24,36 @@ const passwordChangeSchema = z.object({
 
 type PasswordChangeData = z.infer<typeof passwordChangeSchema>;
 
+const passwordSetSchema = z.object({
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
+
+type PasswordSetData = z.infer<typeof passwordSetSchema>;
+
 interface UserInfo { id: number; username: string; }
 interface PasskeyInfo { id: number; name: string; created_at: string; last_used_at: string | null; }
+
+interface ServerConfig {
+  database_auth: boolean;
+  github_oauth: boolean;
+  google_oauth: boolean;
+}
+
+interface IdentityInfo {
+  id: number;
+  provider: string;
+  provider_user_id: string;
+}
+
+interface IdentitiesResponse {
+  identities: IdentityInfo[];
+  has_password: boolean;
+  passkey_count: number;
+}
 
 const getErrorMessage = (error: unknown, fallback = 'Failed to process request') => {
   if (error instanceof ApiError) {
@@ -67,22 +95,37 @@ const BeaconIcon = ({ className = "w-16 h-16" }: { className?: string }) => (
 function SettingsPage() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([]);
+  const [identities, setIdentities] = useState<IdentitiesResponse | null>(null);
+  const [config, setConfig] = useState<ServerConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const [passkeyName, setPasskeyName] = useState('');
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<PasswordChangeData>({
+  const hasPassword = identities?.has_password ?? true;
+
+  const changePasswordForm = useForm<PasswordChangeData>({
     resolver: zodResolver(passwordChangeSchema),
+  });
+
+  const setPasswordForm = useForm<PasswordSetData>({
+    resolver: zodResolver(passwordSetSchema),
   });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const userData = await apiClient<UserInfo>('/api/v1/user/me');
+        const [userData, passkeysData, identitiesData, configData] = await Promise.all([
+          apiClient<UserInfo>('/api/v1/user/me'),
+          apiClient<{ passkeys: PasskeyInfo[] }>('/api/v1/passkey/list'),
+          apiClient<IdentitiesResponse>('/api/v1/identities'),
+          apiClient<ServerConfig>('/api/v1/config', { requiresAuth: false }),
+        ]);
+
         setUser(userData);
-        const passkeysData = await apiClient<{ passkeys: PasskeyInfo[] }>('/api/v1/passkey/list');
         setPasskeys(passkeysData.passkeys || []);
+        setIdentities(identitiesData);
+        setConfig(configData);
       } catch (error) {
         console.error('Failed to load settings data', error);
       } finally {
@@ -92,6 +135,15 @@ function SettingsPage() {
     fetchData();
   }, []);
 
+  const refreshIdentities = async () => {
+    try {
+      const identitiesData = await apiClient<IdentitiesResponse>('/api/v1/identities');
+      setIdentities(identitiesData);
+    } catch (error) {
+      console.error('Failed to refresh identities', error);
+    }
+  };
+
   const onPasswordChange = async (data: PasswordChangeData) => {
     try {
       await apiClient('/api/v1/user/change-password', {
@@ -99,9 +151,49 @@ function SettingsPage() {
         body: { current_password: data.currentPassword, new_password: data.newPassword },
       });
       setMessage({ type: 'success', text: 'Password changed successfully!' });
-      reset();
+      changePasswordForm.reset();
+      await refreshIdentities();
     } catch (error) {
       setMessage({ type: 'error', text: getErrorMessage(error, 'Failed to connect to server') });
+    }
+  };
+
+  const onPasswordSet = async (data: PasswordSetData) => {
+    try {
+      await apiClient('/api/v1/user/change-password', {
+        method: 'POST',
+        body: { current_password: '', new_password: data.newPassword },
+      });
+      setMessage({ type: 'success', text: 'Password set successfully!' });
+      setPasswordForm.reset();
+      await refreshIdentities();
+    } catch (error) {
+      setMessage({ type: 'error', text: getErrorMessage(error, 'Failed to connect to server') });
+    }
+  };
+
+  const handleUnlinkIdentity = async (id: number) => {
+    if (!confirm('Are you sure you want to unlink this login method?')) return;
+    try {
+      await apiClient(`/api/v1/identities/${id}`, { method: 'DELETE' });
+      setMessage({ type: 'success', text: 'Login method unlinked.' });
+      await refreshIdentities();
+    } catch (error) {
+      setMessage({ type: 'error', text: getErrorMessage(error, 'Failed to unlink login method') });
+    }
+  };
+
+  const handleOAuthLink = async (provider: 'github' | 'google') => {
+    try {
+      const result = await apiClient<{ authorizationUrl?: string }>('/api/v1/oauth/link/start', {
+        method: 'POST',
+        body: { provider, challenge: '', redirect_port: 0 },
+      });
+      if (result.authorizationUrl) {
+        window.location.href = result.authorizationUrl;
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: getErrorMessage(error, 'Failed to start OAuth link flow') });
     }
   };
 
@@ -214,31 +306,133 @@ function SettingsPage() {
 
         <Card className="mb-6">
           <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold flex items-center gap-3">
+                  <span className="w-2 h-2 bg-primary rounded-full" />Login Methods
+                </CardTitle>
+                <CardDescription>Link or unlink third-party accounts. Your password is treated as a first-class identity.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card/50">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <Mail className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Password</h3>
+                    <p className="text-xs text-muted-foreground">{user.username}</p>
+                  </div>
+                </div>
+                <span className={hasPassword ? 'text-green-600 text-sm font-medium' : 'text-muted-foreground text-sm'}>
+                  {hasPassword ? 'Enabled' : 'Not set'}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground">Linked OAuth Accounts</h3>
+                {identities && identities.identities.filter((i) => i.provider !== 'password').length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-4 rounded-xl border border-dashed border-border">
+                    No OAuth accounts linked yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(identities?.identities || [])
+                      .filter((i) => i.provider !== 'password')
+                      .map((i) => (
+                        <div key={i.id} className="flex items-center justify-between p-4 rounded-xl border border-border bg-card/50 hover:border-primary/30 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center">
+                              {i.provider === 'github' ? (
+                                <Github className="h-5 w-5" />
+                              ) : i.provider === 'google' ? (
+                                <Chrome className="h-5 w-5" />
+                              ) : (
+                                <Link2 className="h-5 w-5" />
+                              )}
+                            </div>
+                            <div>
+                              <h3 className="font-semibold">{i.provider}</h3>
+                              <p className="text-xs text-muted-foreground break-all">{i.provider_user_id}</p>
+                            </div>
+                          </div>
+
+                          <Button variant="destructive" size="sm" onClick={() => handleUnlinkIdentity(i.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                {config?.github_oauth && (
+                  <Button variant="secondary" onClick={() => handleOAuthLink('github')}>
+                    <Github className="h-4 w-4 mr-2" />Link GitHub
+                  </Button>
+                )}
+                {config?.google_oauth && (
+                  <Button variant="secondary" onClick={() => handleOAuthLink('google')}>
+                    <Chrome className="h-4 w-4 mr-2" />Link Google
+                  </Button>
+                )}
+                {!config?.github_oauth && !config?.google_oauth && (
+                  <p className="text-sm text-muted-foreground">No OAuth providers configured on the server.</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader>
             <CardTitle className="text-xl font-bold flex items-center gap-3">
-              <span className="w-2 h-2 bg-primary rounded-full" />Change Password
+              <span className="w-2 h-2 bg-primary rounded-full" />{hasPassword ? 'Change Password' : 'Set Password'}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(onPasswordChange)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" {...register('currentPassword')} placeholder="Enter current password" disabled={isSubmitting} className="bg-background/50" />
-                {errors.currentPassword && <p className="text-sm text-destructive">{errors.currentPassword.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" {...register('newPassword')} placeholder="Enter new password (min 6 characters)" disabled={isSubmitting} className="bg-background/50" />
-                {errors.newPassword && <p className="text-sm text-destructive">{errors.newPassword.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" {...register('confirmPassword')} placeholder="Confirm new password" disabled={isSubmitting} className="bg-background/50" />
-                {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
-              </div>
-              <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Changing Password...</> : 'Change Password'}
-              </Button>
-            </form>
+            {hasPassword ? (
+              <form onSubmit={changePasswordForm.handleSubmit(onPasswordChange)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <Input id="currentPassword" type="password" {...changePasswordForm.register('currentPassword')} placeholder="Enter current password" disabled={changePasswordForm.formState.isSubmitting} className="bg-background/50" />
+                  {changePasswordForm.formState.errors.currentPassword && <p className="text-sm text-destructive">{changePasswordForm.formState.errors.currentPassword.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input id="newPassword" type="password" {...changePasswordForm.register('newPassword')} placeholder="Enter new password (min 6 characters)" disabled={changePasswordForm.formState.isSubmitting} className="bg-background/50" />
+                  {changePasswordForm.formState.errors.newPassword && <p className="text-sm text-destructive">{changePasswordForm.formState.errors.newPassword.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input id="confirmPassword" type="password" {...changePasswordForm.register('confirmPassword')} placeholder="Confirm new password" disabled={changePasswordForm.formState.isSubmitting} className="bg-background/50" />
+                  {changePasswordForm.formState.errors.confirmPassword && <p className="text-sm text-destructive">{changePasswordForm.formState.errors.confirmPassword.message}</p>}
+                </div>
+                <Button type="submit" disabled={changePasswordForm.formState.isSubmitting} className="w-full">
+                  {changePasswordForm.formState.isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Changing Password...</> : 'Change Password'}
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={setPasswordForm.handleSubmit(onPasswordSet)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input id="newPassword" type="password" {...setPasswordForm.register('newPassword')} placeholder="Create a password (min 6 characters)" disabled={setPasswordForm.formState.isSubmitting} className="bg-background/50" />
+                  {setPasswordForm.formState.errors.newPassword && <p className="text-sm text-destructive">{setPasswordForm.formState.errors.newPassword.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input id="confirmPassword" type="password" {...setPasswordForm.register('confirmPassword')} placeholder="Confirm your password" disabled={setPasswordForm.formState.isSubmitting} className="bg-background/50" />
+                  {setPasswordForm.formState.errors.confirmPassword && <p className="text-sm text-destructive">{setPasswordForm.formState.errors.confirmPassword.message}</p>}
+                </div>
+                <Button type="submit" disabled={setPasswordForm.formState.isSubmitting} className="w-full">
+                  {setPasswordForm.formState.isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Setting Password...</> : 'Set Password'}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
 

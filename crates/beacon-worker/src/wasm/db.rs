@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use worker::{D1Database, Env, Error, Result};
+use worker::{wasm_bindgen::JsValue, D1Database, Env, Error, Result};
 
 use super::util::{d1_number, now_ts};
 
@@ -7,7 +7,6 @@ use super::util::{d1_number, now_ts};
 pub struct UserRow {
     pub id: i64,
     pub username: String,
-    pub password_hash: String,
 }
 
 #[derive(Deserialize)]
@@ -36,6 +35,7 @@ pub struct IdentityRow {
     pub user_id: i64,
     pub provider: String,
     pub provider_user_id: String,
+    pub password_hash: Option<String>,
     #[allow(dead_code)]
     pub created_at: i64,
     #[allow(dead_code)]
@@ -47,29 +47,28 @@ pub async fn d1(env: &Env) -> Result<D1Database> {
 }
 
 pub async fn d1_user_by_username(db: &D1Database, username: &str) -> Result<Option<UserRow>> {
-    db.prepare("SELECT id, username, password_hash FROM users WHERE username = ?1")
+    db.prepare("SELECT id, username FROM users WHERE username = ?1")
         .bind(&[username.into()])?
         .first::<UserRow>(None)
         .await
 }
 
 pub async fn d1_user_by_id(db: &D1Database, id: i64) -> Result<Option<UserRow>> {
-    db.prepare("SELECT id, username, password_hash FROM users WHERE id = ?1")
+    db.prepare("SELECT id, username FROM users WHERE id = ?1")
         .bind(&[d1_number(id)])?
         .first::<UserRow>(None)
         .await
 }
 
-pub async fn d1_insert_user(db: &D1Database, username: &str, password_hash: &str) -> Result<i64> {
+pub async fn d1_insert_user(db: &D1Database, username: &str) -> Result<i64> {
     let ts = now_ts();
     // NOTE: D1's `last_row_id` metadata is not always available/reliable across environments.
     // Insert and then fetch the created row by unique username.
     db.prepare(
-        "INSERT INTO users (username, password_hash, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
+        "INSERT INTO users (username, created_at, updated_at) VALUES (?1, ?2, ?2)",
     )
     .bind(&[
         username.into(),
-        password_hash.into(),
         d1_number(ts),
     ])?
     .run()
@@ -80,19 +79,6 @@ pub async fn d1_insert_user(db: &D1Database, username: &str, password_hash: &str
     };
 
     Ok(user.id)
-}
-
-pub async fn d1_update_user_password(db: &D1Database, user_id: i64, new_hash: &str) -> Result<()> {
-    let ts = now_ts();
-    db.prepare("UPDATE users SET password_hash = ?1, updated_at = ?2 WHERE id = ?3")
-        .bind(&[
-            new_hash.into(),
-            d1_number(ts),
-            d1_number(user_id),
-        ])?
-        .run()
-        .await?;
-    Ok(())
 }
 
 pub async fn d1_passkeys_by_user_id(db: &D1Database, user_id: i64) -> Result<Vec<PasskeyDbRow>> {
@@ -249,7 +235,7 @@ pub async fn d1_identity_by_provider_user_id(
     provider_user_id: &str,
 ) -> Result<Option<IdentityRow>> {
     db.prepare(
-        "SELECT id, user_id, provider, provider_user_id, created_at, updated_at FROM identities WHERE provider = ?1 AND provider_user_id = ?2",
+        "SELECT id, user_id, provider, provider_user_id, password_hash, created_at, updated_at FROM identities WHERE provider = ?1 AND provider_user_id = ?2",
     )
     .bind(&[provider.into(), provider_user_id.into()])?
     .first::<IdentityRow>(None)
@@ -258,7 +244,7 @@ pub async fn d1_identity_by_provider_user_id(
 
 pub async fn d1_identity_by_id(db: &D1Database, id: i64) -> Result<Option<IdentityRow>> {
     db.prepare(
-        "SELECT id, user_id, provider, provider_user_id, created_at, updated_at FROM identities WHERE id = ?1",
+        "SELECT id, user_id, provider, provider_user_id, password_hash, created_at, updated_at FROM identities WHERE id = ?1",
     )
     .bind(&[d1_number(id)])?
     .first::<IdentityRow>(None)
@@ -268,7 +254,7 @@ pub async fn d1_identity_by_id(db: &D1Database, id: i64) -> Result<Option<Identi
 pub async fn d1_identities_by_user_id(db: &D1Database, user_id: i64) -> Result<Vec<IdentityRow>> {
     let result = db
         .prepare(
-            "SELECT id, user_id, provider, provider_user_id, created_at, updated_at FROM identities WHERE user_id = ?1 ORDER BY created_at DESC",
+            "SELECT id, user_id, provider, provider_user_id, password_hash, created_at, updated_at FROM identities WHERE user_id = ?1 ORDER BY created_at DESC",
         )
         .bind(&[d1_number(user_id)])?
         .all()
@@ -282,15 +268,20 @@ pub async fn d1_insert_identity(
     user_id: i64,
     provider: &str,
     provider_user_id: &str,
+    password_hash: Option<&str>,
 ) -> Result<i64> {
     let ts = now_ts();
+    let password_js = password_hash
+        .map(JsValue::from_str)
+        .unwrap_or(JsValue::NULL);
     db.prepare(
-        "INSERT INTO identities (user_id, provider, provider_user_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
+        "INSERT INTO identities (user_id, provider, provider_user_id, password_hash, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
     )
     .bind(&[
         d1_number(user_id),
         provider.into(),
         provider_user_id.into(),
+        password_js,
         d1_number(ts),
     ])?
     .run()
@@ -303,6 +294,35 @@ pub async fn d1_insert_identity(
         ));
     };
     Ok(row.id)
+}
+
+pub async fn d1_password_identity_by_user_id(db: &D1Database, user_id: i64) -> Result<Option<IdentityRow>> {
+    db.prepare(
+        "SELECT id, user_id, provider, provider_user_id, password_hash, created_at, updated_at FROM identities WHERE user_id = ?1 AND provider = 'password' LIMIT 1",
+    )
+    .bind(&[d1_number(user_id)])?
+    .first::<IdentityRow>(None)
+    .await
+}
+
+pub async fn d1_password_identity_by_identifier(db: &D1Database, identifier: &str) -> Result<Option<IdentityRow>> {
+    db.prepare(
+        "SELECT id, user_id, provider, provider_user_id, password_hash, created_at, updated_at FROM identities WHERE provider = 'password' AND provider_user_id = ?1 LIMIT 1",
+    )
+    .bind(&[identifier.into()])?
+    .first::<IdentityRow>(None)
+    .await
+}
+
+pub async fn d1_update_password_identity_hash(db: &D1Database, user_id: i64, new_hash: &str) -> Result<()> {
+    let ts = now_ts();
+    db.prepare(
+        "UPDATE identities SET password_hash = ?1, updated_at = ?2 WHERE user_id = ?3 AND provider = 'password'",
+    )
+    .bind(&[new_hash.into(), d1_number(ts), d1_number(user_id)])?
+    .run()
+    .await?;
+    Ok(())
 }
 
 pub async fn d1_delete_identity_by_id(db: &D1Database, id: i64) -> Result<()> {
@@ -343,7 +363,3 @@ pub async fn d1_count_passkeys_by_user_id(db: &D1Database, user_id: i64) -> Resu
     Ok(row.map(|r| r.cnt).unwrap_or(0))
 }
 
-pub fn password_hash_looks_like_bcrypt(hash: &str) -> bool {
-    // Lightweight heuristic: bcrypt hashes typically start with "$2".
-    hash.starts_with("$2") && hash.len() >= 20
-}

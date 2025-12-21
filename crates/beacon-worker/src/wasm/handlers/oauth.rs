@@ -482,7 +482,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
             Err(e) => return internal_error_response(req, "Failed to load link target user", &e),
         };
 
-        match d1_insert_identity(&db, target_user.id, &oauth_state.provider, &provider_user_id).await {
+        match d1_insert_identity(&db, target_user.id, &oauth_state.provider, &provider_user_id, None).await {
             Ok(_) => {}
             Err(e) => {
                 let msg = e.to_string();
@@ -500,139 +500,68 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
 
         target_user
     } else {
-        // Login/register flow.
-        // Backward compatibility: if an old-style user exists with this derived username and
-        // oauth_... password_hash, adopt it and create the identity link.
-        let legacy_hash = format!("oauth_{}_{}", oauth_state.provider, provider_user_id);
-
-        if let Ok(Some(existing_user)) = d1_user_by_username(&db, &username).await {
-            if existing_user.password_hash == legacy_hash {
-                let _ = d1_insert_identity(&db, existing_user.id, &oauth_state.provider, &provider_user_id).await;
-                existing_user
+        // Login/register flow: no legacy compatibility. If this OAuth identity is new, create a
+        // brand-new user (never implicitly link by username).
+        let mut attempt = 0;
+        let candidate = loop {
+            attempt += 1;
+            let candidate = if attempt == 1 {
+                username.clone()
             } else {
-                // Username collision; create a distinct user with a unique suffix.
-                let mut attempt = 0;
-                let candidate = loop {
-                    attempt += 1;
-                    let candidate = format!("{username}_{attempt}");
-                    if d1_user_by_username(&db, &candidate).await?.is_none() {
-                        break candidate;
-                    }
-                    if attempt >= 50 {
-                        return internal_error_response(req, "Failed to allocate unique username", &"too many collisions");
-                    }
-                };
+                format!("{username}_{attempt}")
+            };
 
-                let user_id = match d1_insert_user(&db, &candidate, &legacy_hash).await {
-                    Ok(id) => id,
-                    Err(e) => return internal_error_response(req, "Failed to create user", &e),
-                };
-                let Some(new_user) = d1_user_by_id(&db, user_id).await? else {
-                    return internal_error_response(req, "Failed to reload new user", &"user missing");
-                };
-                let canonical_user = match d1_insert_identity(
-                    &db,
-                    new_user.id,
-                    &oauth_state.provider,
-                    &provider_user_id,
-                )
-                .await
-                {
-                    Ok(_) => new_user,
-                    Err(e) => {
-                        // If this fails due to a race, the identity now exists; resolve and use it.
-                        let msg = e.to_string();
-                        if msg.to_ascii_lowercase().contains("unique") {
-                            let Some(identity) = d1_identity_by_provider_user_id(
-                                &db,
-                                &oauth_state.provider,
-                                &provider_user_id,
-                            )
-                            .await?
-                            else {
-                                return internal_error_response(
-                                    req,
-                                    "Failed to reload identity after race",
-                                    &e,
-                                );
-                            };
-                            let Some(u) = d1_user_by_id(&db, identity.user_id).await? else {
-                                return internal_error_response(req, "Linked user not found", &"user missing");
-                            };
-                            u
-                        } else {
-                            return internal_error_response(req, "Failed to create identity", &e);
-                        }
-                    }
-                };
-                canonical_user
+            if d1_user_by_username(&db, &candidate).await?.is_none() {
+                break candidate;
             }
-        } else {
-            // No legacy user; create a new user and identity.
-            let user_id = match d1_insert_user(&db, &username, &legacy_hash).await {
-                Ok(id) => id,
-                Err(e) => {
-                    let msg = e.to_string();
-                    if msg.to_ascii_lowercase().contains("unique") {
-                        // Collision: allocate a unique suffix.
-                        let mut attempt = 0;
-                        let candidate = loop {
-                            attempt += 1;
-                            let candidate = format!("{username}_{attempt}");
-                            if d1_user_by_username(&db, &candidate).await?.is_none() {
-                                break candidate;
-                            }
-                            if attempt >= 50 {
-                                return internal_error_response(req, "Failed to allocate unique username", &"too many collisions");
-                            }
-                        };
-                        match d1_insert_user(&db, &candidate, &legacy_hash).await {
-                            Ok(id) => id,
-                            Err(e2) => return internal_error_response(req, "Failed to create user", &e2),
-                        }
-                    } else {
-                        return internal_error_response(req, "Failed to create user", &e);
-                    }
-                }
-            };
 
-            let Some(new_user) = d1_user_by_id(&db, user_id).await? else {
-                return internal_error_response(req, "Failed to reload new user", &"user missing");
-            };
-            let canonical_user = match d1_insert_identity(
-                &db,
-                new_user.id,
-                &oauth_state.provider,
-                &provider_user_id,
-            )
-            .await
-            {
-                Ok(_) => new_user,
-                Err(e) => {
-                    let msg = e.to_string();
-                    if msg.to_ascii_lowercase().contains("unique") {
-                        // Race: identity now exists; resolve it.
-                        let Some(identity) = d1_identity_by_provider_user_id(
-                            &db,
-                            &oauth_state.provider,
-                            &provider_user_id,
-                        )
-                        .await?
-                        else {
-                            return internal_error_response(req, "Failed to reload identity after race", &e);
-                        };
-                        let Some(u) = d1_user_by_id(&db, identity.user_id).await? else {
-                            return internal_error_response(req, "Linked user not found", &"user missing");
-                        };
-                        u
-                    } else {
-                        return internal_error_response(req, "Failed to create identity", &e);
-                    }
-                }
-            };
+            if attempt >= 50 {
+                return internal_error_response(req, "Failed to allocate unique username", &"too many collisions");
+            }
+        };
 
-            canonical_user
-        }
+        let user_id = match d1_insert_user(&db, &candidate).await {
+            Ok(id) => id,
+            Err(e) => return internal_error_response(req, "Failed to create user", &e),
+        };
+        let Some(new_user) = d1_user_by_id(&db, user_id).await? else {
+            return internal_error_response(req, "Failed to reload new user", &"user missing");
+        };
+
+        let canonical_user = match d1_insert_identity(
+            &db,
+            new_user.id,
+            &oauth_state.provider,
+            &provider_user_id,
+            None,
+        )
+        .await
+        {
+            Ok(_) => new_user,
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.to_ascii_lowercase().contains("unique") {
+                    // Race: identity now exists; resolve it.
+                    let Some(identity) = d1_identity_by_provider_user_id(
+                        &db,
+                        &oauth_state.provider,
+                        &provider_user_id,
+                    )
+                    .await?
+                    else {
+                        return internal_error_response(req, "Failed to reload identity after race", &e);
+                    };
+                    let Some(u) = d1_user_by_id(&db, identity.user_id).await? else {
+                        return internal_error_response(req, "Linked user not found", &"user missing");
+                    };
+                    u
+                } else {
+                    return internal_error_response(req, "Failed to create identity", &e);
+                }
+            }
+        };
+
+        canonical_user
     };
 
     // Issue session cookies

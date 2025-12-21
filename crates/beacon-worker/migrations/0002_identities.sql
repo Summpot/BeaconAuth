@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS identities (
   user_id INTEGER NOT NULL,
   provider TEXT NOT NULL,
   provider_user_id TEXT NOT NULL,
+  password_hash TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   UNIQUE(provider, provider_user_id),

@@ -12,7 +12,7 @@ use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
 use entity::identity as identity_entity;
 use entity::user as user_entity;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use uuid::Uuid;
 
 use crate::{
@@ -53,23 +53,52 @@ pub async fn login(
 ) -> impl Responder {
     log::info!("Login attempt for user: {}", payload.username);
 
-    // 1. Query user from database
-    let user_result = user_entity::Entity::find()
-        .filter(user_entity::Column::Username.eq(&payload.username))
+    // 1. Resolve the canonical user via the password identity.
+    let identity = match identity_entity::Entity::find()
+        .filter(identity_entity::Column::Provider.eq("password"))
+        .filter(identity_entity::Column::ProviderUserId.eq(&payload.username))
         .one(&app_state.db)
-        .await;
-
-    let user = match user_result {
-        Ok(Some(user)) => user,
+        .await
+    {
+        Ok(Some(i)) => i,
         Ok(None) => {
-            log::warn!("User not found: {}", payload.username);
+            log::warn!("Password identity not found for: {}", payload.username);
             return HttpResponse::Unauthorized().json(ErrorResponse {
                 error: "unauthorized".to_string(),
                 message: "Invalid username or password".to_string(),
             });
         }
         Err(e) => {
-            log::error!("Database error: {}", e);
+            log::error!("Database error (identity lookup): {}", e);
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Database error occurred".to_string(),
+            });
+        }
+    };
+
+    let Some(password_hash) = identity.password_hash.as_deref() else {
+        log::error!("Password identity row missing password_hash (id={})", identity.id);
+        return HttpResponse::InternalServerError().json(ErrorResponse {
+            error: "internal_error".to_string(),
+            message: "Invalid password identity".to_string(),
+        });
+    };
+
+    let user = match user_entity::Entity::find_by_id(identity.user_id)
+        .one(&app_state.db)
+        .await
+    {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            log::error!("Identity references missing user_id={}", identity.user_id);
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Invalid identity mapping".to_string(),
+            });
+        }
+        Err(e) => {
+            log::error!("Database error (user lookup): {}", e);
             return HttpResponse::InternalServerError().json(ErrorResponse {
                 error: "internal_error".to_string(),
                 message: "Database error occurred".to_string(),
@@ -78,7 +107,7 @@ pub async fn login(
     };
 
     // 2. Verify password using bcrypt
-    let password_valid = bcrypt::verify(&payload.password, &user.password_hash).unwrap_or(false);
+    let password_valid = bcrypt::verify(&payload.password, password_hash).unwrap_or(false);
 
     if !password_valid {
         log::warn!("Invalid password for user: {}", payload.username);
@@ -174,21 +203,33 @@ pub async fn register(
         }
     };
 
-    // 5. Create new user
+    // 5. Create new user and its password identity atomically.
     let now = Utc::now();
+
+    let txn = match app_state.db.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            log::error!("Failed to begin transaction: {}", e);
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Database error occurred".to_string(),
+            });
+        }
+    };
+
     let new_user = user_entity::ActiveModel {
         username: Set(payload.username.clone()),
-        password_hash: Set(password_hash),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
     };
 
-    let insert_result = user_entity::Entity::insert(new_user).exec(&app_state.db).await;
+    let insert_result = user_entity::Entity::insert(new_user).exec(&txn).await;
 
     let user_id = match insert_result {
         Ok(result) => result.last_insert_id,
         Err(e) => {
+            let _ = txn.rollback().await;
             log::error!("Failed to insert user: {}", e);
             return HttpResponse::InternalServerError().json(ErrorResponse {
                 error: "internal_error".to_string(),
@@ -196,6 +237,33 @@ pub async fn register(
             });
         }
     };
+
+    let new_identity = identity_entity::ActiveModel {
+        user_id: Set(user_id),
+        provider: Set("password".to_string()),
+        provider_user_id: Set(payload.username.clone()),
+        password_hash: Set(Some(password_hash)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+
+    if let Err(e) = new_identity.insert(&txn).await {
+        let _ = txn.rollback().await;
+        log::error!("Failed to insert password identity: {}", e);
+        return HttpResponse::InternalServerError().json(ErrorResponse {
+            error: "internal_error".to_string(),
+            message: "Failed to create user".to_string(),
+        });
+    }
+
+    if let Err(e) = txn.commit().await {
+        log::error!("Failed to commit transaction: {}", e);
+        return HttpResponse::InternalServerError().json(ErrorResponse {
+            error: "internal_error".to_string(),
+            message: "Database error occurred".to_string(),
+        });
+    }
 
     log::info!(
         "User registered successfully: {} (ID: {})",
@@ -596,72 +664,53 @@ pub async fn oauth_callback(
 
         user
     } else {
-        // Login/registration flow: migrate legacy users by `password_hash` and backfill identity.
-        let legacy_hash = format!("oauth_{}_{}", provider, provider_user_id);
+        // Login/registration flow: no compatibility behavior. Create a new user if identity is new.
+        let now = Utc::now();
 
-        let mut user = match user_entity::Entity::find()
-            .filter(user_entity::Column::PasswordHash.eq(&legacy_hash))
-            .one(&app_state.db)
-            .await
-        {
-            Ok(u) => u,
+        // Allocate a unique username derived from the provider.
+        let base = derived_username.clone();
+        let mut candidate = base.clone();
+        for i in 0..=100 {
+            let existing = user_entity::Entity::find()
+                .filter(user_entity::Column::Username.eq(&candidate))
+                .one(&app_state.db)
+                .await;
+
+            match existing {
+                Ok(None) => break,
+                Ok(Some(_)) => {
+                    candidate = format!("{}_{}", base, i + 1);
+                    continue;
+                }
+                Err(e) => {
+                    log::error!("Database error (username check): {}", e);
+                    return HttpResponse::InternalServerError().body("Database error");
+                }
+            }
+        }
+
+        let new_user = user_entity::ActiveModel {
+            username: Set(candidate),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+
+        let inserted = match user_entity::Entity::insert(new_user).exec(&app_state.db).await {
+            Ok(r) => r.last_insert_id,
             Err(e) => {
-                log::error!("Database error (legacy user lookup): {}", e);
-                return HttpResponse::InternalServerError().body("Database error");
+                log::error!("Failed to create user: {}", e);
+                return HttpResponse::InternalServerError().body("Failed to create user");
             }
         };
 
-        if user.is_none() {
-            // Create a new OAuth-only user.
-            let now = Utc::now();
-
-            let base = derived_username.clone();
-            let mut candidate = base.clone();
-            for i in 0..=100 {
-                let existing = user_entity::Entity::find()
-                    .filter(user_entity::Column::Username.eq(&candidate))
-                    .one(&app_state.db)
-                    .await;
-
-                match existing {
-                    Ok(None) => break,
-                    Ok(Some(_)) => {
-                        candidate = format!("{}_{}", base, i + 1);
-                        continue;
-                    }
-                    Err(e) => {
-                        log::error!("Database error (username check): {}", e);
-                        return HttpResponse::InternalServerError().body("Database error");
-                    }
-                }
+        let Some(user) = (match user_entity::Entity::find_by_id(inserted).one(&app_state.db).await {
+            Ok(u) => u,
+            Err(e) => {
+                log::error!("Failed to reload inserted user: {}", e);
+                return HttpResponse::InternalServerError().body("Failed to create user");
             }
-
-            let new_user = user_entity::ActiveModel {
-                username: Set(candidate),
-                password_hash: Set(legacy_hash.clone()),
-                created_at: Set(now),
-                updated_at: Set(now),
-                ..Default::default()
-            };
-
-            let inserted = match user_entity::Entity::insert(new_user).exec(&app_state.db).await {
-                Ok(r) => r.last_insert_id,
-                Err(e) => {
-                    log::error!("Failed to create user: {}", e);
-                    return HttpResponse::InternalServerError().body("Failed to create user");
-                }
-            };
-
-            user = match user_entity::Entity::find_by_id(inserted).one(&app_state.db).await {
-                Ok(u) => u,
-                Err(e) => {
-                    log::error!("Failed to reload inserted user: {}", e);
-                    return HttpResponse::InternalServerError().body("Failed to create user");
-                }
-            };
-        }
-
-        let Some(user) = user else {
+        }) else {
             return HttpResponse::InternalServerError().body("Failed to resolve user");
         };
 
@@ -670,24 +719,53 @@ pub async fn oauth_callback(
             user_id: Set(user.id),
             provider: Set(provider.clone()),
             provider_user_id: Set(provider_user_id.clone()),
+            password_hash: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
         };
-        match new_identity.insert(&app_state.db).await {
-            Ok(_) => {}
+
+        let canonical_user = match new_identity.insert(&app_state.db).await {
+            Ok(_) => user,
             Err(e) => {
                 let msg = e.to_string().to_ascii_lowercase();
                 if msg.contains("unique") {
-                    // Someone else inserted; fine.
+                    // Someone else inserted; resolve and use the existing mapping.
+                    let existing_identity = match identity_entity::Entity::find()
+                        .filter(identity_entity::Column::Provider.eq(&provider))
+                        .filter(identity_entity::Column::ProviderUserId.eq(&provider_user_id))
+                        .one(&app_state.db)
+                        .await
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::error!("Database error (identity reload): {}", e);
+                            return HttpResponse::InternalServerError().body("Database error");
+                        }
+                    };
+
+                    let Some(identity) = existing_identity else {
+                        log::error!("Identity insert raced but could not be reloaded");
+                        return HttpResponse::InternalServerError().body("Failed to persist identity");
+                    };
+
+                    match user_entity::Entity::find_by_id(identity.user_id)
+                        .one(&app_state.db)
+                        .await
+                    {
+                        Ok(Some(u)) => u,
+                        _ => {
+                            return HttpResponse::InternalServerError().body("Invalid identity mapping");
+                        }
+                    }
                 } else {
                     log::error!("Failed to insert identity: {}", e);
                     return HttpResponse::InternalServerError().body("Failed to persist identity");
                 }
             }
-        }
+        };
 
-        user
+        canonical_user
     };
 
     // 4. Create session tokens

@@ -10,9 +10,6 @@ pub struct Model {
     #[sea_orm(unique)]
     pub username: String,
 
-    /// Bcrypt password hash
-    pub password_hash: String,
-
     pub created_at: ChronoDateTimeUtc,
 
     pub updated_at: ChronoDateTimeUtc,

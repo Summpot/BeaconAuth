@@ -5,7 +5,7 @@ use crate::wasm::{
     cookies::get_cookie,
     db::{
         d1, d1_count_identities_by_user_id, d1_count_passkeys_by_user_id, d1_delete_identity_by_id,
-        d1_identities_by_user_id, d1_identity_by_id, d1_user_by_id, password_hash_looks_like_bcrypt,
+        d1_identities_by_user_id, d1_identity_by_id, d1_user_by_id,
     },
     http::{error_response, internal_error_response, json_with_cors},
     jwt::verify_access_token,
@@ -31,13 +31,15 @@ pub async fn handle_identities_list(req: &Request, env: &Env) -> Result<Response
         Err(e) => return error_response(req, 401, "invalid_token", e),
     };
 
-    let Some(user) = d1_user_by_id(&db, user_id).await? else {
+    let Some(_user) = d1_user_by_id(&db, user_id).await? else {
         return error_response(req, 404, "user_not_found", "User not found");
     };
 
     let identities = d1_identities_by_user_id(&db, user_id).await?;
     let passkey_count = d1_count_passkeys_by_user_id(&db, user_id).await?;
-    let has_password = password_hash_looks_like_bcrypt(&user.password_hash);
+    let has_password = identities
+        .iter()
+        .any(|i| i.provider == "password" && i.password_hash.as_deref().is_some());
 
     let resp = Response::from_json(&models::IdentitiesResponse {
         identities: identities
@@ -74,7 +76,7 @@ pub async fn handle_identity_delete_by_id(req: &Request, env: &Env, identity_id:
         Err(e) => return error_response(req, 401, "invalid_token", e),
     };
 
-    let Some(user) = d1_user_by_id(&db, user_id).await? else {
+    let Some(_user) = d1_user_by_id(&db, user_id).await? else {
         return error_response(req, 404, "user_not_found", "User not found");
     };
 
@@ -89,12 +91,9 @@ pub async fn handle_identity_delete_by_id(req: &Request, env: &Env, identity_id:
     // Enforce: the user must keep at least one login method.
     let identities_count = d1_count_identities_by_user_id(&db, user_id).await?;
     let passkey_count = d1_count_passkeys_by_user_id(&db, user_id).await?;
-    let has_password = password_hash_looks_like_bcrypt(&user.password_hash);
-
     let remaining_identities = (identities_count - 1).max(0);
     let remaining_methods = remaining_identities
-        + if passkey_count > 0 { 1 } else { 0 }
-        + if has_password { 1 } else { 0 };
+        + if passkey_count > 0 { 1 } else { 0 };
 
     if remaining_methods <= 0 {
         return error_response(
