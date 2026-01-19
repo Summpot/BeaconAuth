@@ -9,8 +9,8 @@ use entity::{identity, jwks_key, passkey, passkey_state, refresh_token, user};
 use uuid::Uuid;
 
 use sea_orm::{
-    ColumnTrait, ConnectOptions, Database, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectOptions, Database, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use sea_orm::sea_query::Expr;
 
@@ -124,6 +124,79 @@ pub async fn d1_update_user_username(
         .await
         .map_err(map_db_err)?;
 
+    Ok(())
+}
+
+pub async fn d1_update_user_profile_fields(
+    db: &DatabaseConnection,
+    user_id: &str,
+    email: Option<String>,
+    avatar_source: Option<String>,
+) -> Result<()> {
+    let Some(row) = d1_user_by_id(db, user_id).await? else {
+        return Err(Error::RustError("User not found".to_string()));
+    };
+
+    let ts = now_ts();
+    let mut active: user::ActiveModel = row.into();
+    active.email = Set(email);
+    active.avatar_source = Set(avatar_source);
+    active.updated_at = Set(ts);
+
+    active.update(db).await.map_err(map_db_err)?;
+    Ok(())
+}
+
+pub async fn d1_update_user_avatar_cache(
+    db: &DatabaseConnection,
+    user_id: &str,
+    provider: &str,
+    avatar_url: Option<&str>,
+    microsoft_avatar_b64: Option<&str>,
+    microsoft_avatar_content_type: Option<&str>,
+) -> Result<()> {
+    let Some(row) = d1_user_by_id(db, user_id).await? else {
+        return Err(Error::RustError("User not found".to_string()));
+    };
+
+    let ts = now_ts();
+    let mut active: user::ActiveModel = row.clone().into();
+    active.updated_at = Set(ts);
+
+    match provider {
+        "github" => {
+            if let Some(url) = avatar_url {
+                active.github_avatar_url = Set(Some(url.to_string()));
+            }
+        }
+        "google" => {
+            if let Some(url) = avatar_url {
+                active.google_avatar_url = Set(Some(url.to_string()));
+            }
+        }
+        "microsoft" => {
+            if let Some(b64) = microsoft_avatar_b64 {
+                active.microsoft_avatar_b64 = Set(Some(b64.to_string()));
+                active.microsoft_avatar_content_type =
+                    Set(microsoft_avatar_content_type.map(|s| s.to_string()));
+            }
+        }
+        _ => {}
+    }
+
+    // If the user has never chosen an avatar source, default it to the current provider
+    // when we successfully captured an avatar for that provider.
+    if row.avatar_source.is_none() {
+        if provider == "github" && avatar_url.is_some() {
+            active.avatar_source = Set(Some("github".to_string()));
+        } else if provider == "google" && avatar_url.is_some() {
+            active.avatar_source = Set(Some("google".to_string()));
+        } else if provider == "microsoft" && microsoft_avatar_b64.is_some() {
+            active.avatar_source = Set(Some("microsoft".to_string()));
+        }
+    }
+
+    active.update(db).await.map_err(map_db_err)?;
     Ok(())
 }
 

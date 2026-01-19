@@ -21,6 +21,21 @@ pub struct Model {
 
     /// Unix timestamp (seconds).
     pub updated_at: i64,
+
+    /// User-supplied email address (NOT verified by BeaconAuth).
+    /// Used only for display and for computing Gravatar URLs.
+    pub email: Option<String>,
+
+    /// Selected avatar source: "github" | "google" | "microsoft" | "gravatar".
+    pub avatar_source: Option<String>,
+
+    /// Cached avatar URLs (public) from OAuth providers.
+    pub github_avatar_url: Option<String>,
+    pub google_avatar_url: Option<String>,
+
+    /// Cached Microsoft avatar (base64-encoded) and its content type.
+    pub microsoft_avatar_b64: Option<String>,
+    pub microsoft_avatar_content_type: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

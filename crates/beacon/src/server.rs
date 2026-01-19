@@ -32,6 +32,8 @@ pub fn build_api_routes() -> actix_web::Scope {
         .route("/refresh", web::post().to(handlers::refresh_token))
         .route("/minecraft-jwt", web::post().to(handlers::get_minecraft_jwt))
         .route("/user/me", web::get().to(handlers::user::get_user_info))
+        .route("/user/profile", web::post().to(handlers::user::update_profile))
+        .route("/user/me/avatar", web::get().to(handlers::user::get_my_avatar))
         .route("/identities", web::get().to(handlers::identity::list_identities))
         .route(
             "/identities/{id}",

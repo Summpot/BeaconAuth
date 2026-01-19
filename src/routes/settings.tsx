@@ -23,6 +23,7 @@ import { BeaconIcon } from '@/components/beacon-icon';
 import { LanguageToggle } from '@/components/language-toggle';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +42,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import * as m from '@/paraglide/messages';
 import { ApiError, apiClient } from '../utils/api';
 
@@ -83,9 +86,19 @@ const usernameChangeSchema = z.object({
 
 type UsernameChangeData = z.infer<typeof usernameChangeSchema>;
 
+const profileSchema = z.object({
+  email: z.string(),
+  avatar_source: z.enum(['', 'github', 'google', 'microsoft', 'gravatar']),
+});
+
+type ProfileData = z.infer<typeof profileSchema>;
+
 interface UserInfo {
   id: string;
   username: string;
+  email: string | null;
+  avatar_source: string | null;
+  avatar_url: string | null;
 }
 interface PasskeyInfo {
   id: string;
@@ -159,11 +172,26 @@ function SettingsPage() {
     defaultValues: { username: '' },
   });
 
+  const profileForm = useForm<ProfileData>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: { email: '', avatar_source: '' },
+  });
+
   useEffect(() => {
     if (user) {
       changeUsernameForm.reset({ username: user.username });
+      profileForm.reset({
+        email: user.email ?? '',
+        avatar_source:
+          user.avatar_source === 'github' ||
+          user.avatar_source === 'google' ||
+          user.avatar_source === 'microsoft' ||
+          user.avatar_source === 'gravatar'
+            ? user.avatar_source
+            : '',
+      });
     }
-  }, [user, changeUsernameForm]);
+  }, [user, changeUsernameForm, profileForm]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -253,6 +281,27 @@ function SettingsPage() {
       setMessage({
         type: 'error',
         text: getErrorMessage(error, 'Failed to update username'),
+      });
+    }
+  };
+
+  const onProfileUpdate = async (data: ProfileData) => {
+    try {
+      await apiClient('/api/v1/user/profile', {
+        method: 'POST',
+        body: {
+          email: data.email,
+          avatar_source: data.avatar_source,
+        },
+      });
+
+      const userData = await apiClient<UserInfo>('/api/v1/user/me');
+      setUser(userData);
+      setMessage({ type: 'success', text: 'Profile updated successfully!' });
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: getErrorMessage(error, 'Failed to update profile'),
       });
     }
   };
@@ -450,6 +499,193 @@ function SettingsPage() {
         )}
 
         <div className="grid gap-8">
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-8 w-1 bg-primary rounded-full" />
+              <h2 className="text-xl font-bold">{m.settings_profile_title()}</h2>
+            </div>
+
+            <Card className="border-0 shadow-md">
+              <form onSubmit={profileForm.handleSubmit(onProfileUpdate)}>
+                <CardContent className="p-6 space-y-6">
+                  <p className="text-muted-foreground text-sm">
+                    {m.settings_profile_desc()}
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-6 items-start">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16 border border-border">
+                        {user.avatar_url ? (
+                          <AvatarImage
+                            src={user.avatar_url}
+                            alt={user.username}
+                          />
+                        ) : null}
+                        <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                          {user.username.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-semibold">{user.username}</div>
+                        <div className="text-xs text-muted-foreground font-mono">
+                          {user.id}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 space-y-5">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="email">{m.settings_email_label()}</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                aria-label="Email info"
+                              >
+                                <Lightbulb className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {m.settings_email_tooltip()}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Input
+                          id="email"
+                          {...profileForm.register('email')}
+                          placeholder={m.settings_email_placeholder()}
+                          disabled={profileForm.formState.isSubmitting}
+                          className="bg-background/50"
+                        />
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label>{m.settings_avatar_source_label()}</Label>
+                        <RadioGroup
+                          value={profileForm.watch('avatar_source')}
+                          onValueChange={(v) =>
+                            profileForm.setValue('avatar_source', v as ProfileData['avatar_source'])
+                          }
+                          className="grid gap-3"
+                        >
+                          <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                            <div className="flex items-center gap-3">
+                              <RadioGroupItem value="" id="avatar_auto" />
+                              <Label htmlFor="avatar_auto" className="cursor-pointer">
+                                {m.settings_avatar_source_auto()}
+                              </Label>
+                            </div>
+                          </div>
+
+                          {config?.github_oauth && (
+                            <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                              <div className="flex items-center gap-3">
+                                <RadioGroupItem
+                                  value="github"
+                                  id="avatar_github"
+                                  disabled={!isGithubLinked}
+                                />
+                                <Label htmlFor="avatar_github" className="cursor-pointer flex items-center gap-2">
+                                  <Github className="h-4 w-4" />
+                                  {m.settings_avatar_source_github()}
+                                </Label>
+                              </div>
+                              {!isGithubLinked && (
+                                <Badge variant="secondary">{m.settings_avatar_requires_linked()}</Badge>
+                              )}
+                            </div>
+                          )}
+
+                          {config?.google_oauth && (
+                            <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                              <div className="flex items-center gap-3">
+                                <RadioGroupItem
+                                  value="google"
+                                  id="avatar_google"
+                                  disabled={!isGoogleLinked}
+                                />
+                                <Label htmlFor="avatar_google" className="cursor-pointer flex items-center gap-2">
+                                  <Chrome className="h-4 w-4" />
+                                  {m.settings_avatar_source_google()}
+                                </Label>
+                              </div>
+                              {!isGoogleLinked && (
+                                <Badge variant="secondary">{m.settings_avatar_requires_linked()}</Badge>
+                              )}
+                            </div>
+                          )}
+
+                          {config?.microsoft_oauth && (
+                            <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                              <div className="flex items-center gap-3">
+                                <RadioGroupItem
+                                  value="microsoft"
+                                  id="avatar_microsoft"
+                                  disabled={!isMicrosoftLinked}
+                                />
+                                <Label htmlFor="avatar_microsoft" className="cursor-pointer flex items-center gap-2">
+                                  <svg
+                                    role="img"
+                                    className="h-4 w-4"
+                                    viewBox="0 0 24 24"
+                                    aria-label="Microsoft"
+                                  >
+                                    <path fill="#F25022" d="M2 2h9v9H2z" />
+                                    <path fill="#7FBA00" d="M13 2h9v9h-9z" />
+                                    <path fill="#00A4EF" d="M2 13h9v9H2z" />
+                                    <path fill="#FFB900" d="M13 13h9v9h-9z" />
+                                  </svg>
+                                  {m.settings_avatar_source_microsoft()}
+                                </Label>
+                              </div>
+                              {!isMicrosoftLinked && (
+                                <Badge variant="secondary">{m.settings_avatar_requires_linked()}</Badge>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                            <div className="flex items-center gap-3">
+                              <RadioGroupItem
+                                value="gravatar"
+                                id="avatar_gravatar"
+                                disabled={profileForm.watch('email').trim().length === 0}
+                              />
+                              <Label htmlFor="avatar_gravatar" className="cursor-pointer">
+                                {m.settings_avatar_source_gravatar()}
+                              </Label>
+                            </div>
+                            {profileForm.watch('email').trim().length === 0 && (
+                              <Badge variant="secondary">{m.settings_avatar_requires_email()}</Badge>
+                            )}
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+
+                <CardFooter className="border-t justify-end px-6 pb-6">
+                  <Button
+                    type="submit"
+                    disabled={profileForm.formState.isSubmitting}
+                    className="w-full sm:w-auto"
+                  >
+                    {profileForm.formState.isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      m.settings_update_profile()
+                    )}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Card>
+          </section>
+
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="h-8 w-1 bg-primary rounded-full" />

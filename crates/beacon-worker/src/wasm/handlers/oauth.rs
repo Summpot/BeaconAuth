@@ -1,4 +1,5 @@
 use beacon_core::{models, oauth};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Response, Result};
 
@@ -6,7 +7,7 @@ use crate::wasm::{
     cookies::{append_set_cookie, cookie_kv, get_cookie},
     db::{
         d1, d1_identity_by_provider_user_id, d1_insert_identity, d1_insert_refresh_token,
-        d1_insert_user, d1_user_by_id, d1_user_by_username,
+        d1_insert_user, d1_update_user_avatar_cache, d1_user_by_id, d1_user_by_username,
     },
     env::env_string,
     http::{error_response, internal_error_response, json_with_cors},
@@ -15,12 +16,22 @@ use crate::wasm::{
     util::{new_family_id, new_refresh_token, query_param, redact_oauth_token_body_for_log, sha256_hex},
 };
 
+struct OAuthExchangeResult {
+    provider_user_id: String,
+    username: String,
+
+    // Cacheable avatar information.
+    avatar_url: Option<String>,
+    microsoft_avatar_b64: Option<String>,
+    microsoft_avatar_content_type: Option<String>,
+}
+
 async fn exchange_github_code(
     client_id: &str,
     client_secret: &str,
     code: &str,
     redirect_uri: &str,
-) -> Result<(String, String)> {
+) -> Result<OAuthExchangeResult> {
     let client_id_hint = {
         // Client ID is not secret, but keep logging conservative.
         let prefix = client_id.chars().take(6).collect::<String>();
@@ -107,7 +118,19 @@ async fn exchange_github_code(
         .and_then(|v| v.as_str())
         .ok_or_else(|| worker::Error::RustError("No login in GitHub response".to_string()))?;
 
-    Ok((user_id, username_raw.to_string()))
+    let avatar_url = user_json
+        .get("avatar_url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    Ok(OAuthExchangeResult {
+        provider_user_id: user_id,
+        username: username_raw.to_string(),
+        avatar_url,
+        microsoft_avatar_b64: None,
+        microsoft_avatar_content_type: None,
+    })
 }
 
 async fn exchange_google_code(
@@ -115,7 +138,7 @@ async fn exchange_google_code(
     client_secret: &str,
     code: &str,
     redirect_uri: &str,
-) -> Result<(String, String)> {
+) -> Result<OAuthExchangeResult> {
     let form_body = format!(
         "client_id={}&client_secret={}&code={}&grant_type=authorization_code&redirect_uri={}",
         urlencoding::encode(client_id),
@@ -180,7 +203,20 @@ async fn exchange_google_code(
         .ok_or_else(|| worker::Error::RustError("No email in Google response".to_string()))?;
 
     let username_raw = email.split('@').next().unwrap_or(email);
-    Ok((user_id, username_raw.to_string()))
+
+    let avatar_url = user_json
+        .get("picture")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    Ok(OAuthExchangeResult {
+        provider_user_id: user_id,
+        username: username_raw.to_string(),
+        avatar_url,
+        microsoft_avatar_b64: None,
+        microsoft_avatar_content_type: None,
+    })
 }
 
 async fn exchange_microsoft_code(
@@ -189,7 +225,7 @@ async fn exchange_microsoft_code(
     client_secret: &str,
     code: &str,
     redirect_uri: &str,
-) -> Result<(String, String)> {
+) -> Result<OAuthExchangeResult> {
     let tenant = if tenant.trim().is_empty() { "common" } else { tenant.trim() };
     let token_url = format!(
         "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
@@ -297,7 +333,42 @@ async fn exchange_microsoft_code(
         })?;
 
     let username_raw = username_source.split('@').next().unwrap_or(username_source);
-    Ok((user_id, username_raw.to_string()))
+
+    // Fetch avatar bytes from Microsoft Graph (best-effort).
+    let (microsoft_avatar_b64, microsoft_avatar_content_type) = {
+        let mut init = RequestInit::new();
+        init.with_method(Method::Get);
+        let headers = Headers::new();
+        headers.set("Authorization", &format!("Bearer {access_token}"))?;
+        init.with_headers(headers);
+
+        let photo_req = Request::new_with_init(
+            "https://graph.microsoft.com/v1.0/me/photo/$value",
+            &init,
+        )?;
+        let mut photo_resp = Fetch::Request(photo_req).send().await?;
+
+        if photo_resp.status_code() >= 400 {
+            (None, None)
+        } else {
+            let ct = photo_resp
+                .headers()
+                .get("content-type")?
+                .unwrap_or_else(|| "image/jpeg".to_string());
+
+            let bytes = photo_resp.bytes().await?;
+            let b64 = BASE64.encode(bytes);
+            (Some(b64), Some(ct))
+        }
+    };
+
+    Ok(OAuthExchangeResult {
+        provider_user_id: user_id,
+        username: username_raw.to_string(),
+        avatar_url: None,
+        microsoft_avatar_b64,
+        microsoft_avatar_content_type,
+    })
 }
 
 pub async fn handle_oauth_start(mut req: Request, env: &Env) -> Result<Response> {
@@ -561,7 +632,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
         }
     };
 
-    let (provider_user_id, username) = match oauth_state.provider.as_str() {
+    let exchange = match oauth_state.provider.as_str() {
         "github" => {
             let Some(client_id) = env_string(env, "GITHUB_CLIENT_ID") else {
                 return error_response(req, 503, "oauth_not_configured", "GitHub OAuth is not configured");
@@ -609,6 +680,9 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
         }
         _ => return error_response(req, 400, "invalid_provider", "Invalid provider"),
     };
+
+    let provider_user_id = exchange.provider_user_id.clone();
+    let username = exchange.username.clone();
 
     let db = match d1(env).await {
         Ok(db) => db,
@@ -735,6 +809,20 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
 
         canonical_user
     };
+
+    // Cache provider avatar info best-effort. Never fail login for avatar issues.
+    if let Err(e) = d1_update_user_avatar_cache(
+        &db,
+        &user.id,
+        &oauth_state.provider,
+        exchange.avatar_url.as_deref(),
+        exchange.microsoft_avatar_b64.as_deref(),
+        exchange.microsoft_avatar_content_type.as_deref(),
+    )
+    .await
+    {
+        worker::console_log!("Failed to cache provider avatar: {e}");
+    }
 
     // Issue session cookies
     let now = Utc::now();

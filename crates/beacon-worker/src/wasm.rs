@@ -90,6 +90,9 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     if method == Method::Post && path == "/v1/user/change-username" {
         return handlers::session::handle_change_username(req, &env).await;
     }
+    if method == Method::Post && path == "/v1/user/profile" {
+        return handlers::session::handle_user_profile_update(req, &env).await;
+    }
     if method == Method::Post && path == "/v1/minecraft-jwt" {
         return handlers::minecraft::handle_minecraft_jwt(req, &env).await;
     }
@@ -108,6 +111,7 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         (Method::Post, "/v1/refresh") => handlers::session::handle_refresh(&req, &env).await,
         (Method::Post, "/v1/logout") => handlers::session::handle_logout(&req, &env).await,
         (Method::Get, "/v1/user/me") => handlers::session::handle_user_me(&req, &env).await,
+        (Method::Get, "/v1/user/me/avatar") => handlers::session::handle_user_me_avatar(&req, &env).await,
         (Method::Get, "/v1/identities") => handlers::identity::handle_identities_list(&req, &env).await,
         (Method::Get, "/v1/oauth/callback") => handlers::oauth::handle_oauth_callback(&req, &env).await,
         (Method::Get, "/.well-known/jwks.json") => handlers::config::handle_get_jwks(&req, &env).await,

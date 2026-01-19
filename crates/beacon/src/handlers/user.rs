@@ -2,6 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use entity::{identity, user};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use chrono::Utc;
+use base64::Engine;
 
 use beacon_core::password;
 use beacon_core::username;
@@ -11,6 +12,27 @@ use crate::{
     handlers::auth::get_access_token_from_cookie,
     models::*,
 };
+
+fn compute_avatar_url(user: &user::Model) -> Option<String> {
+    let source = user.avatar_source.as_deref()?;
+
+    match source {
+        "github" => user.github_avatar_url.clone(),
+        "google" => user.google_avatar_url.clone(),
+        "microsoft" => {
+            if user.microsoft_avatar_b64.is_some() {
+                Some("/api/v1/user/me/avatar".to_string())
+            } else {
+                None
+            }
+        }
+        "gravatar" => user
+            .email
+            .as_deref()
+            .map(|e| beacon_core::avatar::gravatar_url(e, 128)),
+        _ => None,
+    }
+}
 
 /// GET /api/v1/user/me
 /// Get current user information
@@ -61,10 +83,224 @@ pub async fn get_user_info(
         }
     };
 
-    HttpResponse::Ok().json(serde_json::json!({
-        "id": user.id,
-        "username": user.username,
-    }))
+    let avatar_url = compute_avatar_url(&user);
+
+    let body = UserMeResponse {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar_source: user.avatar_source,
+        avatar_url,
+    };
+
+    HttpResponse::Ok().json(body)
+}
+
+/// POST /api/v1/user/profile
+/// Update user profile fields (email + avatar preference)
+pub async fn update_profile(
+    app_state: web::Data<AppState>,
+    req: HttpRequest,
+    payload: web::Json<UpdateUserProfileRequest>,
+) -> impl Responder {
+    let access_token = match get_access_token_from_cookie(&req) {
+        Some(token) => token,
+        None => {
+            return HttpResponse::Unauthorized().json(ErrorResponse {
+                error: "unauthorized".to_string(),
+                message: "Not authenticated".to_string(),
+            });
+        }
+    };
+
+    let user_id = match crate::handlers::auth::verify_access_token(&app_state, &access_token) {
+        Ok(id) => id,
+        Err(e) => {
+            return HttpResponse::Unauthorized().json(ErrorResponse {
+                error: "invalid_token".to_string(),
+                message: e,
+            });
+        }
+    };
+
+    let Some(user_model) = (match user::Entity::find_by_id(user_id.clone()).one(&app_state.db).await {
+        Ok(u) => u,
+        Err(e) => {
+            log::error!("Database error (user lookup): {e}");
+            return HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "internal_error".to_string(),
+                message: "Database error occurred".to_string(),
+            });
+        }
+    }) else {
+        return HttpResponse::NotFound().json(ErrorResponse {
+            error: "user_not_found".to_string(),
+            message: "User not found".to_string(),
+        });
+    };
+
+    let email_trimmed = payload.email.trim();
+    let email_opt = if email_trimmed.is_empty() {
+        None
+    } else {
+        Some(email_trimmed.to_string())
+    };
+
+    let avatar_source_trimmed = payload.avatar_source.trim();
+    let avatar_source_opt = if avatar_source_trimmed.is_empty() {
+        None
+    } else {
+        Some(avatar_source_trimmed.to_ascii_lowercase())
+    };
+
+    if let Some(ref source) = avatar_source_opt {
+        match source.as_str() {
+            "github" => {
+                let configured = app_state.oauth_config.github_client_id.is_some()
+                    && app_state.oauth_config.github_client_secret.is_some();
+                if !configured {
+                    return HttpResponse::BadRequest().json(ErrorResponse {
+                        error: "invalid_avatar_source".to_string(),
+                        message: "GitHub OAuth is not configured".to_string(),
+                    });
+                }
+            }
+            "google" => {
+                let configured = app_state.oauth_config.google_client_id.is_some()
+                    && app_state.oauth_config.google_client_secret.is_some();
+                if !configured {
+                    return HttpResponse::BadRequest().json(ErrorResponse {
+                        error: "invalid_avatar_source".to_string(),
+                        message: "Google OAuth is not configured".to_string(),
+                    });
+                }
+            }
+            "microsoft" => {
+                let configured = app_state.oauth_config.microsoft_client_id.is_some()
+                    && app_state.oauth_config.microsoft_client_secret.is_some();
+                if !configured {
+                    return HttpResponse::BadRequest().json(ErrorResponse {
+                        error: "invalid_avatar_source".to_string(),
+                        message: "Microsoft OAuth is not configured".to_string(),
+                    });
+                }
+            }
+            "gravatar" => {
+                // If email is being cleared (or absent), gravatar can't work.
+                let effective_email = email_opt.as_ref().or(user_model.email.as_ref());
+                if effective_email.is_none() {
+                    return HttpResponse::BadRequest().json(ErrorResponse {
+                        error: "email_required".to_string(),
+                        message: "Email is required to use Gravatar".to_string(),
+                    });
+                }
+            }
+            _ => {
+                return HttpResponse::BadRequest().json(ErrorResponse {
+                    error: "invalid_avatar_source".to_string(),
+                    message: "Unsupported avatar source".to_string(),
+                });
+            }
+        }
+
+        // For OAuth-based avatars, require that the identity is linked.
+        if source != "gravatar" {
+            let linked = match identity::Entity::find()
+                .filter(identity::Column::UserId.eq(user_id.clone()))
+                .filter(identity::Column::Provider.eq(source.clone()))
+                .one(&app_state.db)
+                .await
+            {
+                Ok(v) => v.is_some(),
+                Err(e) => {
+                    log::error!("Database error (identity lookup): {e}");
+                    return HttpResponse::InternalServerError().json(ErrorResponse {
+                        error: "internal_error".to_string(),
+                        message: "Database error occurred".to_string(),
+                    });
+                }
+            };
+
+            if !linked {
+                return HttpResponse::BadRequest().json(ErrorResponse {
+                    error: "identity_not_linked".to_string(),
+                    message: "That provider is not linked to this account".to_string(),
+                });
+            }
+        }
+    }
+
+    let now = Utc::now().timestamp();
+    let mut active: user::ActiveModel = user_model.into();
+    active.email = Set(email_opt);
+    active.avatar_source = Set(avatar_source_opt);
+    active.updated_at = Set(now);
+
+    if let Err(e) = active.update(&app_state.db).await {
+        log::error!("Failed to update user profile: {e}");
+        return HttpResponse::InternalServerError().json(ErrorResponse {
+            error: "internal_error".to_string(),
+            message: "Failed to update profile".to_string(),
+        });
+    }
+
+    HttpResponse::Ok().json(UpdateUserProfileResponse { success: true })
+}
+
+/// GET /api/v1/user/me/avatar
+/// Returns the user's selected avatar if it is stored locally (currently Microsoft avatars).
+pub async fn get_my_avatar(
+    app_state: web::Data<AppState>,
+    req: HttpRequest,
+) -> impl Responder {
+    let access_token = match get_access_token_from_cookie(&req) {
+        Some(token) => token,
+        None => {
+            return HttpResponse::Unauthorized().json(ErrorResponse {
+                error: "unauthorized".to_string(),
+                message: "Not authenticated".to_string(),
+            });
+        }
+    };
+
+    let user_id = match crate::handlers::auth::verify_access_token(&app_state, &access_token) {
+        Ok(id) => id,
+        Err(e) => {
+            return HttpResponse::Unauthorized().json(ErrorResponse {
+                error: "invalid_token".to_string(),
+                message: e,
+            });
+        }
+    };
+
+    let Some(user_model) = (match user::Entity::find_by_id(user_id).one(&app_state.db).await {
+        Ok(u) => u,
+        Err(e) => {
+            log::error!("Database error (user lookup): {e}");
+            return HttpResponse::InternalServerError().finish();
+        }
+    }) else {
+        return HttpResponse::NotFound().finish();
+    };
+
+    let Some(b64) = user_model.microsoft_avatar_b64.as_deref() else {
+        return HttpResponse::NotFound().finish();
+    };
+
+    let content_type = user_model
+        .microsoft_avatar_content_type
+        .as_deref()
+        .unwrap_or("image/jpeg");
+
+    let bytes = match base64::engine::general_purpose::STANDARD.decode(b64) {
+        Ok(b) => b,
+        Err(e) => {
+            log::error!("Failed to decode stored avatar base64: {e}");
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    HttpResponse::Ok().content_type(content_type).body(bytes)
 }
 
 /// POST /api/v1/user/change-username

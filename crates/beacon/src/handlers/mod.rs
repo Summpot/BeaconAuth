@@ -10,6 +10,7 @@ pub use auth::{get_minecraft_jwt, refresh_token};
 // Keep original handlers here
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use beacon_core::password;
 use beacon_core::username;
 use entity::identity as identity_entity;
@@ -638,23 +639,23 @@ pub async fn oauth_callback(
     }
 
     // 2. Exchange code for access token and get user info
-    let (provider_user_id, derived_username) = match oauth_state.provider.as_str() {
+    let exchange = match oauth_state.provider.as_str() {
         "github" => match exchange_github_code(&app_state, &query.code).await {
-            Ok((id, name)) => (id, name),
+            Ok(v) => v,
             Err(e) => {
                 log::error!("GitHub OAuth failed: {}", e);
                 return HttpResponse::InternalServerError().body("GitHub authentication failed");
             }
         },
         "google" => match exchange_google_code(&app_state, &query.code).await {
-            Ok((id, name)) => (id, name),
+            Ok(v) => v,
             Err(e) => {
                 log::error!("Google OAuth failed: {}", e);
                 return HttpResponse::InternalServerError().body("Google authentication failed");
             }
         },
         "microsoft" => match exchange_microsoft_code(&app_state, &query.code).await {
-            Ok((id, name)) => (id, name),
+            Ok(v) => v,
             Err(e) => {
                 log::error!("Microsoft OAuth failed: {}", e);
                 return HttpResponse::InternalServerError().body("Microsoft authentication failed");
@@ -664,6 +665,9 @@ pub async fn oauth_callback(
             return HttpResponse::BadRequest().body("Invalid provider");
         }
     };
+
+    let provider_user_id = exchange.provider_user_id.clone();
+    let derived_username = exchange.username.clone();
 
     // 3. Resolve the canonical user via identities (provider + provider_user_id).
     let provider = oauth_state.provider.clone();
@@ -877,6 +881,59 @@ pub async fn oauth_callback(
         canonical_user
     };
 
+    // Cache provider avatar info best-effort. Never fail login for avatar issues.
+    {
+        let now = Utc::now().timestamp();
+        let mut update = user_entity::ActiveModel {
+            id: Set(db_user.id.clone()),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+
+        let mut has_avatar_update = false;
+
+        match provider.as_str() {
+            "github" => {
+                if exchange.avatar_url.is_some() {
+                    update.github_avatar_url = Set(exchange.avatar_url.clone());
+                    has_avatar_update = true;
+                }
+            }
+            "google" => {
+                if exchange.avatar_url.is_some() {
+                    update.google_avatar_url = Set(exchange.avatar_url.clone());
+                    has_avatar_update = true;
+                }
+            }
+            "microsoft" => {
+                if exchange.microsoft_avatar_b64.is_some() {
+                    update.microsoft_avatar_b64 = Set(exchange.microsoft_avatar_b64.clone());
+                    update.microsoft_avatar_content_type = Set(exchange.microsoft_avatar_content_type.clone());
+                    has_avatar_update = true;
+                }
+            }
+            _ => {}
+        }
+
+        if db_user.avatar_source.is_none() {
+            let should_default = match provider.as_str() {
+                "github" | "google" => exchange.avatar_url.is_some(),
+                "microsoft" => exchange.microsoft_avatar_b64.is_some(),
+                _ => false,
+            };
+            if should_default {
+                update.avatar_source = Set(Some(provider.clone()));
+                has_avatar_update = true;
+            }
+        }
+
+        if has_avatar_update {
+            if let Err(e) = update.update(&app_state.db).await {
+                log::warn!("Failed to cache provider avatar: {e}");
+            }
+        }
+    }
+
     // 4. Create session tokens
     let (access_token, refresh_token) =
         match auth::create_session_for_user(&app_state, &db_user.id).await {
@@ -920,11 +977,21 @@ pub async fn oauth_callback(
         .finish()
 }
 
+struct OAuthExchangeResult {
+    provider_user_id: String,
+    username: String,
+
+    // Cacheable avatar information.
+    avatar_url: Option<String>,
+    microsoft_avatar_b64: Option<String>,
+    microsoft_avatar_content_type: Option<String>,
+}
+
 // Helper function to exchange GitHub code for user info
 async fn exchange_github_code(
     app_state: &AppState,
     code: &str,
-) -> Result<(String, String), anyhow::Error> {
+) -> Result<OAuthExchangeResult, anyhow::Error> {
     let client = reqwest::Client::new();
 
     let redirect_uri = format!(
@@ -1005,14 +1072,26 @@ async fn exchange_github_code(
         .ok_or_else(|| anyhow::anyhow!("No username in response"))?
         .to_string();
 
-    Ok((user_id, username))
+    let avatar_url = user_response
+        .get("avatar_url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    Ok(OAuthExchangeResult {
+        provider_user_id: user_id,
+        username,
+        avatar_url,
+        microsoft_avatar_b64: None,
+        microsoft_avatar_content_type: None,
+    })
 }
 
 // Helper function to exchange Google code for user info
 async fn exchange_google_code(
     app_state: &AppState,
     code: &str,
-) -> Result<(String, String), anyhow::Error> {
+) -> Result<OAuthExchangeResult, anyhow::Error> {
     let client = reqwest::Client::new();
 
     let redirect_uri = format!(
@@ -1076,14 +1155,26 @@ async fn exchange_google_code(
     // Use email prefix as username
     let username = email.split('@').next().unwrap_or(email);
 
-    Ok((user_id, username.to_string()))
+    let avatar_url = user_response
+        .get("picture")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    Ok(OAuthExchangeResult {
+        provider_user_id: user_id,
+        username: username.to_string(),
+        avatar_url,
+        microsoft_avatar_b64: None,
+        microsoft_avatar_content_type: None,
+    })
 }
 
 // Helper function to exchange Microsoft code for user info
 async fn exchange_microsoft_code(
     app_state: &AppState,
     code: &str,
-) -> Result<(String, String), anyhow::Error> {
+) -> Result<OAuthExchangeResult, anyhow::Error> {
     let client = reqwest::Client::new();
 
     let redirect_uri = format!(
@@ -1194,7 +1285,38 @@ async fn exchange_microsoft_code(
 
     let username_raw = username_source.split('@').next().unwrap_or(username_source);
 
-    Ok((user_id, username_raw.to_string()))
+    // Fetch avatar bytes from Microsoft Graph (best-effort).
+    let (microsoft_avatar_b64, microsoft_avatar_content_type) = {
+        let photo_resp = client
+            .get("https://graph.microsoft.com/v1.0/me/photo/$value")
+            .header("Authorization", format!("Bearer {access_token}"))
+            .send()
+            .await?;
+
+        let status = photo_resp.status();
+        if !status.is_success() {
+            (None, None)
+        } else {
+            let ct = photo_resp
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "image/jpeg".to_string());
+
+            let bytes = photo_resp.bytes().await?;
+            let b64 = BASE64.encode(bytes);
+            (Some(b64), Some(ct))
+        }
+    };
+
+    Ok(OAuthExchangeResult {
+        provider_user_id: user_id,
+        username: username_raw.to_string(),
+        avatar_url: None,
+        microsoft_avatar_b64,
+        microsoft_avatar_content_type,
+    })
 }
 
 /// Helper function to extract user ID from session cookie

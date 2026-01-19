@@ -167,6 +167,44 @@ pub struct IdentitiesResponse {
     pub passkey_count: i64,
 }
 
+/// Current user profile as returned by GET /api/v1/user/me.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserMeResponse {
+    pub id: String,
+    pub username: String,
+
+    /// User-supplied email address.
+    ///
+    /// BeaconAuth does not verify this email. It is used only for display and Gravatar.
+    pub email: Option<String>,
+
+    /// Which avatar source the user selected.
+    ///
+    /// Expected values: "github", "google", "microsoft", "gravatar".
+    pub avatar_source: Option<String>,
+
+    /// Fully-resolved avatar URL to render (may be external, or a BeaconAuth endpoint).
+    pub avatar_url: Option<String>,
+}
+
+/// Request payload for updating user profile fields.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUserProfileRequest {
+    /// Set to an empty string to clear.
+    #[serde(default)]
+    pub email: String,
+
+    /// Empty string means "no preference" (clear).
+    #[serde(default)]
+    pub avatar_source: String,
+}
+
+/// Response for updating user profile fields.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUserProfileResponse {
+    pub success: bool,
+}
+
 // -------------------- Passkey models (optional feature) --------------------
 
 /// Passkey registration challenge request

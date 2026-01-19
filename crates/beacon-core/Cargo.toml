@@ -16,6 +16,7 @@ passkey = ["dep:webauthn-rs"]
 anyhow = { workspace = true }
 argon2 = { workspace = true }
 base64 = { workspace = true }
+md5 = { workspace = true }
 jsonwebtoken = { workspace = true }
 p256 = { workspace = true }
 serde = { workspace = true }

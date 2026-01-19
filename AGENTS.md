@@ -9,11 +9,11 @@
 
 ### TEMPORARY (Pre-release) Rule
 
-This project has not been released yet.
+This project is now in a released stage.
 
-* You do NOT need to consider backwards compatibility.
-* If you need to adjust the database schema, you MAY directly edit the existing migration files (instead of creating additive migrations).
-* This rule is temporary and will be removed at release time.
+* You MUST maintain backwards compatibility with existing/old data.
+* Database schema changes MUST be done via additive migrations (do NOT edit already-applied migration files).
+* When introducing new fields, prefer nullable columns and safe defaults; handle missing/legacy values in application code.
 
 ## 2) Language & Communication
 

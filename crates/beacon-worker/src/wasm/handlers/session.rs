@@ -1,6 +1,7 @@
 use beacon_core::models;
 use beacon_core::password;
 use beacon_core::username;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use serde_json::json;
 use worker::{Env, Error, Request, Response, Result};
@@ -11,12 +12,31 @@ use crate::wasm::{
         d1, d1_insert_identity, d1_insert_refresh_token, d1_insert_user, d1_password_identity_by_identifier,
         d1_password_identity_by_user_id, d1_refresh_token_by_hash, d1_revoke_all_refresh_tokens_for_user,
         d1_revoke_refresh_token_by_id, d1_update_password_identity_hash, d1_user_by_id, d1_user_by_username,
+        d1_identities_by_user_id, d1_update_user_profile_fields,
     },
+    env::env_string,
     http::{error_response, internal_error_response, json_with_cors},
     jwt::{sign_jwt, verify_access_token},
     state::get_jwt_state,
     util::{new_family_id, new_refresh_token, now_ts, sha256_hex},
 };
+
+fn compute_avatar_url(user: &crate::wasm::db::UserRow) -> Option<String> {
+    let source = user.avatar_source.as_deref()?.trim().to_ascii_lowercase();
+    match source.as_str() {
+        "github" => user.github_avatar_url.clone(),
+        "google" => user.google_avatar_url.clone(),
+        "microsoft" => user
+            .microsoft_avatar_b64
+            .as_ref()
+            .map(|_| "/api/v1/user/me/avatar".to_string()),
+        "gravatar" => user
+            .email
+            .as_ref()
+            .map(|email| beacon_core::avatar::gravatar_url(email, 128)),
+        _ => None,
+    }
+}
 
 pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
     let db = match d1(env).await {
@@ -279,7 +299,7 @@ pub async fn handle_user_me(req: &Request, env: &Env) -> Result<Response> {
         return json_with_cors(req, resp);
     };
 
-        let user_id = match verify_access_token(jwt, &access_token).await {
+    let user_id = match verify_access_token(jwt, &access_token).await {
         Ok(id) => id,
         Err(e) => {
             let resp = Response::from_json(&models::ErrorResponse {
@@ -300,7 +320,147 @@ pub async fn handle_user_me(req: &Request, env: &Env) -> Result<Response> {
         return json_with_cors(req, resp);
     };
 
-    let resp = Response::from_json(&json!({ "id": user.id, "username": user.username }))?;
+    let avatar_url = compute_avatar_url(&user);
+    let resp = Response::from_json(&models::UserMeResponse {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar_source: user.avatar_source,
+        avatar_url,
+    })?;
+    json_with_cors(req, resp)
+}
+
+pub async fn handle_user_profile_update(mut req: Request, env: &Env) -> Result<Response> {
+    let db = d1(env).await?;
+    let jwt = get_jwt_state(env).await?;
+
+    let Some(access_token) = get_cookie(&req, "access_token")? else {
+        return error_response(&req, 401, "unauthorized", "Not authenticated");
+    };
+
+    let user_id = match verify_access_token(jwt, &access_token).await {
+        Ok(id) => id,
+        Err(e) => return error_response(&req, 401, "invalid_token", e),
+    };
+
+    let payload: models::UpdateUserProfileRequest = match req.json().await {
+        Ok(p) => p,
+        Err(e) => {
+            worker::console_log!("Invalid JSON in /v1/user/profile: {e}");
+            return error_response(&req, 400, "invalid_json", "Invalid JSON body");
+        }
+    };
+
+    let Some(user) = d1_user_by_id(&db, &user_id).await? else {
+        return error_response(&req, 404, "user_not_found", "User not found");
+    };
+
+    let email = payload.email.trim().to_string();
+    let new_email = if email.is_empty() { None } else { Some(email) };
+
+    let avatar_source_raw = payload.avatar_source.trim().to_ascii_lowercase();
+    let new_avatar_source = if avatar_source_raw.is_empty() {
+        None
+    } else {
+        Some(avatar_source_raw)
+    };
+
+    if let Some(src) = new_avatar_source.as_deref() {
+        let allowed = ["github", "google", "microsoft", "gravatar"];
+        if !allowed.contains(&src) {
+            return error_response(
+                &req,
+                400,
+                "invalid_avatar_source",
+                "Unsupported avatar source",
+            );
+        }
+
+        if src == "gravatar" {
+            let effective_email = new_email.as_ref().or(user.email.as_ref());
+            if effective_email.is_none() {
+                return error_response(
+                    &req,
+                    400,
+                    "email_required",
+                    "Email is required to use Gravatar",
+                );
+            }
+        } else {
+            // OAuth avatar: require provider configured and linked.
+            let configured = match src {
+                "github" => env_string(env, "GITHUB_CLIENT_ID").is_some()
+                    && env_string(env, "GITHUB_CLIENT_SECRET").is_some(),
+                "google" => env_string(env, "GOOGLE_CLIENT_ID").is_some()
+                    && env_string(env, "GOOGLE_CLIENT_SECRET").is_some(),
+                "microsoft" => env_string(env, "MICROSOFT_CLIENT_ID").is_some()
+                    && env_string(env, "MICROSOFT_CLIENT_SECRET").is_some(),
+                _ => false,
+            };
+            if !configured {
+                return error_response(
+                    &req,
+                    503,
+                    "oauth_not_configured",
+                    "That OAuth provider is not configured",
+                );
+            }
+
+            let identities = d1_identities_by_user_id(&db, &user_id).await?;
+            let linked = identities.iter().any(|i| i.provider == src);
+            if !linked {
+                return error_response(
+                    &req,
+                    409,
+                    "identity_not_linked",
+                    "That provider is not linked to your account",
+                );
+            }
+        }
+    }
+
+    d1_update_user_profile_fields(&db, &user_id, new_email, new_avatar_source).await?;
+
+    let resp = Response::from_json(&models::UpdateUserProfileResponse { success: true })?;
+    json_with_cors(&req, resp)
+}
+
+pub async fn handle_user_me_avatar(req: &Request, env: &Env) -> Result<Response> {
+    let db = d1(env).await?;
+    let jwt = get_jwt_state(env).await?;
+
+    let Some(access_token) = get_cookie(req, "access_token")? else {
+        return error_response(req, 401, "unauthorized", "Not authenticated");
+    };
+
+    let user_id = match verify_access_token(jwt, &access_token).await {
+        Ok(id) => id,
+        Err(e) => return error_response(req, 401, "invalid_token", e),
+    };
+
+    let Some(user) = d1_user_by_id(&db, &user_id).await? else {
+        return error_response(req, 404, "user_not_found", "User not found");
+    };
+
+    let Some(b64) = user.microsoft_avatar_b64.as_deref() else {
+        return error_response(req, 404, "avatar_not_found", "No avatar cached");
+    };
+
+    let bytes = match BASE64.decode(b64) {
+        Ok(b) => b,
+        Err(_) => return error_response(req, 500, "invalid_avatar", "Invalid avatar data"),
+    };
+
+    let ct = user
+        .microsoft_avatar_content_type
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("image/jpeg");
+
+    let mut resp = Response::from_bytes(bytes)?.with_status(200);
+    resp.headers_mut().set("Content-Type", ct)?;
+    resp.headers_mut().set("Cache-Control", "private, max-age=3600")?;
     json_with_cors(req, resp)
 }
 

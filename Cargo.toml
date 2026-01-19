@@ -26,6 +26,7 @@ jsonwebtoken = { version = "10.2", default-features = false, features = ["rust_c
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
 ecdsa = { version = "0.16", features = ["signing"] }
 sha2 = "0.10"
+md5 = "0.7"
 argon2 = "0.5"
 rand = "0.9"
 openssl = { version = "0.10", features = ["vendored"] }

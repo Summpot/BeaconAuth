@@ -14,7 +14,7 @@ import { BeaconIcon } from '@/components/beacon-icon';
 import { LanguageToggle } from '@/components/language-toggle';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +34,9 @@ const searchParamsSchema = z.object({
 interface UserInfo {
   id: string;
   username: string;
+  email: string | null;
+  avatar_source: string | null;
+  avatar_url: string | null;
 }
 
 async function fetchUserInfo(): Promise<UserInfo> {
@@ -214,6 +217,9 @@ function ProfilePage() {
         <div className="flex flex-col md:flex-row gap-8 mb-12 items-center md:items-start text-center md:text-left">
           <div className="relative group">
             <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
+              {user.avatar_url ? (
+                <AvatarImage src={user.avatar_url} alt={user.username} />
+              ) : null}
               <AvatarFallback className="bg-primary text-5xl text-primary-foreground font-bold">
                 {user.username.charAt(0).toUpperCase()}
               </AvatarFallback>
