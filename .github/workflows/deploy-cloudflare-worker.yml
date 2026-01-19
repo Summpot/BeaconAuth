@@ -7,6 +7,8 @@ on:
     paths:
       - crates/beacon-worker/**
       - crates/beacon-core/**
+      - crates/migration/**
+      - crates/entity/**
       - Cargo.toml
       - Cargo.lock
       - wrangler.workers.jsonc
