@@ -13,28 +13,32 @@ import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { Suspense } from 'react';
 import { baseOptions } from '@/lib/layout.shared';
 import { source } from '@/lib/source';
+import { getLocale } from '@/paraglide/runtime';
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,
   loader: async ({ params }) => {
-    const slugs = params._splat?.split('/') ?? [];
-    const data = await serverLoader({ data: slugs });
+    const data = await loader({
+      data: {
+        slugs: params._splat?.split('/') ?? [],
+        lang: getLocale(),
+      },
+    });
     await clientLoader.preload(data.path);
     return data;
   },
 });
 
-const serverLoader = createServerFn({
+const loader = createServerFn({
   method: 'GET',
 })
-  .inputValidator((slugs: string[]) => slugs)
-  .handler(async ({ data: slugs }) => {
-    const page = source.getPage(slugs);
+  .inputValidator((params: { slugs: string[]; lang?: string }) => params)
+  .handler(async ({ data: { slugs, lang } }) => {
+    const page = source.getPage(slugs, lang);
     if (!page) throw notFound();
-
     return {
+      tree: source.getPageTree(lang) as object,
       path: page.path,
-      pageTree: await source.serializePageTree(source.getPageTree()),
     };
   });
 
@@ -63,10 +67,10 @@ const clientLoader = browserCollections.docs.createClientLoader({
 });
 
 function Page() {
+  const lang = getLocale();
   const data = useFumadocsLoader(Route.useLoaderData());
-
   return (
-    <DocsLayout {...baseOptions()} tree={data.pageTree}>
+    <DocsLayout {...baseOptions(lang)} tree={data.tree}>
       <Suspense>
         {clientLoader.useContent(data.path, {
           className: '',
