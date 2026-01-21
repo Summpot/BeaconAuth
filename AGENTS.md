@@ -20,6 +20,12 @@ This project is now in a released stage.
 * User-facing chat responses: use the same language as the user’s request.
 * Repository artifacts (code comments, docs, commit messages, logs, error messages): MUST be in English.
 
+## Documentation (Fumadocs)
+
+* All documentation lives under `content/docs` and is rendered by Fumadocs.
+* Add new guides as `.mdx` files in `content/docs` and keep README short with links to docs.
+* When migrating or updating docs, move long-form content out of README into Fumadocs.
+
 ## 3) Research First (MANDATORY: DeepWiki MCP when unsure)
 
 When you are not sure about usage, conventions, or existing patterns in this repo, you MUST consult DeepWiki MCP BEFORE implementing.

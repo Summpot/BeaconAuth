@@ -26,6 +26,7 @@
     /* path aliases */
     "baseUrl": ".",
     "paths": {
+      "fumadocs-mdx:collections/*": [".source/*"],
       "@/*": ["./src/*"],
       "~/*": ["./src/*"]
     }

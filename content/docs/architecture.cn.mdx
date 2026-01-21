@@ -1,0 +1,39 @@
+---
+title: 架构
+description: BeaconAuth 组件与数据流的高层视图。
+---
+
+## 单仓库结构
+
+- `crates/beacon`：Rust 服务器二进制与 CLI（serve、migrate、用户管理）。
+- `crates/beacon-core`：共享模型、加密与 OAuth 帮助函数。
+- `crates/beacon-worker`：Cloudflare Worker（wasm32）API 运行时。
+- `crates/beacon-lambda`：Serverless 运行时（AWS Lambda 或兼容环境）。
+- `crates/beacon-passkey`：WebAuthn/Passkey 逻辑。
+- `crates/beacon-frontend-embed`：可嵌入的前端工具。
+- `crates/entity` 与 `crates/migration`：SeaORM 实体与数据库迁移。
+- `src/`：React Web UI（路由、组件、样式）。
+- `modSrc/`：Minecraft 模组（Kotlin/Gradle，Architectury，支持 Fabric/Forge/NeoForge）。
+- `messages/`、`src/paraglide/`、`project.inlang/`：本地化资源与工具。
+- `content/docs/`：Fumadocs 文档。
+- `wrangler*.jsonc`：Cloudflare Pages 与 Worker 部署配置。
+
+## 运行时组件
+
+- **认证服务器（Rust）**：处理登录、注册、OAuth、Passkey，并签发 ES256 JWT。
+- **Web UI（React）**：登录、注册、设置、资料与 OAuth 完成流程。
+- **Minecraft 模组**：基于 PKCE 的登录流程，并校验 JWT。
+- **Cloudflare Worker（可选）**：Serverless 的边缘 API 运行时。
+
+## 认证流程概览
+
+1. 用户通过 Web UI 登录（密码、OAuth 或 Passkey）。
+2. 服务器签发访问令牌与刷新令牌（ES256 JWT + refresh cookie）。
+3. 模组通过 PKCE 流程请求 Minecraft 专用 JWT。
+4. 游戏服务器通过 JWKS 端点验证 JWT。
+
+## 存储与状态
+
+- **默认服务器存储**：SQLite（通过 `DATABASE_URL` 配置）。
+- **Serverless 存储**：Worker 部署使用 `LIBSQL_URL`（libSQL/Turso）。
+- **临时仪式状态**：多实例 WebAuthn 可选 Redis（`REDIS_URL`）。

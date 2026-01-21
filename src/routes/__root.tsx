@@ -5,13 +5,29 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useParams,
   useRouterState,
 } from '@tanstack/react-router';
+import { defineI18nUI } from 'fumadocs-ui/i18n';
+import { RootProvider } from 'fumadocs-ui/provider/tanstack';
 import { type ReactNode, useState } from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
+import { i18n } from '@/lib/i18n';
 import { AnimatePresence, MotionConfig, motion } from '@/lib/motion';
 import { getLocale } from '@/paraglide/runtime';
 import appCss from '../styles.css?url';
+
+const { provider } = defineI18nUI(i18n, {
+  translations: {
+    'zh-CN': {
+      displayName: 'Chinese',
+      search: 'Translated Content',
+    },
+    en: {
+      displayName: 'English',
+    },
+  },
+});
 
 function RootComponent() {
   const [queryClient] = useState(
@@ -56,13 +72,14 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  const lang = getLocale();
   return (
-    <html lang={getLocale()}>
+    <html lang={lang}>
       <head>
         <HeadContent />
       </head>
       <body>
-        {children}
+        <RootProvider i18n={provider(lang)}>{children}</RootProvider>
         <Scripts />
       </body>
     </html>

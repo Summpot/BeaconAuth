@@ -43,7 +43,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import * as m from '@/paraglide/messages';
 import { ApiError, apiClient } from '../utils/api';
 
@@ -502,7 +506,9 @@ function SettingsPage() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="h-8 w-1 bg-primary rounded-full" />
-              <h2 className="text-xl font-bold">{m.settings_profile_title()}</h2>
+              <h2 className="text-xl font-bold">
+                {m.settings_profile_title()}
+              </h2>
             </div>
 
             <Card className="border-0 shadow-md">
@@ -536,7 +542,9 @@ function SettingsPage() {
                     <div className="flex-1 space-y-5">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <Label htmlFor="email">{m.settings_email_label()}</Label>
+                          <Label htmlFor="email">
+                            {m.settings_email_label()}
+                          </Label>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -568,14 +576,20 @@ function SettingsPage() {
                         <RadioGroup
                           value={profileForm.watch('avatar_source')}
                           onValueChange={(v) =>
-                            profileForm.setValue('avatar_source', v as ProfileData['avatar_source'])
+                            profileForm.setValue(
+                              'avatar_source',
+                              v as ProfileData['avatar_source'],
+                            )
                           }
                           className="grid gap-3"
                         >
                           <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
                             <div className="flex items-center gap-3">
                               <RadioGroupItem value="" id="avatar_auto" />
-                              <Label htmlFor="avatar_auto" className="cursor-pointer">
+                              <Label
+                                htmlFor="avatar_auto"
+                                className="cursor-pointer"
+                              >
                                 {m.settings_avatar_source_auto()}
                               </Label>
                             </div>
@@ -589,13 +603,18 @@ function SettingsPage() {
                                   id="avatar_github"
                                   disabled={!isGithubLinked}
                                 />
-                                <Label htmlFor="avatar_github" className="cursor-pointer flex items-center gap-2">
+                                <Label
+                                  htmlFor="avatar_github"
+                                  className="cursor-pointer flex items-center gap-2"
+                                >
                                   <Github className="h-4 w-4" />
                                   {m.settings_avatar_source_github()}
                                 </Label>
                               </div>
                               {!isGithubLinked && (
-                                <Badge variant="secondary">{m.settings_avatar_requires_linked()}</Badge>
+                                <Badge variant="secondary">
+                                  {m.settings_avatar_requires_linked()}
+                                </Badge>
                               )}
                             </div>
                           )}
@@ -608,13 +627,18 @@ function SettingsPage() {
                                   id="avatar_google"
                                   disabled={!isGoogleLinked}
                                 />
-                                <Label htmlFor="avatar_google" className="cursor-pointer flex items-center gap-2">
+                                <Label
+                                  htmlFor="avatar_google"
+                                  className="cursor-pointer flex items-center gap-2"
+                                >
                                   <Chrome className="h-4 w-4" />
                                   {m.settings_avatar_source_google()}
                                 </Label>
                               </div>
                               {!isGoogleLinked && (
-                                <Badge variant="secondary">{m.settings_avatar_requires_linked()}</Badge>
+                                <Badge variant="secondary">
+                                  {m.settings_avatar_requires_linked()}
+                                </Badge>
                               )}
                             </div>
                           )}
@@ -627,7 +651,10 @@ function SettingsPage() {
                                   id="avatar_microsoft"
                                   disabled={!isMicrosoftLinked}
                                 />
-                                <Label htmlFor="avatar_microsoft" className="cursor-pointer flex items-center gap-2">
+                                <Label
+                                  htmlFor="avatar_microsoft"
+                                  className="cursor-pointer flex items-center gap-2"
+                                >
                                   <svg
                                     role="img"
                                     className="h-4 w-4"
@@ -643,7 +670,9 @@ function SettingsPage() {
                                 </Label>
                               </div>
                               {!isMicrosoftLinked && (
-                                <Badge variant="secondary">{m.settings_avatar_requires_linked()}</Badge>
+                                <Badge variant="secondary">
+                                  {m.settings_avatar_requires_linked()}
+                                </Badge>
                               )}
                             </div>
                           )}
@@ -653,14 +682,21 @@ function SettingsPage() {
                               <RadioGroupItem
                                 value="gravatar"
                                 id="avatar_gravatar"
-                                disabled={profileForm.watch('email').trim().length === 0}
+                                disabled={
+                                  profileForm.watch('email').trim().length === 0
+                                }
                               />
-                              <Label htmlFor="avatar_gravatar" className="cursor-pointer">
+                              <Label
+                                htmlFor="avatar_gravatar"
+                                className="cursor-pointer"
+                              >
                                 {m.settings_avatar_source_gravatar()}
                               </Label>
                             </div>
                             {profileForm.watch('email').trim().length === 0 && (
-                              <Badge variant="secondary">{m.settings_avatar_requires_email()}</Badge>
+                              <Badge variant="secondary">
+                                {m.settings_avatar_requires_email()}
+                              </Badge>
                             )}
                           </div>
                         </RadioGroup>

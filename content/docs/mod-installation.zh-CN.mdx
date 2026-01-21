@@ -1,0 +1,72 @@
+---
+title: 模组安装
+description: 安装并配置 BeaconAuth Minecraft 模组。
+---
+
+## 服务端安装
+
+1. 从 GitHub Releases 下载最新模组 jar。
+   - Fabric：`beaconauth-fabric-*.jar`
+   - Forge：`beaconauth-forge-*.jar`
+   - NeoForge：`beaconauth-neoforge-*.jar`
+2. 将 jar 放入服务器 `mods/` 目录。
+3. 重启服务器。
+
+## 客户端安装
+
+1. 下载与服务端相同版本的模组。
+2. 将 jar 放入客户端 `mods/` 目录。
+3. 启动游戏并按提示认证。
+
+## 支持版本
+
+仓库提供 Minecraft 1.20.1、1.21.1 与 1.21.8 的加载器（详见 `modSrc/`）。
+
+## 模组配置
+
+首次启动服务器后会生成配置文件：
+
+- `config/beaconauth-server.toml`
+
+示例配置：
+
+```toml
+[authentication]
+# 认证服务器的 Base URL
+# 示例：https://beaconauth.pages.dev（开发）或 https://auth.example.com（生产）
+# 警告：生产环境务必使用 HTTPS！
+base_url = "https://beaconauth.pages.dev"
+
+# JWT 签名验证用的 JWKS URL（兜底）
+# 通常为：<base_url>/.well-known/jwks.json
+# 留空：由 base_url 推导
+jwks_url = ""
+
+[jwt]
+# 期望的 JWT audience（aud）
+audience = "minecraft-client"
+
+[jku]
+# JWT 的 JWKS Discovery（JKU）
+# 当 allowed_host_patterns 非空且 JWT 头含 jku 时，会从该 JWKS URL 拉取密钥。
+# 安全提示：必须限制允许的主机以避免 SSRF。
+# 启用时，JKU 必须使用 https://
+# 留空表示禁用 JKU（忽略 token 的 jku，仅使用 authentication.jwks_url）
+allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
+
+[behavior]
+# 若为 true：服务器 online-mode 且玩家为 Mojang 账号时可跳过 BeaconAuth
+bypass_if_online_mode_verified = true
+# 若为 true：服务器 offline-mode 时强制模组客户端认证
+force_auth_if_offline_mode = true
+# 仅在 force_auth_if_offline_mode 为 true 时生效
+allow_vanilla_offline_clients = false
+```
+
+### 说明
+
+- `authentication.base_url` 用于构建登录 URL 与 JWT issuer（`iss`）。
+- `authentication.jwks_url` 为空时默认使用 `${base_url}/.well-known/jwks.json`。
+- `jku.allowed_host_patterns` 为逗号/空格分隔的白名单。支持：
+  - `example.com`、`*.example.com`
+  - 不支持：裸 `*` 或 `auth*.example.com` 这类中间通配符

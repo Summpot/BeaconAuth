@@ -1,0 +1,110 @@
+---
+title: Development guide
+description: Local setup, builds, and tests.
+---
+
+## Project structure
+
+```
+beacon_auth/
+├── crates/                      # Rust workspace
+│   ├── beacon/                  # Main server binary
+│   ├── beacon-core/             # Shared core logic
+│   ├── beacon-worker/           # Cloudflare Worker (wasm)
+│   ├── beacon-lambda/           # Serverless runtime
+│   ├── beacon-passkey/          # WebAuthn/passkey logic
+│   ├── beacon-frontend-embed/   # Embeddable frontend
+│   ├── entity/                  # SeaORM entities
+│   └── migration/               # Database migrations
+├── src/                         # Frontend (React)
+├── modSrc/                      # Minecraft mod (Kotlin/Gradle)
+├── content/docs/                # Fumadocs documentation
+├── public/                      # Static assets
+├── Cargo.toml                   # Rust workspace definition
+└── package.json                 # Frontend dependencies
+```
+
+## Development setup
+
+### Auth server + UI
+
+```bash
+# Install frontend dependencies
+pnpm install
+
+# Terminal 1: run the UI
+pnpm dev
+
+# Terminal 2: run the server
+cargo run --bin beacon serve
+```
+
+- UI: `http://localhost:5173`
+- API: `http://localhost:8080`
+
+### Mod development
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+Run a dev server/client:
+
+```bash
+# Fabric
+./gradlew :fabric:runServer
+./gradlew :fabric:runClient
+
+# Forge
+./gradlew :forge:runServer
+./gradlew :forge:runClient
+```
+
+## Building components
+
+### Rust workspace
+
+```bash
+cargo build --workspace
+```
+
+### Frontend only
+
+```bash
+pnpm build
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+Artifacts:
+
+- Fabric: `modSrc/fabric/build/libs/beaconauth-fabric-*.jar`
+- Forge: `modSrc/forge/build/libs/beaconauth-forge-*.jar`
+- NeoForge: `modSrc/neoforge*/build/libs/*.jar`
+
+## Testing
+
+### Rust
+
+```bash
+cargo test --workspace
+```
+
+### Frontend
+
+```bash
+pnpm test
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew test
+```

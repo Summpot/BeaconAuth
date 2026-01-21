@@ -1,0 +1,40 @@
+---
+title: 故障排查
+description: 常见问题与解决方案。
+---
+
+## 服务器无法启动（数据库错误）
+
+```bash
+# Ensure database directory exists
+mkdir -p data
+
+# Run migrations
+beacon migrate --database-url sqlite://./data/beacon_auth.db
+```
+
+## 模组认证失败
+
+1. 确认 `config/beaconauth-server.toml` 中的 `authentication.base_url` 与部署的 `BASE_URL` 一致。
+2. 确保 JWKS 端点可访问：
+   - 默认：`${base_url}/.well-known/jwks.json`
+3. 若启用 JKU，确保 JWT `jku` 的 host 命中白名单并使用 `https://`。
+4. 检查服务器日志中的 `[BeaconAuth]`。
+
+## 无法发送聊天（安全聊天）
+
+Minecraft 1.19+ 使用签名聊天。BeaconAuth 账户没有 Mojang 签名密钥。
+BeaconAuth 会为已认证会话发送未签名聊天包，并在支持的构建中关闭
+"secure profile" 校验。请确保客户端与服务器端安装了相同版本模组。
+
+## 游戏内用户名不是 BeaconAuth 用户名
+
+BeaconAuth 可以通过 JWT 的 `username` 字段提供单独的 Minecraft 用户名。
+若缺失或不合法，将回退到启动器提供的用户名。
+
+## OAuth 回调失败
+
+1. 确认 OAuth 回调 URL 完全一致：
+   - `${BASE_URL}/api/v1/oauth/callback`
+2. 确保 `BASE_URL` 配置正确。
+3. 生产环境使用 HTTPS。

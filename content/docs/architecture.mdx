@@ -1,0 +1,39 @@
+---
+title: Architecture
+description: High-level view of BeaconAuth components and data flow.
+---
+
+## Monorepo layout
+
+- `crates/beacon`: Rust server binary and CLI (serve, migrate, user management).
+- `crates/beacon-core`: Shared models, crypto, and OAuth helpers used across runtimes.
+- `crates/beacon-worker`: Cloudflare Worker (wasm32) API runtime.
+- `crates/beacon-lambda`: Serverless runtime (AWS Lambda or compatible).
+- `crates/beacon-passkey`: WebAuthn/passkey logic.
+- `crates/beacon-frontend-embed`: Embeddable frontend utilities.
+- `crates/entity` and `crates/migration`: SeaORM entities and database migrations.
+- `src/`: React web UI (routes, components, styles).
+- `modSrc/`: Minecraft mod (Kotlin/Gradle, Architectury) with Fabric/Forge/NeoForge targets.
+- `messages/`, `src/paraglide/`, `project.inlang/`: Localization assets and tooling.
+- `content/docs/`: Fumadocs documentation.
+- `wrangler*.jsonc`: Cloudflare Pages and Worker deployment configs.
+
+## Runtime components
+
+- **Auth server (Rust)**: Handles login, registration, OAuth, passkeys, and issues ES256 JWTs.
+- **Web UI (React)**: Login, registration, settings, profile, and OAuth completion flows.
+- **Minecraft mod**: Performs PKCE-based login and validates JWTs for in-game access.
+- **Cloudflare Worker (optional)**: Edge API runtime for serverless deployments.
+
+## High-level auth flow
+
+1. User authenticates via the web UI (password, OAuth, or passkey).
+2. The server issues access and refresh tokens (ES256 JWT + refresh cookie).
+3. The mod requests a Minecraft-specific JWT through the PKCE flow.
+4. The game server validates the JWT using the JWKS endpoint.
+
+## Storage and state
+
+- **Default server storage**: SQLite (configured via `DATABASE_URL`).
+- **Serverless storage**: libSQL/Turso via `LIBSQL_URL` in the Worker deployment.
+- **Temporary ceremony state**: Optional Redis (`REDIS_URL`) for multi-instance WebAuthn flows.

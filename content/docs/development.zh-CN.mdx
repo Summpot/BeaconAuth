@@ -1,0 +1,110 @@
+---
+title: 开发指南
+description: 本地开发、构建与测试。
+---
+
+## 项目结构
+
+```
+beacon_auth/
+├── crates/                      # Rust workspace
+│   ├── beacon/                  # Main server binary
+│   ├── beacon-core/             # Shared core logic
+│   ├── beacon-worker/           # Cloudflare Worker (wasm)
+│   ├── beacon-lambda/           # Serverless runtime
+│   ├── beacon-passkey/          # WebAuthn/passkey logic
+│   ├── beacon-frontend-embed/   # Embeddable frontend
+│   ├── entity/                  # SeaORM entities
+│   └── migration/               # Database migrations
+├── src/                         # Frontend (React)
+├── modSrc/                      # Minecraft mod (Kotlin/Gradle)
+├── content/docs/                # Fumadocs documentation
+├── public/                      # Static assets
+├── Cargo.toml                   # Rust workspace definition
+└── package.json                 # Frontend dependencies
+```
+
+## 开发环境
+
+### 认证服务器 + UI
+
+```bash
+# Install frontend dependencies
+pnpm install
+
+# Terminal 1: run the UI
+pnpm dev
+
+# Terminal 2: run the server
+cargo run --bin beacon serve
+```
+
+- UI：`http://localhost:5173`
+- API：`http://localhost:8080`
+
+### 模组开发
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+运行开发服务器/客户端：
+
+```bash
+# Fabric
+./gradlew :fabric:runServer
+./gradlew :fabric:runClient
+
+# Forge
+./gradlew :forge:runServer
+./gradlew :forge:runClient
+```
+
+## 构建组件
+
+### Rust 工作区
+
+```bash
+cargo build --workspace
+```
+
+### 仅构建前端
+
+```bash
+pnpm build
+```
+
+### 模组
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+产物路径：
+
+- Fabric：`modSrc/fabric/build/libs/beaconauth-fabric-*.jar`
+- Forge：`modSrc/forge/build/libs/beaconauth-forge-*.jar`
+- NeoForge：`modSrc/neoforge*/build/libs/*.jar`
+
+## 测试
+
+### Rust
+
+```bash
+cargo test --workspace
+```
+
+### 前端
+
+```bash
+pnpm test
+```
+
+### 模组
+
+```bash
+cd modSrc
+./gradlew test
+```

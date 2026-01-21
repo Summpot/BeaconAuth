@@ -1,0 +1,74 @@
+---
+title: Getting started
+description: Quick ways to run BeaconAuth locally or in production.
+---
+
+## Using Docker (recommended)
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/summpot/beacon_auth:latest
+
+# Run the server
+docker run -d --name beaconauth \
+  -p 8080:8080 \
+  -v $(pwd)/data:/app/data \
+  -e DATABASE_URL=sqlite:///app/data/beacon_auth.db \
+  ghcr.io/summpot/beacon_auth:latest
+```
+
+The server will be available at `http://localhost:8080`.
+
+## Using pre-built binaries
+
+Download the latest release for your platform from the GitHub Releases page.
+
+**Linux (amd64)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+**Windows (amd64)**:
+
+```powershell
+# Download and extract the zip file
+# Run in PowerShell:
+.\beacon.exe serve
+```
+
+**macOS (Apple Silicon)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
+tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+## Building from source
+
+### Prerequisites
+
+- Rust (stable)
+- Node.js (LTS)
+- pnpm
+
+### Build steps
+
+```bash
+# Clone the repository
+git clone https://github.com/Summpot/beacon_auth.git
+cd beacon_auth
+
+# Install frontend dependencies
+pnpm install
+
+# Build the Rust workspace
+cargo build --workspace --release
+```
+
+The binary will be at `target/release/beacon`.

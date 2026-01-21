@@ -3,9 +3,11 @@ import { sentryVitePlugin } from '@sentry/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
+import mdx from 'fumadocs-mdx/vite';
 import { nitro } from 'nitro/vite';
 import { defineConfig } from 'vite';
 import tsConfigPaths from 'vite-tsconfig-paths';
+import * as MdxConfig from './source.config';
 
 export default defineConfig({
   server: {
@@ -13,6 +15,10 @@ export default defineConfig({
   },
 
   plugins: [
+    tsConfigPaths({
+      projects: ['./tsconfig.json'],
+    }),
+    mdx(MdxConfig),
     paraglideVitePlugin({
       project: './project.inlang',
       outdir: './src/paraglide',
@@ -27,12 +33,16 @@ export default defineConfig({
             ['zh-CN', '/zh-CN'],
           ],
         },
+        {
+          pattern: '/docs/:path(.*)?',
+          localized: [
+            ['en', '/docs/:path(.*)?'],
+            ['zh-CN', '/zh-CN/docs/:path(.*)?'],
+          ],
+        },
       ],
     }),
     tailwindcss(),
-    tsConfigPaths({
-      projects: ['./tsconfig.json'],
-    }),
     tanstackStart(),
     viteReact(),
     nitro(),
