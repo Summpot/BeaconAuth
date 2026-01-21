@@ -21,8 +21,7 @@ export const Route = createFileRoute('/docs/$')({
   loader: async ({ params }) => {
     const data = await loader({
       data: {
-        slugs: params._splat?.split('/') ?? [],
-        lang: getLocale(),
+        slugs: params._splat?.split('/') ?? []
       },
     });
     await clientLoader.preload(data.path);
@@ -33,12 +32,12 @@ export const Route = createFileRoute('/docs/$')({
 const loader = createServerFn({
   method: 'GET',
 })
-  .inputValidator((params: { slugs: string[]; lang?: string }) => params)
-  .handler(async ({ data: { slugs, lang } }) => {
-    const page = source.getPage(slugs, lang);
+  .inputValidator((params: { slugs: string[] }) => params)
+  .handler(async ({ data: { slugs } }) => {
+    const page = source.getPage(slugs);
     if (!page) throw notFound();
     return {
-      tree: source.getPageTree(lang) as object,
+      tree: source.getPageTree() as object,
       path: page.path,
     };
   });
@@ -68,10 +67,9 @@ const clientLoader = browserCollections.docs.createClientLoader({
 });
 
 function Page() {
-  const lang = getLocale();
   const data = useFumadocsLoader(Route.useLoaderData());
   return (
-    <DocsLayout {...baseOptions(lang)} tree={data.tree as Root}>
+    <DocsLayout {...baseOptions()} tree={data.tree as Root}>
       <Suspense>
         {clientLoader.useContent(data.path, {
           className: '',
