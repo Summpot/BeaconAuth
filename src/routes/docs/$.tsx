@@ -14,6 +14,7 @@ import { Suspense } from 'react';
 import { baseOptions } from '@/lib/layout.shared';
 import { source } from '@/lib/source';
 import { getLocale } from '@/paraglide/runtime';
+import type { Root } from 'fumadocs-core/page-tree';
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,
@@ -70,7 +71,7 @@ function Page() {
   const lang = getLocale();
   const data = useFumadocsLoader(Route.useLoaderData());
   return (
-    <DocsLayout {...baseOptions(lang)} tree={data.tree}>
+    <DocsLayout {...baseOptions(lang)} tree={data.tree as Root}>
       <Suspense>
         {clientLoader.useContent(data.path, {
           className: '',
