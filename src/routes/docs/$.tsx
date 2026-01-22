@@ -1,6 +1,7 @@
 import browserCollections from 'fumadocs-mdx:collections/browser';
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
+import type { Root } from 'fumadocs-core/page-tree';
 import { useFumadocsLoader } from 'fumadocs-core/source/client';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import {
@@ -13,15 +14,13 @@ import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { Suspense } from 'react';
 import { baseOptions } from '@/lib/layout.shared';
 import { source } from '@/lib/source';
-import { getLocale } from '@/paraglide/runtime';
-import type { Root } from 'fumadocs-core/page-tree';
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,
   loader: async ({ params }) => {
     const data = await loader({
       data: {
-        slugs: params._splat?.split('/') ?? []
+        slugs: params._splat?.split('/') ?? [],
       },
     });
     await clientLoader.preload(data.path);

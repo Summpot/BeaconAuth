@@ -5,6 +5,7 @@
 [![Build](https://github.com/Summpot/beacon_auth/actions/workflows/build.yml/badge.svg)](https://github.com/Summpot/beacon_auth/actions/workflows/build.yml)
 [![Release](https://github.com/Summpot/beacon_auth/actions/workflows/release.yml/badge.svg)](https://github.com/Summpot/beacon_auth/actions/workflows/release.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Summpot/BeaconAuth)
 
 ## Documentation
 

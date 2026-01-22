@@ -5,7 +5,6 @@ import {
   HeadContent,
   Outlet,
   Scripts,
-  useParams,
   useRouterState,
 } from '@tanstack/react-router';
 import { defineI18nUI } from 'fumadocs-ui/i18n';
