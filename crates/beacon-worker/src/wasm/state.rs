@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use url::Url;
 use worker::{Env, Error, Result};
 
-use super::{db::{d1, db_get_or_create_jwks}, env::env_string};
+use super::{db::{db_connect, db_get_or_create_jwks}, env::env_string};
 
 #[derive(Clone)]
 pub struct JwtState {
@@ -38,7 +38,7 @@ async fn init_jwt_state(env: &Env) -> Result<JwtState> {
     // advertises that URL via the JWT header `jku`.
     //
     // Use libsql to persist the ES256 keypair so all worker instances share the same JWKS.
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let (encoding_key, decoding_key, jwks_json) = db_get_or_create_jwks(&db, &kid).await?;
 
     let jwks_url = env_string(env, "JWKS_URL").unwrap_or_else(|| {

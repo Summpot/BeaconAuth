@@ -5,7 +5,7 @@ use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Response, Result
 use migration::MigratorTrait;
 
 use crate::wasm::{
-    db::d1,
+    db::db_connect,
     env::env_string,
     http::{error_response, internal_error_response, json_with_cors},
 };
@@ -163,7 +163,7 @@ pub async fn handle_migrations_up(req: &Request, env: &worker::Env) -> Result<Re
         }
     };
 
-    let db = match d1(env).await {
+    let db = match db_connect(env).await {
         Ok(db) => db,
         Err(e) => return internal_error_response(req, "Failed to open database binding", &e),
     };

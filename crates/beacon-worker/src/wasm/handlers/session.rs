@@ -9,10 +9,10 @@ use worker::{Env, Error, Request, Response, Result};
 use crate::wasm::{
     cookies::{append_set_cookie, clear_cookie, cookie_kv, get_cookie},
     db::{
-        d1, d1_insert_identity, d1_insert_refresh_token, d1_insert_user, d1_password_identity_by_identifier,
-        d1_password_identity_by_user_id, d1_refresh_token_by_hash, d1_revoke_all_refresh_tokens_for_user,
-        d1_revoke_refresh_token_by_id, d1_update_password_identity_hash, d1_user_by_id, d1_user_by_username,
-        d1_identities_by_user_id, d1_update_user_profile_fields,
+        db_connect, db_insert_identity, db_insert_refresh_token, db_insert_user, db_password_identity_by_identifier,
+        db_password_identity_by_user_id, db_refresh_token_by_hash, db_revoke_all_refresh_tokens_for_user,
+        db_revoke_refresh_token_by_id, db_update_password_identity_hash, db_user_by_id, db_user_by_username,
+        db_identities_by_user_id, db_update_user_profile_fields,
     },
     env::env_string,
     http::{error_response, internal_error_response, json_with_cors},
@@ -39,7 +39,7 @@ fn compute_avatar_url(user: &crate::wasm::db::UserRow) -> Option<String> {
 }
 
 pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
-    let db = match d1(env).await {
+    let db = match db_connect(env).await {
         Ok(db) => db,
         Err(e) => return internal_error_response(&req, "Failed to open database binding", &e),
     };
@@ -71,7 +71,7 @@ pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
         return json_with_cors(&req, resp);
     }
 
-    match d1_user_by_username(&db, &requested_username).await {
+    match db_user_by_username(&db, &requested_username).await {
         Ok(Some(_)) => {
             return error_response(&req, 409, "username_taken", "Username already exists");
         }
@@ -84,7 +84,7 @@ pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
         Err(e) => return internal_error_response(&req, "Failed to hash password", &e),
     };
 
-    let user_id = match d1_insert_user(&db, &requested_username).await {
+    let user_id = match db_insert_user(&db, &requested_username).await {
         Ok(id) => id,
         Err(e) => {
             // Handle a potential race on username creation (unique constraint) gracefully.
@@ -98,7 +98,7 @@ pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
 
     // Create the password identity for this user.
     let identifier = username::normalize_username(&requested_username);
-    if let Err(e) = d1_insert_identity(&db, &user_id, "password", &identifier, Some(&password_hash)).await {
+    if let Err(e) = db_insert_identity(&db, &user_id, "password", &identifier, Some(&password_hash)).await {
         let msg = e.to_string();
         if msg.to_ascii_lowercase().contains("unique") {
             return error_response(&req, 409, "username_taken", "Username already exists");
@@ -131,7 +131,7 @@ pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
     let family_id = new_family_id();
     let refresh_exp = now.timestamp() + jwt.refresh_token_expiration;
 
-    if let Err(e) = d1_insert_refresh_token(&db, &user_id, &token_hash, &family_id, refresh_exp).await {
+    if let Err(e) = db_insert_refresh_token(&db, &user_id, &token_hash, &family_id, refresh_exp).await {
         return internal_error_response(&req, "Failed to persist refresh token", &e);
     }
 
@@ -144,11 +144,11 @@ pub async fn handle_register(mut req: Request, env: &Env) -> Result<Response> {
 }
 
 pub async fn handle_login(mut req: Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
 
     let payload: models::LoginPayload = req.json().await?;
 
-    let Some(identity) = d1_password_identity_by_identifier(&db, &payload.username).await? else {
+    let Some(identity) = db_password_identity_by_identifier(&db, &payload.username).await? else {
         let resp = Response::from_json(&models::ErrorResponse {
             error: "unauthorized".to_string(),
             message: "Invalid username or password".to_string(),
@@ -166,7 +166,7 @@ pub async fn handle_login(mut req: Request, env: &Env) -> Result<Response> {
         return json_with_cors(&req, resp);
     };
 
-    let Some(user) = d1_user_by_id(&db, &identity.user_id).await? else {
+    let Some(user) = db_user_by_id(&db, &identity.user_id).await? else {
         return internal_error_response(&req, "Identity references missing user", &"user missing");
     };
 
@@ -204,7 +204,7 @@ pub async fn handle_login(mut req: Request, env: &Env) -> Result<Response> {
     let family_id = new_family_id();
     let refresh_exp = now.timestamp() + jwt.refresh_token_expiration;
 
-    d1_insert_refresh_token(&db, &user.id, &token_hash, &family_id, refresh_exp).await?;
+    db_insert_refresh_token(&db, &user.id, &token_hash, &family_id, refresh_exp).await?;
 
     // The web UI only requires cookies to be set; the body is ignored.
     let mut resp = Response::from_json(&json!({ "success": true }))?;
@@ -216,7 +216,7 @@ pub async fn handle_login(mut req: Request, env: &Env) -> Result<Response> {
 }
 
 pub async fn handle_refresh(req: &Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let jwt = get_jwt_state(env).await?;
 
     let Some(refresh_token) = get_cookie(req, "refresh_token")? else {
@@ -229,7 +229,7 @@ pub async fn handle_refresh(req: &Request, env: &Env) -> Result<Response> {
     };
 
     let token_hash = sha256_hex(&refresh_token);
-    let Some(record) = d1_refresh_token_by_hash(&db, &token_hash).await? else {
+    let Some(record) = db_refresh_token_by_hash(&db, &token_hash).await? else {
         let resp = Response::from_json(&models::ErrorResponse {
             error: "invalid_token".to_string(),
             message: "Invalid refresh token".to_string(),
@@ -257,7 +257,7 @@ pub async fn handle_refresh(req: &Request, env: &Env) -> Result<Response> {
     }
 
     // Revoke old refresh token (rotation)
-    d1_revoke_refresh_token_by_id(&db, &record.id).await?;
+    db_revoke_refresh_token_by_id(&db, &record.id).await?;
 
     // Issue new token pair with same family_id
     let now = Utc::now();
@@ -276,7 +276,7 @@ pub async fn handle_refresh(req: &Request, env: &Env) -> Result<Response> {
     let new_hash = sha256_hex(&new_refresh_token);
     let refresh_exp = now.timestamp() + jwt.refresh_token_expiration;
 
-    d1_insert_refresh_token(&db, &record.user_id, &new_hash, &record.family_id, refresh_exp).await?;
+    db_insert_refresh_token(&db, &record.user_id, &new_hash, &record.family_id, refresh_exp).await?;
 
     let mut resp = Response::from_json(&json!({ "success": true }))?;
     let headers = resp.headers_mut();
@@ -287,7 +287,7 @@ pub async fn handle_refresh(req: &Request, env: &Env) -> Result<Response> {
 }
 
 pub async fn handle_user_me(req: &Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let jwt = get_jwt_state(env).await?;
 
     let Some(access_token) = get_cookie(req, "access_token")? else {
@@ -311,7 +311,7 @@ pub async fn handle_user_me(req: &Request, env: &Env) -> Result<Response> {
         }
     };
 
-    let Some(user) = d1_user_by_id(&db, &user_id).await? else {
+    let Some(user) = db_user_by_id(&db, &user_id).await? else {
         let resp = Response::from_json(&models::ErrorResponse {
             error: "user_not_found".to_string(),
             message: "User not found".to_string(),
@@ -332,7 +332,7 @@ pub async fn handle_user_me(req: &Request, env: &Env) -> Result<Response> {
 }
 
 pub async fn handle_user_profile_update(mut req: Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let jwt = get_jwt_state(env).await?;
 
     let Some(access_token) = get_cookie(&req, "access_token")? else {
@@ -352,7 +352,7 @@ pub async fn handle_user_profile_update(mut req: Request, env: &Env) -> Result<R
         }
     };
 
-    let Some(user) = d1_user_by_id(&db, &user_id).await? else {
+    let Some(user) = db_user_by_id(&db, &user_id).await? else {
         return error_response(&req, 404, "user_not_found", "User not found");
     };
 
@@ -407,7 +407,7 @@ pub async fn handle_user_profile_update(mut req: Request, env: &Env) -> Result<R
                 );
             }
 
-            let identities = d1_identities_by_user_id(&db, &user_id).await?;
+            let identities = db_identities_by_user_id(&db, &user_id).await?;
             let linked = identities.iter().any(|i| i.provider == src);
             if !linked {
                 return error_response(
@@ -420,14 +420,14 @@ pub async fn handle_user_profile_update(mut req: Request, env: &Env) -> Result<R
         }
     }
 
-    d1_update_user_profile_fields(&db, &user_id, new_email, new_avatar_source).await?;
+    db_update_user_profile_fields(&db, &user_id, new_email, new_avatar_source).await?;
 
     let resp = Response::from_json(&models::UpdateUserProfileResponse { success: true })?;
     json_with_cors(&req, resp)
 }
 
 pub async fn handle_user_me_avatar(req: &Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let jwt = get_jwt_state(env).await?;
 
     let Some(access_token) = get_cookie(req, "access_token")? else {
@@ -439,7 +439,7 @@ pub async fn handle_user_me_avatar(req: &Request, env: &Env) -> Result<Response>
         Err(e) => return error_response(req, 401, "invalid_token", e),
     };
 
-    let Some(user) = d1_user_by_id(&db, &user_id).await? else {
+    let Some(user) = db_user_by_id(&db, &user_id).await? else {
         return error_response(req, 404, "user_not_found", "User not found");
     };
 
@@ -465,7 +465,7 @@ pub async fn handle_user_me_avatar(req: &Request, env: &Env) -> Result<Response>
 }
 
 pub async fn handle_change_password(mut req: Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let jwt = get_jwt_state(env).await?;
 
     let Some(access_token) = get_cookie(&req, "access_token")? else {
@@ -500,7 +500,7 @@ pub async fn handle_change_password(mut req: Request, env: &Env) -> Result<Respo
         return json_with_cors(&req, resp);
     }
 
-    let Some(user) = d1_user_by_id(&db, &user_id).await? else {
+    let Some(user) = db_user_by_id(&db, &user_id).await? else {
         let resp = Response::from_json(&models::ErrorResponse {
             error: "user_not_found".to_string(),
             message: "User not found".to_string(),
@@ -509,7 +509,7 @@ pub async fn handle_change_password(mut req: Request, env: &Env) -> Result<Respo
         return json_with_cors(&req, resp);
     };
 
-    let existing = d1_password_identity_by_user_id(&db, &user_id).await?;
+    let existing = db_password_identity_by_user_id(&db, &user_id).await?;
     if let Some(identity) = existing.as_ref() {
         let Some(existing_hash) = identity.password_hash.as_deref() else {
             return internal_error_response(&req, "Password identity is missing password_hash", &"invalid row");
@@ -535,9 +535,9 @@ pub async fn handle_change_password(mut req: Request, env: &Env) -> Result<Respo
         .map_err(|e| Error::RustError(e.to_string()))?;
 
     if existing.is_some() {
-        d1_update_password_identity_hash(&db, &user_id, &new_hash).await?;
+        db_update_password_identity_hash(&db, &user_id, &new_hash).await?;
     } else {
-        d1_insert_identity(
+        db_insert_identity(
             &db,
             &user_id,
             "password",
@@ -552,7 +552,7 @@ pub async fn handle_change_password(mut req: Request, env: &Env) -> Result<Respo
 }
 
 pub async fn handle_change_username(mut req: Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let jwt = get_jwt_state(env).await?;
 
     let Some(access_token) = get_cookie(&req, "access_token")? else {
@@ -585,17 +585,17 @@ pub async fn handle_change_username(mut req: Request, env: &Env) -> Result<Respo
 
     let requested_lower = username::normalize_username(&requested_username);
 
-    if let Some(existing) = d1_user_by_username(&db, &requested_lower).await? {
+    if let Some(existing) = db_user_by_username(&db, &requested_lower).await? {
         if existing.id != user_id {
             return error_response(&req, 409, "username_taken", "Username already exists");
         }
     }
 
-    crate::wasm::db::d1_update_user_username(&db, &user_id, &requested_username, &requested_lower)
+    crate::wasm::db::db_update_user_username(&db, &user_id, &requested_username, &requested_lower)
         .await?;
 
     // Keep the password identity's identifier aligned with the normalized username.
-    let _ = crate::wasm::db::d1_update_password_identity_identifier(&db, &user_id, &requested_lower).await;
+    let _ = crate::wasm::db::db_update_password_identity_identifier(&db, &user_id, &requested_lower).await;
 
     let resp = Response::from_json(&models::ChangeUsernameResponse {
         success: true,
@@ -605,7 +605,7 @@ pub async fn handle_change_username(mut req: Request, env: &Env) -> Result<Respo
 }
 
 pub async fn handle_logout(req: &Request, env: &Env) -> Result<Response> {
-    let db = d1(env).await?;
+    let db = db_connect(env).await?;
     let jwt = get_jwt_state(env).await?;
 
     let Some(access_token) = get_cookie(req, "access_token")? else {
@@ -622,7 +622,7 @@ pub async fn handle_logout(req: &Request, env: &Env) -> Result<Response> {
     };
 
     // Revoke all refresh tokens for the user.
-    let _ = d1_revoke_all_refresh_tokens_for_user(&db, &user_id).await;
+    let _ = db_revoke_all_refresh_tokens_for_user(&db, &user_id).await;
 
     let mut resp = Response::from_json(&json!({ "success": true }))?;
     let headers = resp.headers_mut();

@@ -61,9 +61,17 @@ Optional:
 
 ## Single-origin routing (optional)
 
-If you want the UI and API to share a single origin, add a Pages Functions worker at
-`src/_worker.ts` to proxy `/api/*`, `/v1/*`, and `/.well-known/*` to the Worker service binding
-(`BACKEND`). The entry is already wired in `rslib.config.ts`.
+If you want the UI and API to share a single origin, this repository already supports it via the
+Nitro server entry.
+
+- The server entry lives in `src/server.ts`.
+- Nitro generates the Cloudflare Pages worker bundle (`_worker.js`) automatically during build.
+	No manual Pages worker entry file is required.
+- Ensure the Pages project has a service binding named `BACKEND` pointing to your API worker
+	(see `wrangler.jsonc`).
+
+By default, the server entry proxies requests whose path starts with `/api/`, `/v1/`, or
+`/.well-known/` to `env.BACKEND` and serves the UI for everything else.
 
 ## Notes
 

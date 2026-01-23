@@ -4,7 +4,7 @@ use worker::{Env, Request, Response, Result};
 
 use crate::wasm::{
     cookies::{get_cookie},
-    db::{d1, d1_user_by_id},
+    db::{db_connect, db_user_by_id},
     http::{json_with_cors},
     jwt::{sign_jwt, verify_access_token},
     state::get_jwt_state,
@@ -36,8 +36,8 @@ pub async fn handle_minecraft_jwt(mut req: Request, env: &Env) -> Result<Respons
         }
     };
 
-    let db = d1(env).await?;
-    let Some(user) = d1_user_by_id(&db, &user_id).await? else {
+    let db = db_connect(env).await?;
+    let Some(user) = db_user_by_id(&db, &user_id).await? else {
         let resp = Response::from_json(&models::ErrorResponse {
             error: "unauthorized".to_string(),
             message: "Not authenticated. Please log in again.".to_string(),

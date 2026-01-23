@@ -37,7 +37,7 @@ fn map_db_err(e: sea_orm::DbErr) -> Error {
     Error::RustError(e.to_string())
 }
 
-pub async fn d1(env: &Env) -> Result<DatabaseConnection> {
+pub async fn db_connect(env: &Env) -> Result<DatabaseConnection> {
     let url = env_string(env, "LIBSQL_URL").ok_or_else(|| {
         Error::RustError("LIBSQL_URL is required for libsql connections".to_string())
     })?;
@@ -61,7 +61,7 @@ pub async fn d1(env: &Env) -> Result<DatabaseConnection> {
     Database::connect(options).await.map_err(map_db_err)
 }
 
-pub async fn d1_user_by_username(db: &DatabaseConnection, username: &str) -> Result<Option<UserRow>> {
+pub async fn db_user_by_username(db: &DatabaseConnection, username: &str) -> Result<Option<UserRow>> {
     let username_lower = beacon_core::username::normalize_username(username);
     user::Entity::find()
         .filter(user::Column::UsernameLower.eq(username_lower))
@@ -70,21 +70,21 @@ pub async fn d1_user_by_username(db: &DatabaseConnection, username: &str) -> Res
         .map_err(map_db_err)
 }
 
-pub async fn d1_user_by_id(db: &DatabaseConnection, id: &str) -> Result<Option<UserRow>> {
+pub async fn db_user_by_id(db: &DatabaseConnection, id: &str) -> Result<Option<UserRow>> {
     user::Entity::find_by_id(id.to_string())
         .one(db)
         .await
         .map_err(map_db_err)
 }
 
-pub async fn d1_insert_user(db: &DatabaseConnection, username: &str) -> Result<String> {
+pub async fn db_insert_user(db: &DatabaseConnection, username: &str) -> Result<String> {
     let ts = now_ts();
     let username_lower = beacon_core::username::normalize_username(username);
 
     let user_id = Uuid::now_v7().to_string();
 
-    // NOTE: D1's `last_row_id` metadata is not always available/reliable across environments.
-    // Insert and then fetch the created row by unique username.
+    // NOTE: Insert metadata (rows_affected / last_insert_id) is not always available/reliable
+    // across drivers and edge environments. Insert and then reload by the known primary key.
     let new_user = user::ActiveModel {
         id: Set(user_id.clone()),
         username: Set(username.to_string()),
@@ -94,21 +94,20 @@ pub async fn d1_insert_user(db: &DatabaseConnection, username: &str) -> Result<S
         ..Default::default()
     };
 
-    // Cloudflare D1 does not always report rows_affected/last_insert_id reliably.
-    // Use exec_without_returning + reload by unique key.
+    // Use exec_without_returning + reload by primary key.
     user::Entity::insert(new_user)
         .exec_without_returning(db)
         .await
         .map_err(map_db_err)?;
 
-    let Some(user) = d1_user_by_id(db, &user_id).await? else {
+    let Some(user) = db_user_by_id(db, &user_id).await? else {
         return Err(Error::RustError("Inserted user could not be reloaded".to_string()));
     };
 
     Ok(user.id)
 }
 
-pub async fn d1_update_user_username(
+pub async fn db_update_user_username(
     db: &DatabaseConnection,
     user_id: &str,
     username: &str,
@@ -127,13 +126,13 @@ pub async fn d1_update_user_username(
     Ok(())
 }
 
-pub async fn d1_update_user_profile_fields(
+pub async fn db_update_user_profile_fields(
     db: &DatabaseConnection,
     user_id: &str,
     email: Option<String>,
     avatar_source: Option<String>,
 ) -> Result<()> {
-    let Some(row) = d1_user_by_id(db, user_id).await? else {
+    let Some(row) = db_user_by_id(db, user_id).await? else {
         return Err(Error::RustError("User not found".to_string()));
     };
 
@@ -147,7 +146,7 @@ pub async fn d1_update_user_profile_fields(
     Ok(())
 }
 
-pub async fn d1_update_user_avatar_cache(
+pub async fn db_update_user_avatar_cache(
     db: &DatabaseConnection,
     user_id: &str,
     provider: &str,
@@ -155,7 +154,7 @@ pub async fn d1_update_user_avatar_cache(
     microsoft_avatar_b64: Option<&str>,
     microsoft_avatar_content_type: Option<&str>,
 ) -> Result<()> {
-    let Some(row) = d1_user_by_id(db, user_id).await? else {
+    let Some(row) = db_user_by_id(db, user_id).await? else {
         return Err(Error::RustError("User not found".to_string()));
     };
 
@@ -200,7 +199,7 @@ pub async fn d1_update_user_avatar_cache(
     Ok(())
 }
 
-pub async fn d1_passkeys_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<Vec<PasskeyDbRow>> {
+pub async fn db_passkeys_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<Vec<PasskeyDbRow>> {
     passkey::Entity::find()
     .filter(passkey::Column::UserId.eq(user_id.to_string()))
         .order_by_desc(passkey::Column::CreatedAt)
@@ -209,7 +208,7 @@ pub async fn d1_passkeys_by_user_id(db: &DatabaseConnection, user_id: &str) -> R
         .map_err(map_db_err)
 }
 
-pub async fn d1_passkeys_all(db: &DatabaseConnection) -> Result<Vec<PasskeyDbRow>> {
+pub async fn db_passkeys_all(db: &DatabaseConnection) -> Result<Vec<PasskeyDbRow>> {
     passkey::Entity::find()
         .order_by_desc(passkey::Column::CreatedAt)
         .all(db)
@@ -217,14 +216,14 @@ pub async fn d1_passkeys_all(db: &DatabaseConnection) -> Result<Vec<PasskeyDbRow
         .map_err(map_db_err)
 }
 
-pub async fn d1_passkey_by_id(db: &DatabaseConnection, id: &str) -> Result<Option<PasskeyDbRow>> {
+pub async fn db_passkey_by_id(db: &DatabaseConnection, id: &str) -> Result<Option<PasskeyDbRow>> {
     passkey::Entity::find_by_id(id.to_string())
         .one(db)
         .await
         .map_err(map_db_err)
 }
 
-pub async fn d1_passkey_by_credential_id(
+pub async fn db_passkey_by_credential_id(
     db: &DatabaseConnection,
     credential_id: &str,
 ) -> Result<Option<PasskeyDbRow>> {
@@ -235,7 +234,7 @@ pub async fn d1_passkey_by_credential_id(
         .map_err(map_db_err)
 }
 
-pub async fn d1_insert_passkey(
+pub async fn db_insert_passkey(
     db: &DatabaseConnection,
     user_id: &str,
     credential_id: &str,
@@ -257,20 +256,20 @@ pub async fn d1_insert_passkey(
         ..Default::default()
     };
 
-    // See note in d1_insert_user (D1 metadata can be unreliable).
+    // See note in db_insert_user (insert metadata can be unreliable).
     passkey::Entity::insert(new_passkey)
         .exec_without_returning(db)
         .await
         .map_err(map_db_err)?;
 
-    let Some(row) = d1_passkey_by_credential_id(db, credential_id).await? else {
+    let Some(row) = db_passkey_by_credential_id(db, credential_id).await? else {
         return Err(Error::RustError("Inserted passkey could not be reloaded".to_string()));
     };
 
     Ok(row.id)
 }
 
-pub async fn d1_update_passkey_usage(
+pub async fn db_update_passkey_usage(
     db: &DatabaseConnection,
     id: &str,
     credential_data: &str,
@@ -287,7 +286,7 @@ pub async fn d1_update_passkey_usage(
     Ok(())
 }
 
-pub async fn d1_delete_passkey_by_id(db: &DatabaseConnection, id: &str) -> Result<()> {
+pub async fn db_delete_passkey_by_id(db: &DatabaseConnection, id: &str) -> Result<()> {
     passkey::Entity::delete_by_id(id.to_string())
         .exec(db)
         .await
@@ -296,7 +295,7 @@ pub async fn d1_delete_passkey_by_id(db: &DatabaseConnection, id: &str) -> Resul
     Ok(())
 }
 
-pub async fn d1_insert_refresh_token(
+pub async fn db_insert_refresh_token(
     db: &DatabaseConnection,
     user_id: &str,
     token_hash: &str,
@@ -318,7 +317,7 @@ pub async fn d1_insert_refresh_token(
         ..Default::default()
     };
 
-    // Use exec_without_returning to avoid DbErr::RecordNotInserted when D1 reports 0 rows_affected.
+    // Use exec_without_returning to avoid DbErr::RecordNotInserted when the driver reports 0 rows_affected.
     refresh_token::Entity::insert(model)
         .exec_without_returning(db)
         .await
@@ -326,7 +325,7 @@ pub async fn d1_insert_refresh_token(
 
     // Verify that the inserted row exists and matches our expected values.
     // This also helps detect the extremely unlikely case of token hash collision.
-    let Some(row) = d1_refresh_token_by_hash(db, token_hash).await? else {
+    let Some(row) = db_refresh_token_by_hash(db, token_hash).await? else {
         return Err(Error::RustError(
             "Inserted refresh token could not be reloaded".to_string(),
         ));
@@ -345,7 +344,7 @@ pub async fn d1_insert_refresh_token(
     Ok(())
 }
 
-pub async fn d1_refresh_token_by_hash(
+pub async fn db_refresh_token_by_hash(
     db: &DatabaseConnection,
     token_hash: &str,
 ) -> Result<Option<RefreshTokenRow>> {
@@ -356,7 +355,7 @@ pub async fn d1_refresh_token_by_hash(
         .map_err(map_db_err)
 }
 
-pub async fn d1_revoke_refresh_token_by_id(db: &DatabaseConnection, id: &str) -> Result<()> {
+pub async fn db_revoke_refresh_token_by_id(db: &DatabaseConnection, id: &str) -> Result<()> {
     refresh_token::Entity::update_many()
         .col_expr(refresh_token::Column::Revoked, Expr::value(1_i64))
         .filter(refresh_token::Column::Id.eq(id.to_string()))
@@ -367,7 +366,7 @@ pub async fn d1_revoke_refresh_token_by_id(db: &DatabaseConnection, id: &str) ->
     Ok(())
 }
 
-pub async fn d1_revoke_all_refresh_tokens_for_user(db: &DatabaseConnection, user_id: &str) -> Result<()> {
+pub async fn db_revoke_all_refresh_tokens_for_user(db: &DatabaseConnection, user_id: &str) -> Result<()> {
     refresh_token::Entity::update_many()
         .col_expr(refresh_token::Column::Revoked, Expr::value(1_i64))
         .filter(refresh_token::Column::UserId.eq(user_id.to_string()))
@@ -378,7 +377,7 @@ pub async fn d1_revoke_all_refresh_tokens_for_user(db: &DatabaseConnection, user
     Ok(())
 }
 
-pub async fn d1_identity_by_provider_user_id(
+pub async fn db_identity_by_provider_user_id(
     db: &DatabaseConnection,
     provider: &str,
     provider_user_id: &str,
@@ -391,14 +390,14 @@ pub async fn d1_identity_by_provider_user_id(
         .map_err(map_db_err)
 }
 
-pub async fn d1_identity_by_id(db: &DatabaseConnection, id: &str) -> Result<Option<IdentityRow>> {
+pub async fn db_identity_by_id(db: &DatabaseConnection, id: &str) -> Result<Option<IdentityRow>> {
     identity::Entity::find_by_id(id.to_string())
         .one(db)
         .await
         .map_err(map_db_err)
 }
 
-pub async fn d1_identities_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<Vec<IdentityRow>> {
+pub async fn db_identities_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<Vec<IdentityRow>> {
     identity::Entity::find()
         .filter(identity::Column::UserId.eq(user_id.to_string()))
         .order_by_desc(identity::Column::CreatedAt)
@@ -407,7 +406,7 @@ pub async fn d1_identities_by_user_id(db: &DatabaseConnection, user_id: &str) ->
         .map_err(map_db_err)
 }
 
-pub async fn d1_insert_identity(
+pub async fn db_insert_identity(
     db: &DatabaseConnection,
     user_id: &str,
     provider: &str,
@@ -429,21 +428,21 @@ pub async fn d1_insert_identity(
         ..Default::default()
     };
 
-    // See note in d1_insert_user (D1 metadata can be unreliable).
+    // See note in db_insert_user (insert metadata can be unreliable).
     identity::Entity::insert(model)
         .exec_without_returning(db)
         .await
         .map_err(map_db_err)?;
 
-    // D1's last_row_id metadata isn't reliably surfaced; reload by unique pair.
-    let Some(row) = d1_identity_by_provider_user_id(db, provider, provider_user_id).await? else {
+    // Reload by the unique pair.
+    let Some(row) = db_identity_by_provider_user_id(db, provider, provider_user_id).await? else {
         return Err(Error::RustError("Inserted identity could not be reloaded".to_string()));
     };
 
     Ok(row.id)
 }
 
-pub async fn d1_password_identity_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<Option<IdentityRow>> {
+pub async fn db_password_identity_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<Option<IdentityRow>> {
     identity::Entity::find()
         .filter(identity::Column::UserId.eq(user_id.to_string()))
         .filter(identity::Column::Provider.eq("password"))
@@ -452,7 +451,7 @@ pub async fn d1_password_identity_by_user_id(db: &DatabaseConnection, user_id: &
         .map_err(map_db_err)
 }
 
-pub async fn d1_password_identity_by_identifier(
+pub async fn db_password_identity_by_identifier(
     db: &DatabaseConnection,
     identifier: &str,
 ) -> Result<Option<IdentityRow>> {
@@ -466,7 +465,7 @@ pub async fn d1_password_identity_by_identifier(
         .map_err(map_db_err)
 }
 
-pub async fn d1_update_password_identity_hash(db: &DatabaseConnection, user_id: &str, new_hash: &str) -> Result<()> {
+    pub async fn db_update_password_identity_hash(db: &DatabaseConnection, user_id: &str, new_hash: &str) -> Result<()> {
     let ts = now_ts();
 
     identity::Entity::update_many()
@@ -481,7 +480,7 @@ pub async fn d1_update_password_identity_hash(db: &DatabaseConnection, user_id: 
     Ok(())
 }
 
-pub async fn d1_update_password_identity_identifier(
+pub async fn db_update_password_identity_identifier(
     db: &DatabaseConnection,
     user_id: &str,
     new_identifier: &str,
@@ -500,7 +499,7 @@ pub async fn d1_update_password_identity_identifier(
     Ok(())
 }
 
-pub async fn d1_delete_identity_by_id(db: &DatabaseConnection, id: &str) -> Result<()> {
+pub async fn db_delete_identity_by_id(db: &DatabaseConnection, id: &str) -> Result<()> {
     identity::Entity::delete_by_id(id.to_string())
         .exec(db)
         .await
@@ -509,7 +508,7 @@ pub async fn d1_delete_identity_by_id(db: &DatabaseConnection, id: &str) -> Resu
     Ok(())
 }
 
-pub async fn d1_count_identities_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<i64> {
+pub async fn db_count_identities_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<i64> {
     let count = identity::Entity::find()
         .filter(identity::Column::UserId.eq(user_id.to_string()))
         .count(db)
@@ -519,7 +518,7 @@ pub async fn d1_count_identities_by_user_id(db: &DatabaseConnection, user_id: &s
     Ok(count as i64)
 }
 
-pub async fn d1_count_passkeys_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<i64> {
+pub async fn db_count_passkeys_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<i64> {
     let count = passkey::Entity::find()
         .filter(passkey::Column::UserId.eq(user_id.to_string()))
         .count(db)

@@ -6,8 +6,8 @@ use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Response, Result
 use crate::wasm::{
     cookies::{append_set_cookie, cookie_kv, get_cookie},
     db::{
-        d1, d1_identity_by_provider_user_id, d1_insert_identity, d1_insert_refresh_token,
-        d1_insert_user, d1_update_user_avatar_cache, d1_user_by_id, d1_user_by_username,
+        db_connect, db_identity_by_provider_user_id, db_insert_identity, db_insert_refresh_token,
+        db_insert_user, db_update_user_avatar_cache, db_user_by_id, db_user_by_username,
     },
     env::env_string,
     http::{error_response, internal_error_response, json_with_cors},
@@ -684,21 +684,21 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
     let provider_user_id = exchange.provider_user_id.clone();
     let username = exchange.username.clone();
 
-    let db = match d1(env).await {
+    let db = match db_connect(env).await {
         Ok(db) => db,
         Err(e) => return internal_error_response(req, "Failed to open database binding", &e),
     };
 
     // Identity-first resolution: provider+provider_user_id is the stable key.
     // This allows a single canonical user to link multiple identities.
-    let existing_identity = match d1_identity_by_provider_user_id(&db, &oauth_state.provider, &provider_user_id).await {
+    let existing_identity = match db_identity_by_provider_user_id(&db, &oauth_state.provider, &provider_user_id).await {
         Ok(v) => v,
         Err(e) => return internal_error_response(req, "Failed to query identity", &e),
     };
 
     let user = if let Some(identity) = existing_identity {
         // Existing linked identity -> canonical user
-        match d1_user_by_id(&db, &identity.user_id).await {
+        match db_user_by_id(&db, &identity.user_id).await {
             Ok(Some(u)) => {
                 if let Some(link_user_id) = oauth_state.link_user_id {
                     // Link flow: ensure the identity is linked to the intended user.
@@ -720,13 +720,13 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
         }
     } else if let Some(link_user_id) = oauth_state.link_user_id {
         // Link flow: attach this identity to the intended user.
-        let target_user = match d1_user_by_id(&db, &link_user_id).await {
+        let target_user = match db_user_by_id(&db, &link_user_id).await {
             Ok(Some(u)) => u,
             Ok(None) => return error_response(req, 404, "user_not_found", "User not found"),
             Err(e) => return internal_error_response(req, "Failed to load link target user", &e),
         };
 
-        match d1_insert_identity(&db, &target_user.id, &oauth_state.provider, &provider_user_id, None).await {
+        match db_insert_identity(&db, &target_user.id, &oauth_state.provider, &provider_user_id, None).await {
             Ok(_) => {}
             Err(e) => {
                 let msg = e.to_string();
@@ -756,7 +756,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
         let mut candidate = String::new();
         for attempt in 0u32..=100u32 {
             let c = beacon_core::username::make_minecraft_username_with_prefix(prefix, &username, attempt);
-            if d1_user_by_username(&db, &c).await?.is_none() {
+            if db_user_by_username(&db, &c).await?.is_none() {
                 candidate = c;
                 break;
             }
@@ -766,15 +766,15 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
             return internal_error_response(req, "Failed to allocate unique username", &"too many collisions");
         }
 
-        let user_id = match d1_insert_user(&db, &candidate).await {
+        let user_id = match db_insert_user(&db, &candidate).await {
             Ok(id) => id,
             Err(e) => return internal_error_response(req, "Failed to create user", &e),
         };
-        let Some(new_user) = d1_user_by_id(&db, &user_id).await? else {
+        let Some(new_user) = db_user_by_id(&db, &user_id).await? else {
             return internal_error_response(req, "Failed to reload new user", &"user missing");
         };
 
-        let canonical_user = match d1_insert_identity(
+        let canonical_user = match db_insert_identity(
             &db,
             &new_user.id,
             &oauth_state.provider,
@@ -788,7 +788,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
                 let msg = e.to_string();
                 if msg.to_ascii_lowercase().contains("unique") {
                     // Race: identity now exists; resolve it.
-                    let Some(identity) = d1_identity_by_provider_user_id(
+                    let Some(identity) = db_identity_by_provider_user_id(
                         &db,
                         &oauth_state.provider,
                         &provider_user_id,
@@ -797,7 +797,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
                     else {
                         return internal_error_response(req, "Failed to reload identity after race", &e);
                     };
-                    let Some(u) = d1_user_by_id(&db, &identity.user_id).await? else {
+                    let Some(u) = db_user_by_id(&db, &identity.user_id).await? else {
                         return internal_error_response(req, "Linked user not found", &"user missing");
                     };
                     u
@@ -811,7 +811,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
     };
 
     // Cache provider avatar info best-effort. Never fail login for avatar issues.
-    if let Err(e) = d1_update_user_avatar_cache(
+    if let Err(e) = db_update_user_avatar_cache(
         &db,
         &user.id,
         &oauth_state.provider,
@@ -845,7 +845,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
     let family_id = new_family_id();
     let refresh_exp = now.timestamp() + jwt.refresh_token_expiration;
 
-    if let Err(e) = d1_insert_refresh_token(&db, &user.id, &token_hash, &family_id, refresh_exp).await {
+    if let Err(e) = db_insert_refresh_token(&db, &user.id, &token_hash, &family_id, refresh_exp).await {
         return internal_error_response(req, "Failed to persist refresh token", &e);
     }
 

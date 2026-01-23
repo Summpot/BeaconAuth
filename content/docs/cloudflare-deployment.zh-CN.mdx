@@ -60,9 +60,13 @@ BeaconAuth 支持拆分部署：
 
 ## 单域路由（可选）
 
-如果希望 UI 与 API 共享同一域名，可在 `src/_worker.ts` 添加 Pages Functions worker，
-将 `/api/*`、`/v1/*` 和 `/.well-known/*` 代理到 Worker 的服务绑定（`BACKEND`）。
-入口已在 `rslib.config.ts` 中配置。
+如果希望 UI 与 API 共享同一域名，本仓库已通过 Nitro 的 server entry 支持该模式。
+
+- server entry 位于 `src/server.ts`。
+- Nitro 会在构建时自动生成 Cloudflare Pages 的 worker bundle（`_worker.js`），无需手动维护 Pages worker 入口文件。
+- 确保 Pages 项目存在名为 `BACKEND` 的服务绑定并指向 API Worker（见 `wrangler.jsonc`）。
+
+默认情况下，server entry 会将路径以 `/api/`、`/v1/` 或 `/.well-known/` 开头的请求代理到 `env.BACKEND`，其余请求用于提供 UI。
 
 ## 备注
 

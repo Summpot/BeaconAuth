@@ -4,8 +4,8 @@ use worker::{Env, Request, Response, Result};
 use crate::wasm::{
     cookies::get_cookie,
     db::{
-        d1, d1_count_identities_by_user_id, d1_count_passkeys_by_user_id, d1_delete_identity_by_id,
-        d1_identities_by_user_id, d1_identity_by_id, d1_user_by_id,
+        db_connect, db_count_identities_by_user_id, db_count_passkeys_by_user_id, db_delete_identity_by_id,
+        db_identities_by_user_id, db_identity_by_id, db_user_by_id,
     },
     http::{error_response, internal_error_response, json_with_cors},
     jwt::verify_access_token,
@@ -13,7 +13,7 @@ use crate::wasm::{
 };
 
 pub async fn handle_identities_list(req: &Request, env: &Env) -> Result<Response> {
-    let db = match d1(env).await {
+    let db = match db_connect(env).await {
         Ok(db) => db,
         Err(e) => return internal_error_response(req, "Failed to open database binding", &e),
     };
@@ -31,12 +31,12 @@ pub async fn handle_identities_list(req: &Request, env: &Env) -> Result<Response
         Err(e) => return error_response(req, 401, "invalid_token", e),
     };
 
-    let Some(_user) = d1_user_by_id(&db, &user_id).await? else {
+    let Some(_user) = db_user_by_id(&db, &user_id).await? else {
         return error_response(req, 404, "user_not_found", "User not found");
     };
 
-    let identities = d1_identities_by_user_id(&db, &user_id).await?;
-    let passkey_count = d1_count_passkeys_by_user_id(&db, &user_id).await?;
+    let identities = db_identities_by_user_id(&db, &user_id).await?;
+    let passkey_count = db_count_passkeys_by_user_id(&db, &user_id).await?;
     let has_password = identities
         .iter()
         .any(|i| i.provider == "password" && i.password_hash.as_deref().is_some());
@@ -58,7 +58,7 @@ pub async fn handle_identities_list(req: &Request, env: &Env) -> Result<Response
 }
 
 pub async fn handle_identity_delete_by_id(req: &Request, env: &Env, identity_id: String) -> Result<Response> {
-    let db = match d1(env).await {
+    let db = match db_connect(env).await {
         Ok(db) => db,
         Err(e) => return internal_error_response(req, "Failed to open database binding", &e),
     };
@@ -76,11 +76,11 @@ pub async fn handle_identity_delete_by_id(req: &Request, env: &Env, identity_id:
         Err(e) => return error_response(req, 401, "invalid_token", e),
     };
 
-    let Some(_user) = d1_user_by_id(&db, &user_id).await? else {
+    let Some(_user) = db_user_by_id(&db, &user_id).await? else {
         return error_response(req, 404, "user_not_found", "User not found");
     };
 
-    let Some(identity) = d1_identity_by_id(&db, &identity_id).await? else {
+    let Some(identity) = db_identity_by_id(&db, &identity_id).await? else {
         return error_response(req, 404, "identity_not_found", "Identity not found");
     };
 
@@ -89,8 +89,8 @@ pub async fn handle_identity_delete_by_id(req: &Request, env: &Env, identity_id:
     }
 
     // Enforce: the user must keep at least one login method.
-    let identities_count = d1_count_identities_by_user_id(&db, &user_id).await?;
-    let passkey_count = d1_count_passkeys_by_user_id(&db, &user_id).await?;
+    let identities_count = db_count_identities_by_user_id(&db, &user_id).await?;
+    let passkey_count = db_count_passkeys_by_user_id(&db, &user_id).await?;
     let remaining_identities = (identities_count - 1).max(0);
     let remaining_methods = remaining_identities
         + if passkey_count > 0 { 1 } else { 0 };
@@ -104,7 +104,7 @@ pub async fn handle_identity_delete_by_id(req: &Request, env: &Env, identity_id:
         );
     }
 
-    if let Err(e) = d1_delete_identity_by_id(&db, &identity_id).await {
+    if let Err(e) = db_delete_identity_by_id(&db, &identity_id).await {
         return internal_error_response(req, "Failed to delete identity", &e);
     }
 

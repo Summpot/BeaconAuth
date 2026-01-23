@@ -7,9 +7,7 @@
 * Integration over isolation: when adding or changing functionality, also update imports, wiring, and call sites in the same pass.
 * Ask for user confirmation only when genuinely ambiguous (requirements, security tradeoffs, or irreversible changes).
 
-### TEMPORARY (Pre-release) Rule
-
-This project is now in a released stage.
+### Compatibility & migrations (released project)
 
 * You MUST maintain backwards compatibility with existing/old data.
 * Database schema changes MUST be done via additive migrations (do NOT edit already-applied migration files).
@@ -88,7 +86,7 @@ This repository is multi-language. When you touch one part, ensure the relevant 
 ### Rust (server + shared crates)
 
 * Source lives under `crates/`.
-* Required after Rust changes: `cargo check --all-targets`.
+* Verification commands are defined in the "Verification (Build/Check)" section above.
 * Do not add new crates lightly; consider optional features for platform-specific code (e.g., serverless).
 * Distributed deployments: avoid per-process in-memory coordination for OAuth/Passkey start→finish unless you require sticky sessions.
 * Ensure JWT/JWKS keys are stable across instances.

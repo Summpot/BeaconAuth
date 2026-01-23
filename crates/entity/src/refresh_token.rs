@@ -22,7 +22,7 @@ pub struct Model {
     pub expires_at: i64,
 
     /// Whether this token has been revoked
-    /// D1 schema stores this as INTEGER 0/1.
+    /// Stored as INTEGER 0/1.
     pub revoked: i64,
 
     /// Unix timestamp (seconds).

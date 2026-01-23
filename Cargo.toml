@@ -3,6 +3,9 @@ resolver = "2"
 members = [
     "crates/*"
 ]
+exclude = [
+    "crates/beacon-frontend-embed"
+]
 
 [workspace.dependencies]
 # Workspace crates
