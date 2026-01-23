@@ -13,7 +13,12 @@ import { type ReactNode, useState } from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import { i18n } from '@/lib/i18n';
 import { AnimatePresence, MotionConfig, motion } from '@/lib/motion';
-import { getLocale } from '@/paraglide/runtime';
+import {
+  getLocale,
+  locales,
+  setLocale,
+  type Locale,
+} from '@/paraglide/runtime';
 import appCss from '../styles.css?url';
 
 const { provider } = defineI18nUI(i18n, {
@@ -72,13 +77,19 @@ function RootComponent() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   const lang = getLocale();
+  const i18nProps = provider(lang);
+  i18nProps.onLocaleChange = (locale) => {
+    if ((locales as readonly string[]).includes(locale)) {
+      setLocale(locale as Locale);
+    }
+  };
   return (
     <html lang={lang}>
       <head>
         <HeadContent />
       </head>
       <body>
-        <RootProvider i18n={provider(lang)}>{children}</RootProvider>
+        <RootProvider i18n={i18nProps}>{children}</RootProvider>
         <Scripts />
       </body>
     </html>
