@@ -30,14 +30,22 @@ export default defineConfig({
           pattern: '/',
           localized: [
             ['en', '/en'],
+            ['fr', '/fr'],
+            ['de', '/de'],
+            ['ja', '/ja'],
             ['zh-CN', '/zh-CN'],
+            ['zh-TW', '/zh-TW'],
           ],
         },
         {
           pattern: '/docs/:path(.*)?',
           localized: [
             ['en', '/en/docs/:path(.*)?'],
+            ['fr', '/fr/docs/:path(.*)?'],
+            ['de', '/de/docs/:path(.*)?'],
+            ['ja', '/ja/docs/:path(.*)?'],
             ['zh-CN', '/zh-CN/docs/:path(.*)?'],
+            ['zh-TW', '/zh-TW/docs/:path(.*)?'],
           ],
         },
       ],

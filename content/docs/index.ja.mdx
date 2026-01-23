@@ -1,0 +1,31 @@
+---
+title: BeaconAuth
+description: Web UI・OAuth・MOD 対応を備えた Minecraft サーバー向けのモダンな認証。
+---
+
+BeaconAuth は Minecraft サーバー向けのモダンな認証プラットフォームです。Rust 製の認証サーバー、
+React の Web UI、そして複数ローダー対応の Minecraft MOD を組み合わせて、安全でシームレスなログインを
+提供します。
+
+## 主な機能
+
+- ES256 JWT 認証と JWKS 配布
+- ログイン・登録・アカウント管理のための Web UI
+- OAuth プロバイダー（GitHub / Google / Microsoft）
+- WebAuthn/パスキーによるパスワードレス認証
+- PKCE ベースのログインフローを備えた Minecraft MOD
+- Cloudflare Workers へのデプロイ（オプション）
+- 既定は SQLite（サーバーレス向けのストレージオプションも対応）
+
+## まず読むところ
+
+- [はじめに](./getting-started)
+- [アーキテクチャ](./architecture)
+- [設定](./configuration)
+- [サーバーデプロイ](./server-deployment)
+- [Cloudflare デプロイ](./cloudflare-deployment)
+- [MOD のインストール](./mod-installation)
+- [開発ガイド](./development)
+- [API リファレンス](./api)
+- [トラブルシューティング](./troubleshooting)
+- [貢献](./contributing)

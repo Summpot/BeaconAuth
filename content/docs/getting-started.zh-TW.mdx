@@ -1,0 +1,74 @@
+---
+title: 開始使用
+description: 快速在本機或正式環境執行 BeaconAuth。
+---
+
+## 使用 Docker（推薦）
+
+```bash
+# 拉取最新映像
+docker pull ghcr.io/summpot/beacon_auth:latest
+
+# 啟動伺服器
+docker run -d --name beaconauth \
+  -p 8080:8080 \
+  -v $(pwd)/data:/app/data \
+  -e DATABASE_URL=sqlite:///app/data/beacon_auth.db \
+  ghcr.io/summpot/beacon_auth:latest
+```
+
+伺服器會在 `http://localhost:8080` 提供服務。
+
+## 使用預先編譯的執行檔
+
+請從 GitHub Releases 下載適用於您平台的最新版本。
+
+**Linux (amd64)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+**Windows (amd64)**:
+
+```powershell
+# 下載並解壓縮 zip
+# 在 PowerShell 執行:
+.\beacon.exe serve
+```
+
+**macOS (Apple Silicon)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
+tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+## 從原始碼建置
+
+### 需求
+
+- Rust（stable）
+- Node.js（LTS）
+- pnpm
+
+### 建置步驟
+
+```bash
+# 複製儲存庫
+git clone https://github.com/Summpot/beacon_auth.git
+cd beacon_auth
+
+# 安裝前端依賴
+pnpm install
+
+# 建置 Rust workspace
+cargo build --workspace --release
+```
+
+可執行檔會位於 `target/release/beacon`。

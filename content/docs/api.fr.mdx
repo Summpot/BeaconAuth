@@ -1,0 +1,83 @@
+---
+title: Référence API
+description: Endpoints HTTP exposés par BeaconAuth.
+---
+
+## Chemins de base
+
+L’API est servie sur:
+
+- `/v1/*` (direct)
+- `/api/v1/*` (lorsqu’elle est montée sous `/api`)
+
+## Endpoints principaux
+
+### Sessions
+
+- `POST /v1/login`
+- `POST /v1/register`
+- `POST /v1/refresh`
+- `POST /v1/logout`
+- `GET /v1/user/me`
+- `GET /v1/user/me/avatar`
+- `POST /v1/user/change-password`
+- `POST /v1/user/change-username`
+- `POST /v1/user/profile`
+
+Exemple: `POST /v1/login`
+
+```json
+{
+  "username": "player123",
+  "password": "secure_password"
+}
+```
+
+### Authentification Minecraft
+
+- `POST /v1/minecraft-jwt`
+
+Exemple de requête:
+
+```json
+{
+  "challenge": "PKCE_challenge_string",
+  "redirect_port": 38125
+}
+```
+
+### OAuth
+
+- `POST /v1/oauth/start`
+- `POST /v1/oauth/link/start`
+- `GET /v1/oauth/callback`
+
+### Passkeys (WebAuthn)
+
+- `POST /v1/passkey/register/start`
+- `POST /v1/passkey/register/finish`
+- `POST /v1/passkey/auth/start`
+- `POST /v1/passkey/auth/finish`
+- `POST /v1/passkey/delete`
+- `GET /v1/passkey/list`
+- `DELETE /v1/passkey/{id}`
+
+### Identités
+
+- `GET /v1/identities`
+- `DELETE /v1/identities/{id}`
+
+### Configuration et JWKS
+
+- `GET /v1/config`
+- `GET /.well-known/jwks.json`
+
+### Admin
+
+- `POST /v1/admin/migrations/up`
+
+## Notes
+
+- Les endpoints de session posent des cookies HttpOnly pour les tokens access/refresh.
+- Les JWT sont signés en ES256 et publiés via JWKS.
+- Certains endpoints nécessitent une session authentifiée.

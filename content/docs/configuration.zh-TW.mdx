@@ -1,0 +1,99 @@
+---
+title: 設定
+description: BeaconAuth 的環境變數與 CLI 選項。
+---
+
+## 伺服器設定（beacon）
+
+可使用 CLI 參數或環境變數設定。最權威的參考是:
+
+```bash
+beacon serve --help
+```
+
+### 核心選項
+
+| Option | Env | Default | Notes |
+|---|---|---|---|
+| `--database-url` | `DATABASE_URL` | `sqlite://./beacon_auth.db?mode=rwc` | 預設使用 SQLite。 |
+| `--bind-address` | `BIND_ADDRESS` | `127.0.0.1:8080` | HTTP 綁定位址。 |
+| `--control-socket` | `CONTROL_SOCKET` | `beacon-auth` (Windows) / `/tmp/beacon-auth.sock` (Unix) | 用於本機管理工作的控制 socket。 |
+| `--cors-origins` | `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | 逗號分隔清單。 |
+| `--jwt-expiration` | `JWT_EXPIRATION` | `3600` | Access token 期限（秒）。 |
+| `--log-level` | `RUST_LOG` | `info` | Log level filter。 |
+| `--base-url` | `BASE_URL` | `https://beaconauth.pages.dev` | 用於 issuer、OAuth redirects、WebAuthn RP origin。 |
+| `--jwt-kid` | `JWT_KID` | `beacon-auth-key-1` | JWT header `kid` 值。 |
+| `--redis-url` | `REDIS_URL` | _(empty)_ | 可選 Redis，用於多實例 WebAuthn 儀式狀態。 |
+| `--jwks-url` | `JWKS_URL` | _(empty)_ | 可選：對外宣告的 JWKS URL（供 `jku` 使用）。 |
+
+### OAuth 選項
+
+| Option | Env | Notes |
+|---|---|---|
+| `--github-client-id` | `GITHUB_CLIENT_ID` | GitHub OAuth client ID。 |
+| `--github-client-secret` | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret。 |
+| `--google-client-id` | `GOOGLE_CLIENT_ID` | Google OAuth client ID。 |
+| `--google-client-secret` | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret。 |
+| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Microsoft Entra ID client ID。 |
+| `--microsoft-client-secret` | `MICROSOFT_CLIENT_SECRET` | Microsoft Entra ID client secret。 |
+| `--microsoft-tenant` | `MICROSOFT_TENANT` | 預設為 `common`。 |
+
+### 管理指令
+
+```bash
+beacon migrate --database-url sqlite://./beacon_auth.db
+beacon create-user --username admin --password your_password
+beacon list-users
+beacon delete-user --username admin
+```
+
+### `.env` 範例
+
+``` bash
+DATABASE_URL=sqlite://./beacon_auth.db?mode=rwc
+BIND_ADDRESS=0.0.0.0:8080
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+JWT_EXPIRATION=3600
+RUST_LOG=info
+BASE_URL=https://auth.example.com
+JWT_KID=beacon-auth-key-1
+
+# Optional
+REDIS_URL=
+JWKS_URL=
+
+# OAuth providers
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT=common
+```
+
+## Cloudflare Worker 設定
+
+Worker 透過 `wrangler.workers.jsonc` 與部署時變數設定。
+
+### `wrangler.workers.jsonc` 中定義的變數
+
+| Variable | Purpose |
+|---|---|
+| `LIBSQL_URL` | libSQL/Turso 資料庫端點。 |
+| `BASE_URL` | 對外 base URL（issuer + OAuth redirects）。 |
+| `JWKS_URL` | 可選：對外宣告的 JWKS URL。 |
+| `JKU_ALLOWED_HOST_PATTERNS` | JWT `jku` 取用允許的 hosts。 |
+| `JWT_KID` | JWT key id。 |
+| `ACCESS_TOKEN_EXPIRATION` | Access token 存活時間（秒）。 |
+| `REFRESH_TOKEN_EXPIRATION` | Refresh token 存活時間（秒）。 |
+| `JWT_EXPIRATION` | 一般 JWT 存活時間（秒）。 |
+
+### Secrets（Worker）
+
+部署流程可選擇同步以下 secrets:
+
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT`
+- `LIBSQL_AUTH_TOKEN`（libSQL/Turso）

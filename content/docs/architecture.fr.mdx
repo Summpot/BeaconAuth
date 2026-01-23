@@ -1,0 +1,39 @@
+---
+title: Architecture
+description: Vue d’ensemble des composants BeaconAuth et du flux de données.
+---
+
+## Organisation du monorepo
+
+- `crates/beacon`: binaire serveur Rust et CLI (serve, migrate, gestion des utilisateurs).
+- `crates/beacon-core`: modèles partagés, crypto et helpers OAuth utilisés sur plusieurs runtimes.
+- `crates/beacon-worker`: runtime API Cloudflare Worker (wasm32).
+- `crates/beacon-lambda`: runtime serverless (AWS Lambda ou compatible).
+- `crates/beacon-passkey`: logique WebAuthn/passkeys.
+- `crates/beacon-frontend-embed`: utilitaires frontend embarquables.
+- `crates/entity` et `crates/migration`: entités SeaORM et migrations de base de données.
+- `src/`: UI web React (routes, composants, styles).
+- `modSrc/`: mod Minecraft (Kotlin/Gradle, Architectury) avec cibles Fabric/Forge/NeoForge.
+- `messages/`, `src/paraglide/`, `project.inlang/`: assets et outillage de localisation.
+- `content/docs/`: documentation Fumadocs.
+- `wrangler*.jsonc`: configs de déploiement Cloudflare Pages et Worker.
+
+## Composants d’exécution
+
+- **Serveur d’auth (Rust)**: gère connexion, inscription, OAuth, passkeys et émet des JWT ES256.
+- **UI web (React)**: flux de connexion/inscription, paramètres, profil et finalisation OAuth.
+- **Mod Minecraft**: réalise le login PKCE et valide les JWTs pour l’accès en jeu.
+- **Cloudflare Worker (optionnel)**: runtime API en edge pour les déploiements serverless.
+
+## Flux d’authentification (haut niveau)
+
+1. L’utilisateur s’authentifie via l’UI web (mot de passe, OAuth ou passkey).
+2. Le serveur émet des tokens d’accès et de rafraîchissement (JWT ES256 + cookie refresh).
+3. Le mod demande un JWT spécifique Minecraft via le flux PKCE.
+4. Le serveur de jeu valide le JWT via l’endpoint JWKS.
+
+## Stockage et état
+
+- **Stockage serveur par défaut**: SQLite (configuré via `DATABASE_URL`).
+- **Stockage serverless**: libSQL/Turso via `LIBSQL_URL` dans le déploiement Worker.
+- **État temporaire de cérémonie**: Redis optionnel (`REDIS_URL`) pour les flux WebAuthn multi-instances.

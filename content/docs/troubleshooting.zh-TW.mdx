@@ -1,0 +1,40 @@
+---
+title: 疑難排解
+description: 常見問題與修復方式。
+---
+
+## 伺服器無法啟動（資料庫錯誤）
+
+```bash
+# 確保資料庫目錄存在
+mkdir -p data
+
+# 執行 migrations
+beacon migrate --database-url sqlite://./data/beacon_auth.db
+```
+
+## Mod 驗證失敗
+
+1. 確認 `config/beaconauth-server.toml` 的 `authentication.base_url` 與您部署的 `BASE_URL` 一致。
+2. 確認 JWKS 端點可連線:
+   - 預設: `${base_url}/.well-known/jwks.json`
+3. 若啟用 JKU，請確認 JWT `jku` 的 host 符合 allowlist 並使用 `https://`。
+4. 檢查伺服器日誌中是否有 `[BeaconAuth]` 相關訊息。
+
+## 無法傳送多人聊天（secure chat）
+
+Minecraft 1.19+ 使用簽章聊天。BeaconAuth 使用者沒有 Mojang 簽章金鑰。
+BeaconAuth 會針對 BeaconAuth 驗證過的 sessions 傳送未簽章的聊天封包，並在支援的版本上關閉
+「secure profile」強制檢查。請確保用戶端與伺服器端都安裝了相同 Minecraft 版本的 mod。
+
+## 遊戲內顯示的使用者名稱不是 BeaconAuth 使用者名稱
+
+BeaconAuth 可透過 JWT claim `username` 提供獨立的 Minecraft 使用者名稱。
+若缺少或無效，遊戲會回退到啟動器提供的名稱。
+
+## OAuth 重新導向失敗
+
+1. 確認 OAuth callback URL 完全匹配:
+   - `${BASE_URL}/api/v1/oauth/callback`
+2. 確認 `BASE_URL` 設定正確。
+3. 正式環境請使用 HTTPS。

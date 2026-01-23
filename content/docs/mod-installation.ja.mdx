@@ -1,0 +1,72 @@
+---
+title: MOD のインストール
+description: BeaconAuth Minecraft MOD のインストールと設定。
+---
+
+## サーバーへの導入
+
+1. GitHub Releases から最新の MOD jar をダウンロードします。
+   - Fabric: `beaconauth-fabric-*.jar`
+   - Forge: `beaconauth-forge-*.jar`
+   - NeoForge: `beaconauth-neoforge-*.jar`
+2. jar をサーバーの `mods/` ディレクトリに配置します。
+3. サーバーを再起動します。
+
+## クライアントへの導入
+
+1. サーバーと同じ MOD jar をダウンロードします。
+2. クライアントの `mods/` ディレクトリに配置します。
+3. ゲームを起動し、求められたら認証します。
+
+## 対応バージョン
+
+このリポジトリは Minecraft 1.20.1 / 1.21.1 / 1.21.8 向けのローダーを同梱しています（`modSrc/` を参照）。
+
+## MOD の設定
+
+サーバーを初回起動すると、以下に設定ファイルが生成されます:
+
+- `config/beaconauth-server.toml`
+
+例:
+
+```toml
+[authentication]
+# Base URL of your authentication server
+# Example: https://beaconauth.pages.dev (development) or https://auth.example.com (production)
+# WARNING: Always use HTTPS in production!
+base_url = "https://beaconauth.pages.dev"
+
+# JWKS (JSON Web Key Set) URL for JWT signature verification (fallback)
+# Usually: <base_url>/.well-known/jwks.json
+# Empty means: derive from base_url
+jwks_url = ""
+
+[jwt]
+# Expected JWT audience (aud claim)
+audience = "minecraft-client"
+
+[jku]
+# JWT JWKS Discovery (JKU)
+# If allowed_host_patterns is non-empty and the JWT has a 'jku' header, BeaconAuth will fetch keys from that JWKS URL.
+# Security: You MUST restrict allowed hosts to avoid SSRF.
+# When enabled, JKU ALWAYS requires https://.
+# Empty means: JKU disabled (BeaconAuth will ignore token 'jku' and only use authentication.jwks_url).
+allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
+
+[behavior]
+# If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode
+bypass_if_online_mode_verified = true
+# If true: Modded clients MUST authenticate when server is offline-mode
+force_auth_if_offline_mode = true
+# Only applies when force_auth_if_offline_mode is true
+allow_vanilla_offline_clients = false
+```
+
+### メモ
+
+- `authentication.base_url` はログイン URL の生成と JWT の想定 issuer（`iss`）に使われます。
+- `authentication.jwks_url` は空の場合、既定で `${base_url}/.well-known/jwks.json` が使われます。
+- `jku.allowed_host_patterns` はカンマ/スペース区切りの allowlist です。対応パターン:
+  - `example.com`, `*.example.com`
+  - 非対応: 単独の `*` や `auth*.example.com` のような文字列途中のワイルドカード

@@ -1,0 +1,39 @@
+---
+title: 架構
+description: BeaconAuth 元件與資料流程的高階概觀。
+---
+
+## Monorepo 佈局
+
+- `crates/beacon`: Rust 伺服器執行檔與 CLI（serve、migrate、使用者管理）。
+- `crates/beacon-core`: 多個 runtime 共用的模型、加密與 OAuth 輔助程式。
+- `crates/beacon-worker`: Cloudflare Worker（wasm32）API runtime。
+- `crates/beacon-lambda`: Serverless runtime（AWS Lambda 或相容平台）。
+- `crates/beacon-passkey`: WebAuthn/通行金鑰邏輯。
+- `crates/beacon-frontend-embed`: 可嵌入的前端工具。
+- `crates/entity` 與 `crates/migration`: SeaORM entities 與資料庫 migrations。
+- `src/`: React Web UI（路由、元件、樣式）。
+- `modSrc/`: Minecraft Mod（Kotlin/Gradle、Architectury），支援 Fabric/Forge/NeoForge。
+- `messages/`, `src/paraglide/`, `project.inlang/`: 在地化資產與工具。
+- `content/docs/`: Fumadocs 文件。
+- `wrangler*.jsonc`: Cloudflare Pages 與 Worker 部署設定。
+
+## Runtime 元件
+
+- **驗證伺服器（Rust）**: 處理登入、註冊、OAuth、通行金鑰，並簽發 ES256 JWT。
+- **Web UI（React）**: 登入、註冊、設定、個人資料與 OAuth 完成流程。
+- **Minecraft Mod**: 執行 PKCE 登入並驗證 JWT 以取得遊戲內存取權。
+- **Cloudflare Worker（可選）**: 用於 serverless 部署的邊緣 API runtime。
+
+## 高階驗證流程
+
+1. 使用者透過 Web UI 進行驗證（密碼 / OAuth / 通行金鑰）。
+2. 伺服器簽發存取與更新權杖（ES256 JWT + refresh cookie）。
+3. Mod 透過 PKCE 流程請求 Minecraft 專用 JWT。
+4. 遊戲伺服器透過 JWKS 端點驗證 JWT。
+
+## 儲存與狀態
+
+- **預設伺服器儲存**: SQLite（透過 `DATABASE_URL` 設定）。
+- **Serverless 儲存**: Worker 部署中使用 `LIBSQL_URL`（libSQL/Turso）。
+- **暫存儀式狀態**: 可選 Redis（`REDIS_URL`），用於多實例 WebAuthn 流程。

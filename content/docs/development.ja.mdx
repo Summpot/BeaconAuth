@@ -1,0 +1,110 @@
+---
+title: 開発ガイド
+description: ローカルセットアップ、ビルド、テスト。
+---
+
+## プロジェクト構成
+
+```
+beacon_auth/
+├── crates/                      # Rust ワークスペース
+│   ├── beacon/                  # メインサーバーバイナリ
+│   ├── beacon-core/             # 共有コアロジック
+│   ├── beacon-worker/           # Cloudflare Worker (wasm)
+│   ├── beacon-lambda/           # サーバーレス runtime
+│   ├── beacon-passkey/          # WebAuthn/パスキー
+│   ├── beacon-frontend-embed/   # 埋め込み用 frontend
+│   ├── entity/                  # SeaORM entities
+│   └── migration/               # DB migrations
+├── src/                         # フロントエンド (React)
+├── modSrc/                      # Minecraft Mod (Kotlin/Gradle)
+├── content/docs/                # Fumadocs ドキュメント
+├── public/                      # 静的アセット
+├── Cargo.toml                   # Rust ワークスペース定義
+└── package.json                 # フロントエンド依存関係
+```
+
+## 開発セットアップ
+
+### 認証サーバー + UI
+
+```bash
+# フロントエンド依存関係をインストール
+pnpm install
+
+# Terminal 1: UI を起動
+pnpm dev
+
+# Terminal 2: サーバーを起動
+cargo run --bin beacon serve
+```
+
+- UI: `http://localhost:5173`
+- API: `http://localhost:8080`
+
+### MOD 開発
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+開発用サーバー/クライアントを起動:
+
+```bash
+# Fabric
+./gradlew :fabric:runServer
+./gradlew :fabric:runClient
+
+# Forge
+./gradlew :forge:runServer
+./gradlew :forge:runClient
+```
+
+## コンポーネントのビルド
+
+### Rust ワークスペース
+
+```bash
+cargo build --workspace
+```
+
+### フロントエンドのみ
+
+```bash
+pnpm build
+```
+
+### MOD
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+成果物:
+
+- Fabric: `modSrc/fabric/build/libs/beaconauth-fabric-*.jar`
+- Forge: `modSrc/forge/build/libs/beaconauth-forge-*.jar`
+- NeoForge: `modSrc/neoforge*/build/libs/*.jar`
+
+## テスト
+
+### Rust
+
+```bash
+cargo test --workspace
+```
+
+### フロントエンド
+
+```bash
+pnpm test
+```
+
+### MOD
+
+```bash
+cd modSrc
+./gradlew test
+```

@@ -1,0 +1,74 @@
+---
+title: Bien démarrer
+description: Façons rapides d’exécuter BeaconAuth en local ou en production.
+---
+
+## Utiliser Docker (recommandé)
+
+```bash
+# Récupérer la dernière image
+docker pull ghcr.io/summpot/beacon_auth:latest
+
+# Lancer le serveur
+docker run -d --name beaconauth \
+  -p 8080:8080 \
+  -v $(pwd)/data:/app/data \
+  -e DATABASE_URL=sqlite:///app/data/beacon_auth.db \
+  ghcr.io/summpot/beacon_auth:latest
+```
+
+Le serveur sera disponible sur `http://localhost:8080`.
+
+## Utiliser les binaires précompilés
+
+Téléchargez la dernière release pour votre plateforme depuis la page GitHub Releases.
+
+**Linux (amd64)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+**Windows (amd64)**:
+
+```powershell
+# Téléchargez et extrayez le zip
+# Lancez dans PowerShell :
+.\beacon.exe serve
+```
+
+**macOS (Apple Silicon)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
+tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+## Compiler depuis les sources
+
+### Prérequis
+
+- Rust (stable)
+- Node.js (LTS)
+- pnpm
+
+### Étapes
+
+```bash
+# Cloner le dépôt
+git clone https://github.com/Summpot/beacon_auth.git
+cd beacon_auth
+
+# Installer les dépendances frontend
+pnpm install
+
+# Compiler le workspace Rust
+cargo build --workspace --release
+```
+
+Le binaire sera dans `target/release/beacon`.

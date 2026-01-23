@@ -25,11 +25,28 @@ import appCss from '../styles.css?url';
 const { provider } = defineI18nUI(i18n, {
   translations: {
     'zh-CN': {
-      displayName: 'Chinese',
-      search: 'Translated Content',
+      displayName: '简体中文',
+      search: '搜索',
+    },
+    'zh-TW': {
+      displayName: '繁體中文',
+      search: '搜尋',
+    },
+    fr: {
+      displayName: 'Français',
+      search: 'Recherche',
+    },
+    de: {
+      displayName: 'Deutsch',
+      search: 'Suche',
+    },
+    ja: {
+      displayName: '日本語',
+      search: '検索',
     },
     en: {
       displayName: 'English',
+      search: 'Search',
     },
   },
 });
@@ -50,6 +67,7 @@ function RootComponent() {
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const showNavbar = !pathname.startsWith('/docs');
+  const isDocs = pathname.startsWith('/docs');
 
   return (
     <RootDocument>
@@ -59,18 +77,24 @@ function RootComponent() {
             <div className="min-h-screen bg-background text-foreground relative flex flex-col">
               {showNavbar ? <AppNavbar /> : null}
               <main className="flex-1">
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    // Keyed by pathname so route changes animate.
-                    key={pathname}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18, ease: 'easeOut' }}
-                  >
-                    <Outlet />
-                  </motion.div>
-                </AnimatePresence>
+                {isDocs ? (
+                  // Docs pages stream/load MDX content and can suspend during navigation.
+                  // Avoid global route transitions here to prevent "animation first, content later" flicker.
+                  <Outlet />
+                ) : (
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                      // Keyed by pathname so non-doc route changes animate.
+                      key={pathname}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                    >
+                      <Outlet />
+                    </motion.div>
+                  </AnimatePresence>
+                )}
               </main>
             </div>
           </MotionConfig>

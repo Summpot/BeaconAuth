@@ -1,0 +1,110 @@
+---
+title: 開發指南
+description: 本機設定、建置與測試。
+---
+
+## 專案結構
+
+```
+beacon_auth/
+├── crates/                      # Rust workspace
+│   ├── beacon/                  # 主伺服器執行檔
+│   ├── beacon-core/             # 共用核心邏輯
+│   ├── beacon-worker/           # Cloudflare Worker (wasm)
+│   ├── beacon-lambda/           # Serverless runtime
+│   ├── beacon-passkey/          # WebAuthn/通行金鑰
+│   ├── beacon-frontend-embed/   # 可嵌入前端
+│   ├── entity/                  # SeaORM entities
+│   └── migration/               # 資料庫 migrations
+├── src/                         # 前端 (React)
+├── modSrc/                      # Minecraft Mod (Kotlin/Gradle)
+├── content/docs/                # Fumadocs 文件
+├── public/                      # 靜態資產
+├── Cargo.toml                   # Rust workspace 定義
+└── package.json                 # 前端依賴
+```
+
+## 開發環境設定
+
+### 驗證伺服器 + UI
+
+```bash
+# 安裝前端依賴
+pnpm install
+
+# Terminal 1: 啟動 UI
+pnpm dev
+
+# Terminal 2: 啟動伺服器
+cargo run --bin beacon serve
+```
+
+- UI: `http://localhost:5173`
+- API: `http://localhost:8080`
+
+### Mod 開發
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+執行開發用伺服器/用戶端:
+
+```bash
+# Fabric
+./gradlew :fabric:runServer
+./gradlew :fabric:runClient
+
+# Forge
+./gradlew :forge:runServer
+./gradlew :forge:runClient
+```
+
+## 建置各元件
+
+### Rust workspace
+
+```bash
+cargo build --workspace
+```
+
+### 只建置前端
+
+```bash
+pnpm build
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+產物:
+
+- Fabric: `modSrc/fabric/build/libs/beaconauth-fabric-*.jar`
+- Forge: `modSrc/forge/build/libs/beaconauth-forge-*.jar`
+- NeoForge: `modSrc/neoforge*/build/libs/*.jar`
+
+## 測試
+
+### Rust
+
+```bash
+cargo test --workspace
+```
+
+### 前端
+
+```bash
+pnpm test
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew test
+```

@@ -49,6 +49,7 @@
   "login_no_account": "还没有账户？",
   "login_create_one": "创建一个",
   "login_minecraft_title": "Minecraft 登录",
+  "docs_loading": "正在加载文档...",
   "profile_loading": "加载中...",
   "profile_error_title": "无法加载个人资料",
   "profile_back_home": "返回首页",
@@ -137,6 +138,7 @@
   "settings_passkey_name_placeholder": "例如：“我的手机”、“YubiKey”",
   "settings_cancel": "取消",
   "settings_continue": "继续",
+  "aria_change_language": "切换语言",
   "alert_confirm_unlink": "您确定要解除此登录方式的绑定吗？",
   "alert_confirm_delete_passkey": "您确定要删除通行密钥 “{name}” 吗？"
 }

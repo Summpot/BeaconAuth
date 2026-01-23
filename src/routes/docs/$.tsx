@@ -14,6 +14,7 @@ import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { Suspense } from 'react';
 import { baseOptions } from '@/lib/layout.shared';
 import { source } from '@/lib/source';
+import * as m from '@/paraglide/messages';
 import { getLocale } from '@/paraglide/runtime';
 
 export const Route = createFileRoute('/docs/$')({
@@ -35,10 +36,12 @@ const loader = createServerFn({
 })
   .inputValidator((params: { slugs: string[]; lang?: string }) => params)
   .handler(async ({ data: { slugs, lang } }) => {
-    const page = source.getPage(slugs, lang);
+    // Some locales may have partial docs coverage. Prefer requested locale, but fall back to default.
+    const localizedPage = source.getPage(slugs, lang);
+    const page = localizedPage ?? source.getPage(slugs);
     if (!page) throw notFound();
     return {
-      tree: source.getPageTree(lang) as object,
+      tree: source.getPageTree(localizedPage ? lang : undefined) as object,
       path: page.path,
     };
   });
@@ -71,7 +74,21 @@ function Page() {
   const data = useFumadocsLoader(Route.useLoaderData());
   return (
     <DocsLayout {...baseOptions()} tree={data.tree as Root}>
-      <Suspense>
+      <Suspense
+        fallback={
+          <div className="px-6 py-8" aria-busy="true" aria-live="polite">
+            <div className="text-sm text-muted-foreground">
+              {m.docs_loading()}
+            </div>
+            <div className="mt-4 space-y-3">
+              <div className="h-8 w-64 rounded bg-muted/60 animate-pulse" />
+              <div className="h-4 w-96 max-w-full rounded bg-muted/60 animate-pulse" />
+              <div className="h-4 w-80 max-w-full rounded bg-muted/60 animate-pulse" />
+              <div className="h-4 w-[28rem] max-w-full rounded bg-muted/60 animate-pulse" />
+            </div>
+          </div>
+        }
+      >
         {clientLoader.useContent(data.path, {
           className: '',
         })}

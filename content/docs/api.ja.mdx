@@ -1,0 +1,83 @@
+---
+title: API リファレンス
+description: BeaconAuth が提供する HTTP エンドポイント。
+---
+
+## ベースパス
+
+API は以下で提供されます:
+
+- `/v1/*`（直接）
+- `/api/v1/*`（`/api` 配下にマウントした場合）
+
+## 主要エンドポイント
+
+### セッション
+
+- `POST /v1/login`
+- `POST /v1/register`
+- `POST /v1/refresh`
+- `POST /v1/logout`
+- `GET /v1/user/me`
+- `GET /v1/user/me/avatar`
+- `POST /v1/user/change-password`
+- `POST /v1/user/change-username`
+- `POST /v1/user/profile`
+
+例: `POST /v1/login`
+
+```json
+{
+  "username": "player123",
+  "password": "secure_password"
+}
+```
+
+### Minecraft 認証
+
+- `POST /v1/minecraft-jwt`
+
+例:
+
+```json
+{
+  "challenge": "PKCE_challenge_string",
+  "redirect_port": 38125
+}
+```
+
+### OAuth
+
+- `POST /v1/oauth/start`
+- `POST /v1/oauth/link/start`
+- `GET /v1/oauth/callback`
+
+### パスキー（WebAuthn）
+
+- `POST /v1/passkey/register/start`
+- `POST /v1/passkey/register/finish`
+- `POST /v1/passkey/auth/start`
+- `POST /v1/passkey/auth/finish`
+- `POST /v1/passkey/delete`
+- `GET /v1/passkey/list`
+- `DELETE /v1/passkey/{id}`
+
+### アイデンティティ
+
+- `GET /v1/identities`
+- `DELETE /v1/identities/{id}`
+
+### 設定と JWKS
+
+- `GET /v1/config`
+- `GET /.well-known/jwks.json`
+
+### 管理
+
+- `POST /v1/admin/migrations/up`
+
+## メモ
+
+- セッション系エンドポイントは access/refresh 用の HttpOnly cookie を設定します。
+- JWT は ES256 で署名され、JWKS で公開されます。
+- 一部のエンドポイントは認証済みセッションが必要です。

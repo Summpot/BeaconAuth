@@ -321,7 +321,9 @@ function LoginPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="text-muted-foreground">Loading...</span>
+              <span className="text-muted-foreground">
+                {m.profile_loading()}
+              </span>
             </div>
           </CardContent>
         </Card>

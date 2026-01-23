@@ -1,0 +1,76 @@
+---
+title: Cloudflare 部署
+description: 將 UI 部署到 Pages，API 部署到 Worker。
+---
+
+## 概觀
+
+BeaconAuth 支援分離部署:
+
+- **Cloudflare Pages**：React UI
+- **Cloudflare Worker**（`crates/beacon-worker`）：API
+
+兩個部署在 `wrangler.jsonc` 與 `wrangler.workers.jsonc` 中都必須使用相同的專案名稱（`name`）
+（CI 會強制檢查）。
+
+## Wrangler 設定檔
+
+- `wrangler.jsonc`：Cloudflare Pages 設定（UI build 輸出在 `dist/`）。
+- `wrangler.workers.jsonc`：Cloudflare Worker 設定（wasm build 輸出）。
+
+## CI 工作流程
+
+- `.github/workflows/deploy-cloudflare-pages.yml` 部署 UI。
+- `.github/workflows/deploy-cloudflare-worker.yml` 部署 API Worker 並套用 migrations。
+
+### 必要 secrets（Pages）
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+可選:
+
+- `SENTRY_AUTH_TOKEN`
+
+### 必要 secrets（Worker）
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `TURSO_PLATFORM_API_TOKEN`
+- `TURSO_ORG_SLUG`
+- `TURSO_DB_NAME`
+
+可選:
+
+- `TURSO_GROUP`（預設 `default`）
+- `CLOUDFLARE_WORKER_BASE_URL`（預設 `https://<name>.pages.dev`）
+- `CLOUDFLARE_WORKER_LIBSQL_URL`（用 libSQL URL 覆蓋 Turso API）
+- `CLOUDFLARE_WORKER_LIBSQL_AUTH_TOKEN`
+- `CLOUDFLARE_MIGRATIONS_API_TOKEN`（用於 `/v1/admin/migrations/up`）
+- OAuth 供應商 secrets（見下方）
+
+### OAuth 的可選 Worker secrets
+
+- `CLOUDFLARE_WORKER_GITHUB_CLIENT_ID`
+- `CLOUDFLARE_WORKER_GITHUB_CLIENT_SECRET`
+- `CLOUDFLARE_WORKER_GOOGLE_CLIENT_ID`
+- `CLOUDFLARE_WORKER_GOOGLE_CLIENT_SECRET`
+- `CLOUDFLARE_WORKER_MICROSOFT_CLIENT_ID`
+- `CLOUDFLARE_WORKER_MICROSOFT_CLIENT_SECRET`
+- `CLOUDFLARE_WORKER_MICROSOFT_TENANT`
+
+## 單一網域路由（可選）
+
+若您希望 UI 與 API 共用同一個 origin，本儲存庫已透過 Nitro server entry 支援。
+
+- server entry 位於 `src/server.ts`。
+- Nitro 在 build 時會自動產生 Cloudflare Pages worker bundle（`_worker.js`），不需要手動的 Pages worker entry 檔。
+- 請確保 Pages 專案有一個名為 `BACKEND` 的 service binding 指向您的 API Worker（見 `wrangler.jsonc`）。
+
+預設情況下，server entry 會將路徑以 `/api/`、`/v1/` 或 `/.well-known/` 開頭的請求代理到 `env.BACKEND`，
+並對其他路徑提供 UI。
+
+## 注意
+
+- Worker 部署使用 libSQL/Turso（設定 `LIBSQL_URL` 與 `LIBSQL_AUTH_TOKEN`）。
+- CI 透過 Worker 端點 `POST /v1/admin/migrations/up` 套用 migrations。

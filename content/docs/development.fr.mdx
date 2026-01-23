@@ -1,0 +1,110 @@
+---
+title: Guide de développement
+description: Installation locale, builds et tests.
+---
+
+## Structure du projet
+
+```
+beacon_auth/
+├── crates/                      # Workspace Rust
+│   ├── beacon/                  # Binaire serveur principal
+│   ├── beacon-core/             # Logique core partagée
+│   ├── beacon-worker/           # Cloudflare Worker (wasm)
+│   ├── beacon-lambda/           # Runtime serverless
+│   ├── beacon-passkey/          # Logique WebAuthn/passkey
+│   ├── beacon-frontend-embed/   # Frontend embarquable
+│   ├── entity/                  # Entités SeaORM
+│   └── migration/               # Migrations de base de données
+├── src/                         # Frontend (React)
+├── modSrc/                      # Mod Minecraft (Kotlin/Gradle)
+├── content/docs/                # Documentation Fumadocs
+├── public/                      # Assets statiques
+├── Cargo.toml                   # Définition du workspace Rust
+└── package.json                 # Dépendances frontend
+```
+
+## Setup de développement
+
+### Serveur d’auth + UI
+
+```bash
+# Installer les dépendances frontend
+pnpm install
+
+# Terminal 1: lancer l’UI
+pnpm dev
+
+# Terminal 2: lancer le serveur
+cargo run --bin beacon serve
+```
+
+- UI: `http://localhost:5173`
+- API: `http://localhost:8080`
+
+### Développement du mod
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+Lancer un serveur/client de dev:
+
+```bash
+# Fabric
+./gradlew :fabric:runServer
+./gradlew :fabric:runClient
+
+# Forge
+./gradlew :forge:runServer
+./gradlew :forge:runClient
+```
+
+## Construire les composants
+
+### Workspace Rust
+
+```bash
+cargo build --workspace
+```
+
+### Frontend uniquement
+
+```bash
+pnpm build
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+Artefacts:
+
+- Fabric: `modSrc/fabric/build/libs/beaconauth-fabric-*.jar`
+- Forge: `modSrc/forge/build/libs/beaconauth-forge-*.jar`
+- NeoForge: `modSrc/neoforge*/build/libs/*.jar`
+
+## Tests
+
+### Rust
+
+```bash
+cargo test --workspace
+```
+
+### Frontend
+
+```bash
+pnpm test
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew test
+```

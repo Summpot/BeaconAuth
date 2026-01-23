@@ -1,0 +1,110 @@
+---
+title: Entwicklungsleitfaden
+description: Lokales Setup, Builds und Tests.
+---
+
+## Projektstruktur
+
+```
+beacon_auth/
+├── crates/                      # Rust-Workspace
+│   ├── beacon/                  # Hauptserver-Binary
+│   ├── beacon-core/             # Geteilte Core-Logik
+│   ├── beacon-worker/           # Cloudflare Worker (wasm)
+│   ├── beacon-lambda/           # Serverless-Runtime
+│   ├── beacon-passkey/          # WebAuthn/Passkey-Logik
+│   ├── beacon-frontend-embed/   # Einbettbares Frontend
+│   ├── entity/                  # SeaORM-Entities
+│   └── migration/               # DB-Migrationen
+├── src/                         # Frontend (React)
+├── modSrc/                      # Minecraft-Mod (Kotlin/Gradle)
+├── content/docs/                # Fumadocs-Dokumentation
+├── public/                      # Statische Assets
+├── Cargo.toml                   # Rust-Workspace-Definition
+└── package.json                 # Frontend-Abhängigkeiten
+```
+
+## Development-Setup
+
+### Auth-Server + UI
+
+```bash
+# Frontend-Abhängigkeiten installieren
+pnpm install
+
+# Terminal 1: UI starten
+pnpm dev
+
+# Terminal 2: Server starten
+cargo run --bin beacon serve
+```
+
+- UI: `http://localhost:5173`
+- API: `http://localhost:8080`
+
+### Mod-Entwicklung
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+Dev-Server/Client starten:
+
+```bash
+# Fabric
+./gradlew :fabric:runServer
+./gradlew :fabric:runClient
+
+# Forge
+./gradlew :forge:runServer
+./gradlew :forge:runClient
+```
+
+## Komponenten bauen
+
+### Rust-Workspace
+
+```bash
+cargo build --workspace
+```
+
+### Nur Frontend
+
+```bash
+pnpm build
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+Artefakte:
+
+- Fabric: `modSrc/fabric/build/libs/beaconauth-fabric-*.jar`
+- Forge: `modSrc/forge/build/libs/beaconauth-forge-*.jar`
+- NeoForge: `modSrc/neoforge*/build/libs/*.jar`
+
+## Tests
+
+### Rust
+
+```bash
+cargo test --workspace
+```
+
+### Frontend
+
+```bash
+pnpm test
+```
+
+### Mod
+
+```bash
+cd modSrc
+./gradlew test
+```

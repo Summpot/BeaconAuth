@@ -1,0 +1,72 @@
+---
+title: Installation du mod
+description: Installer et configurer le mod Minecraft BeaconAuth.
+---
+
+## Installation serveur
+
+1. Téléchargez le dernier fichier jar depuis GitHub Releases.
+   - Fabric: `beaconauth-fabric-*.jar`
+   - Forge: `beaconauth-forge-*.jar`
+   - NeoForge: `beaconauth-neoforge-*.jar`
+2. Placez le jar dans le dossier `mods/` du serveur.
+3. Redémarrez le serveur.
+
+## Installation client
+
+1. Téléchargez le même jar que sur le serveur.
+2. Placez-le dans le dossier `mods/` du client.
+3. Lancez le jeu et authentifiez-vous lorsque demandé.
+
+## Versions supportées
+
+Le dépôt fournit des loaders pour Minecraft 1.20.1, 1.21.1 et 1.21.8 (voir `modSrc/`).
+
+## Configuration du mod
+
+Après le premier démarrage du serveur, un fichier de configuration est généré:
+
+- `config/beaconauth-server.toml`
+
+Exemple:
+
+```toml
+[authentication]
+# Base URL of your authentication server
+# Example: https://beaconauth.pages.dev (development) or https://auth.example.com (production)
+# WARNING: Always use HTTPS in production!
+base_url = "https://beaconauth.pages.dev"
+
+# JWKS (JSON Web Key Set) URL for JWT signature verification (fallback)
+# Usually: <base_url>/.well-known/jwks.json
+# Empty means: derive from base_url
+jwks_url = ""
+
+[jwt]
+# Expected JWT audience (aud claim)
+audience = "minecraft-client"
+
+[jku]
+# JWT JWKS Discovery (JKU)
+# If allowed_host_patterns is non-empty and the JWT has a 'jku' header, BeaconAuth will fetch keys from that JWKS URL.
+# Security: You MUST restrict allowed hosts to avoid SSRF.
+# When enabled, JKU ALWAYS requires https://.
+# Empty means: JKU disabled (BeaconAuth will ignore token 'jku' and only use authentication.jwks_url).
+allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
+
+[behavior]
+# If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode
+bypass_if_online_mode_verified = true
+# If true: Modded clients MUST authenticate when server is offline-mode
+force_auth_if_offline_mode = true
+# Only applies when force_auth_if_offline_mode is true
+allow_vanilla_offline_clients = false
+```
+
+### Notes
+
+- `authentication.base_url` est utilisé pour construire les URLs de login et l’issuer JWT attendu (`iss`).
+- `authentication.jwks_url` vaut par défaut `${base_url}/.well-known/jwks.json` quand vide.
+- `jku.allowed_host_patterns` est une allowlist séparée par virgules/espaces. Motifs supportés:
+  - `example.com`, `*.example.com`
+  - Non supporté: `*` seul ou jokers au milieu comme `auth*.example.com`

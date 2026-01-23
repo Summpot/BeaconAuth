@@ -1,0 +1,39 @@
+---
+title: アーキテクチャ
+description: BeaconAuth のコンポーネントとデータフローの概要。
+---
+
+## モノレポ構成
+
+- `crates/beacon`: Rust サーバーバイナリと CLI（serve, migrate, ユーザー管理）。
+- `crates/beacon-core`: 共有モデル、暗号、OAuth ヘルパー。
+- `crates/beacon-worker`: Cloudflare Worker（wasm32）API ランタイム。
+- `crates/beacon-lambda`: サーバーレスランタイム（AWS Lambda 等）。
+- `crates/beacon-passkey`: WebAuthn/パスキーのロジック。
+- `crates/beacon-frontend-embed`: 埋め込み用フロントエンドユーティリティ。
+- `crates/entity` と `crates/migration`: SeaORM エンティティと DB マイグレーション。
+- `src/`: React Web UI（ルート、コンポーネント、スタイル）。
+- `modSrc/`: Minecraft Mod（Kotlin/Gradle, Architectury）+ Fabric/Forge/NeoForge。
+- `messages/`, `src/paraglide/`, `project.inlang/`: ローカライズ資産とツール。
+- `content/docs/`: Fumadocs ドキュメント。
+- `wrangler*.jsonc`: Cloudflare Pages / Worker のデプロイ設定。
+
+## ランタイムコンポーネント
+
+- **認証サーバー（Rust）**: ログイン、登録、OAuth、パスキー、ES256 JWT 発行。
+- **Web UI（React）**: ログイン、登録、設定、プロフィール、OAuth 完了フロー。
+- **Minecraft Mod**: PKCE ベースのログイン、ゲーム内アクセス用 JWT 検証。
+- **Cloudflare Worker（任意）**: サーバーレス向けのエッジ API ランタイム。
+
+## 認証フロー（概要）
+
+1. ユーザーが Web UI で認証（パスワード / OAuth / パスキー）。
+2. サーバーがアクセス/リフレッシュトークンを発行（ES256 JWT + refresh cookie）。
+3. Mod が PKCE フローで Minecraft 用 JWT を要求。
+4. ゲームサーバーが JWKS エンドポイントで JWT を検証。
+
+## ストレージと状態
+
+- **既定のサーバーストレージ**: SQLite（`DATABASE_URL` で設定）。
+- **サーバーレスストレージ**: Worker デプロイで `LIBSQL_URL`（libSQL/Turso）。
+- **一時的な Ceremony State**: 複数インスタンスの WebAuthn で Redis（`REDIS_URL`）を任意利用。

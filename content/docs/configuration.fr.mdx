@@ -1,0 +1,99 @@
+---
+title: Configuration
+description: Variables d’environnement et options CLI pour BeaconAuth.
+---
+
+## Configuration serveur (beacon)
+
+Utilisez des flags CLI ou des variables d’environnement. La référence canonique est:
+
+```bash
+beacon serve --help
+```
+
+### Options principales
+
+| Option | Env | Défaut | Notes |
+|---|---|---|---|
+| `--database-url` | `DATABASE_URL` | `sqlite://./beacon_auth.db?mode=rwc` | SQLite par défaut. |
+| `--bind-address` | `BIND_ADDRESS` | `127.0.0.1:8080` | Adresse d’écoute HTTP. |
+| `--control-socket` | `CONTROL_SOCKET` | `beacon-auth` (Windows) / `/tmp/beacon-auth.sock` (Unix) | Socket de contrôle pour l’admin locale. |
+| `--cors-origins` | `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Liste séparée par des virgules. |
+| `--jwt-expiration` | `JWT_EXPIRATION` | `3600` | Expiration du token d’accès (secondes). |
+| `--log-level` | `RUST_LOG` | `info` | Filtre de niveau de logs. |
+| `--base-url` | `BASE_URL` | `https://beaconauth.pages.dev` | Utilisé pour l’issuer, les redirections OAuth, l’origine RP WebAuthn. |
+| `--jwt-kid` | `JWT_KID` | `beacon-auth-key-1` | Valeur du header JWT `kid`. |
+| `--redis-url` | `REDIS_URL` | _(vide)_ | Redis optionnel pour l’état de cérémonie WebAuthn. |
+| `--jwks-url` | `JWKS_URL` | _(vide)_ | URL JWKS annoncée optionnellement pour `jku`. |
+
+### Options OAuth
+
+| Option | Env | Notes |
+|---|---|---|
+| `--github-client-id` | `GITHUB_CLIENT_ID` | Client ID OAuth GitHub. |
+| `--github-client-secret` | `GITHUB_CLIENT_SECRET` | Client secret OAuth GitHub. |
+| `--google-client-id` | `GOOGLE_CLIENT_ID` | Client ID OAuth Google. |
+| `--google-client-secret` | `GOOGLE_CLIENT_SECRET` | Client secret OAuth Google. |
+| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Client ID Microsoft Entra ID. |
+| `--microsoft-client-secret` | `MICROSOFT_CLIENT_SECRET` | Client secret Microsoft Entra ID. |
+| `--microsoft-tenant` | `MICROSOFT_TENANT` | Par défaut: `common`. |
+
+### Commandes d’administration
+
+```bash
+beacon migrate --database-url sqlite://./beacon_auth.db
+beacon create-user --username admin --password your_password
+beacon list-users
+beacon delete-user --username admin
+```
+
+### Exemple `.env`
+
+``` bash
+DATABASE_URL=sqlite://./beacon_auth.db?mode=rwc
+BIND_ADDRESS=0.0.0.0:8080
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+JWT_EXPIRATION=3600
+RUST_LOG=info
+BASE_URL=https://auth.example.com
+JWT_KID=beacon-auth-key-1
+
+# Optional
+REDIS_URL=
+JWKS_URL=
+
+# OAuth providers
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT=common
+```
+
+## Configuration Cloudflare Worker
+
+Le Worker est configuré via `wrangler.workers.jsonc` et des variables définies au déploiement.
+
+### Variables définies dans `wrangler.workers.jsonc`
+
+| Variable | Rôle |
+|---|---|
+| `LIBSQL_URL` | Endpoint de base de données libSQL/Turso. |
+| `BASE_URL` | URL publique de base (issuer + redirections OAuth). |
+| `JWKS_URL` | URL JWKS annoncée optionnellement. |
+| `JKU_ALLOWED_HOST_PATTERNS` | Hôtes autorisés pour les fetch JWT `jku`. |
+| `JWT_KID` | Key id JWT dans les headers. |
+| `ACCESS_TOKEN_EXPIRATION` | Durée de vie access token (secondes). |
+| `REFRESH_TOKEN_EXPIRATION` | Durée de vie refresh token (secondes). |
+| `JWT_EXPIRATION` | Expiration JWT générale (secondes). |
+
+### Secrets (Worker)
+
+Le workflow de déploiement peut synchroniser ces secrets:
+
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT`
+- `LIBSQL_AUTH_TOKEN` (pour libSQL/Turso)

@@ -1,0 +1,39 @@
+---
+title: Architektur
+description: Überblick über BeaconAuth-Komponenten und Datenfluss.
+---
+
+## Monorepo-Struktur
+
+- `crates/beacon`: Rust-Server-Binary und CLI (serve, migrate, User-Management).
+- `crates/beacon-core`: gemeinsame Modelle, Crypto und OAuth-Helper für mehrere Runtimes.
+- `crates/beacon-worker`: Cloudflare-Worker (wasm32) API-Runtime.
+- `crates/beacon-lambda`: Serverless-Runtime (AWS Lambda oder kompatibel).
+- `crates/beacon-passkey`: WebAuthn/Passkey-Logik.
+- `crates/beacon-frontend-embed`: einbettbare Frontend-Utilities.
+- `crates/entity` und `crates/migration`: SeaORM-Entities und Datenbank-Migrationen.
+- `src/`: React-Web-UI (Routen, Komponenten, Styles).
+- `modSrc/`: Minecraft-Mod (Kotlin/Gradle, Architectury) mit Fabric/Forge/NeoForge-Targets.
+- `messages/`, `src/paraglide/`, `project.inlang/`: Lokalisierungsassets und Tooling.
+- `content/docs/`: Fumadocs-Dokumentation.
+- `wrangler*.jsonc`: Cloudflare Pages- und Worker-Deploy-Konfigurationen.
+
+## Runtime-Komponenten
+
+- **Auth-Server (Rust)**: Login, Registrierung, OAuth, Passkeys und ES256-JWT-Ausstellung.
+- **Web-UI (React)**: Login, Registrierung, Settings, Profil und OAuth-Completion-Flows.
+- **Minecraft-Mod**: führt PKCE-basierten Login aus und validiert JWTs für In-Game-Zugriff.
+- **Cloudflare Worker (optional)**: Edge-API-Runtime für serverlose Deployments.
+
+## Auth-Flow (High-Level)
+
+1. Nutzer authentifiziert sich über die Web-UI (Passwort, OAuth oder Passkey).
+2. Der Server stellt Access- und Refresh-Tokens aus (ES256 JWT + Refresh-Cookie).
+3. Der Mod fordert über PKCE einen Minecraft-spezifischen JWT an.
+4. Der Spielserver validiert den JWT über den JWKS-Endpoint.
+
+## Storage und State
+
+- **Standard-Server-Storage**: SQLite (konfiguriert über `DATABASE_URL`).
+- **Serverless-Storage**: libSQL/Turso über `LIBSQL_URL` im Worker-Deployment.
+- **Temporärer Ceremony-State**: optional Redis (`REDIS_URL`) für WebAuthn-Flows mit mehreren Instanzen.

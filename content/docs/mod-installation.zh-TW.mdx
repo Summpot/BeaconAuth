@@ -1,0 +1,72 @@
+---
+title: Mod 安裝
+description: 安裝並設定 BeaconAuth Minecraft Mod。
+---
+
+## 伺服器端安裝
+
+1. 從 GitHub Releases 下載最新的 mod jar。
+   - Fabric：`beaconauth-fabric-*.jar`
+   - Forge：`beaconauth-forge-*.jar`
+   - NeoForge：`beaconauth-neoforge-*.jar`
+2. 將 jar 放入伺服器的 `mods/` 目錄。
+3. 重新啟動伺服器。
+
+## 用戶端安裝
+
+1. 下載與伺服器相同的 mod jar。
+2. 放入用戶端的 `mods/` 目錄。
+3. 啟動遊戲並在提示時完成驗證。
+
+## 支援版本
+
+本儲存庫提供 Minecraft 1.20.1、1.21.1、1.21.8 的 loaders（見 `modSrc/`）。
+
+## Mod 設定
+
+第一次啟動伺服器後，會生成設定檔於:
+
+- `config/beaconauth-server.toml`
+
+範例設定:
+
+```toml
+[authentication]
+# Base URL of your authentication server
+# Example: https://beaconauth.pages.dev (development) or https://auth.example.com (production)
+# WARNING: Always use HTTPS in production!
+base_url = "https://beaconauth.pages.dev"
+
+# JWKS (JSON Web Key Set) URL for JWT signature verification (fallback)
+# Usually: <base_url>/.well-known/jwks.json
+# Empty means: derive from base_url
+jwks_url = ""
+
+[jwt]
+# Expected JWT audience (aud claim)
+audience = "minecraft-client"
+
+[jku]
+# JWT JWKS Discovery (JKU)
+# If allowed_host_patterns is non-empty and the JWT has a 'jku' header, BeaconAuth will fetch keys from that JWKS URL.
+# Security: You MUST restrict allowed hosts to avoid SSRF.
+# When enabled, JKU ALWAYS requires https://.
+# Empty means: JKU disabled (BeaconAuth will ignore token 'jku' and only use authentication.jwks_url).
+allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
+
+[behavior]
+# If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode
+bypass_if_online_mode_verified = true
+# If true: Modded clients MUST authenticate when server is offline-mode
+force_auth_if_offline_mode = true
+# Only applies when force_auth_if_offline_mode is true
+allow_vanilla_offline_clients = false
+```
+
+### 注意
+
+- `authentication.base_url` 用於建立登入 URL 與預期 JWT issuer（`iss`）。
+- `authentication.jwks_url` 為空時，預設使用 `${base_url}/.well-known/jwks.json`。
+- `jku.allowed_host_patterns` 是逗號/空白分隔的 allowlist。支援模式:
+  - `example.com`, `*.example.com`
+  - 不支援: 單獨的 `*` 或字串中間通配（例如 `auth*.example.com`）

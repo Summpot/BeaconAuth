@@ -49,6 +49,7 @@
   "login_no_account": "Don't have an account?",
   "login_create_one": "Create one",
   "login_minecraft_title": "Minecraft Login",
+  "docs_loading": "Loading documentation…",
   "profile_loading": "Loading...",
   "profile_error_title": "Could not load profile",
   "profile_back_home": "Back to Home",
@@ -137,6 +138,7 @@
   "settings_passkey_name_placeholder": "e.g., \"My Phone\", \"YubiKey\"",
   "settings_cancel": "Cancel",
   "settings_continue": "Continue",
+  "aria_change_language": "Change language",
   "alert_confirm_unlink": "Are you sure you want to unlink this login method?",
   "alert_confirm_delete_passkey": "Are you sure you want to delete passkey \"{name}\"?"
 }

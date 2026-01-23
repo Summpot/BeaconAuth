@@ -1,0 +1,41 @@
+---
+title: Fehlerbehebung
+description: Häufige Probleme und Lösungen.
+---
+
+## Server startet nicht (Datenbankfehler)
+
+```bash
+# Sicherstellen, dass das DB-Verzeichnis existiert
+mkdir -p data
+
+# Migrationen ausführen
+beacon migrate --database-url sqlite://./data/beacon_auth.db
+```
+
+## Mod-Authentifizierung schlägt fehl
+
+1. Prüfe, ob `authentication.base_url` in `config/beaconauth-server.toml` zu deiner deployten `BASE_URL` passt.
+2. Stelle sicher, dass der JWKS-Endpoint erreichbar ist:
+   - Standard: `${base_url}/.well-known/jwks.json`
+3. Wenn JKU aktiviert ist, muss der JWT-`jku`-Host zur Allowlist passen und `https://` verwenden.
+4. Prüfe die Server-Logs auf `[BeaconAuth]`-Einträge.
+
+## Multiplayer-Chat kann nicht gesendet werden (Secure Chat)
+
+Minecraft 1.19+ nutzt signierten Chat. BeaconAuth-Nutzer haben keine Mojang-signierten Schlüssel.
+BeaconAuth sendet unsignierte Chat-Pakete für BeaconAuth-authentifizierte Sessions und deaktiviert
+die „Secure Profile“-Durchsetzung in unterstützten Builds. Stelle sicher, dass der Mod sowohl auf
+Client als auch Server für dieselbe Minecraft-Version installiert ist.
+
+## Ingame-Name ist nicht der BeaconAuth-Benutzername
+
+BeaconAuth kann einen separaten Minecraft-Namen über den JWT-Claim `username` bereitstellen.
+Fehlt er oder ist er ungültig, nutzt das Spiel den vom Launcher gelieferten Namen.
+
+## OAuth-Redirect schlägt fehl
+
+1. Prüfe, ob die OAuth-Callback-URLs exakt übereinstimmen:
+   - `${BASE_URL}/api/v1/oauth/callback`
+2. Stelle sicher, dass `BASE_URL` korrekt gesetzt ist.
+3. Nutze HTTPS in Produktion.

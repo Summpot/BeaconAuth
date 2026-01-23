@@ -1,0 +1,79 @@
+---
+title: Server-Deployment
+description: BeaconAuth als eigenständigen Server betreiben.
+---
+
+## Lokal ausführen
+
+```bash
+beacon serve
+```
+
+Konfiguration per Umgebungsvariablen oder CLI-Flags. Siehe [Konfiguration](./configuration).
+
+## Datenbank einrichten
+
+Migrationen ausführen und Nutzer über die CLI verwalten:
+
+```bash
+beacon migrate --database-url sqlite://./beacon_auth.db
+beacon create-user --username admin --password your_secure_password
+beacon list-users
+beacon delete-user --username admin
+```
+
+## Docker Compose (Produktion)
+
+```yaml
+version: "3.8"
+
+services:
+  beaconauth:
+    image: ghcr.io/summpot/beacon_auth:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      DATABASE_URL: sqlite:///app/data/beacon_auth.db
+      BIND_ADDRESS: 0.0.0.0:8080
+      JWT_EXPIRATION: 7200
+      BASE_URL: https://auth.example.com
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}
+      MICROSOFT_TENANT: ${MICROSOFT_TENANT}
+    restart: unless-stopped
+```
+
+Service starten:
+
+```bash
+docker-compose up -d
+```
+
+## Reverse Proxy (Nginx)
+
+```nginx
+server {
+    listen 80;
+    server_name auth.example.com;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Für HTTPS: Let’s Encrypt verwenden:
+
+```bash
+certbot --nginx -d auth.example.com
+```
