@@ -15,9 +15,9 @@ import { i18n } from '@/lib/i18n';
 import { AnimatePresence, MotionConfig, motion } from '@/lib/motion';
 import {
   getLocale,
+  type Locale,
   locales,
   setLocale,
-  type Locale,
 } from '@/paraglide/runtime';
 import appCss from '../styles.css?url';
 

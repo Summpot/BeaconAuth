@@ -1,0 +1,14 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+  - repo: local
+    hooks:
+      - id: pnpm-check
+        name: Run pnpm check
+        entry: pnpm check
+        language: system
+        pass_filenames: false
+        always_run: true
