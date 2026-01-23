@@ -171,7 +171,7 @@ export function AppNavbar() {
                 variant="ghost"
                 size="icon"
                 className="md:hidden"
-                aria-label="Menu"
+                aria-label={m.nav_menu()}
               >
                 <Menu className="h-5 w-5" />
               </Button>

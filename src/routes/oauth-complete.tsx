@@ -3,14 +3,26 @@ import { CheckCircle2, Home, Loader2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { BeaconIcon } from '@/components/beacon-icon';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { PageLoader } from '@/components/ui/page-loader';
+import * as m from '@/paraglide/messages';
 import { apiClient } from '../utils/api';
 
 function OAuthCompletePage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
     'loading',
   );
-  const [message, setMessage] = useState('Processing authentication...');
+  const [message, setMessage] = useState(
+    m.oauth_complete_processing_authentication(),
+  );
+  const [target, setTarget] = useState<'profile' | 'minecraft' | null>(null);
 
   useEffect(() => {
     const completeAuth = async () => {
@@ -25,7 +37,8 @@ function OAuthCompletePage() {
         if (!challenge || !redirectPortStr) {
           // Normal web OAuth login - redirect to profile page
           setStatus('success');
-          setMessage('Authentication successful! Redirecting to profile...');
+          setTarget('profile');
+          setMessage(m.oauth_complete_auth_success_profile());
 
           // Clean up any partial sessionStorage data
           sessionStorage.removeItem('minecraft_challenge');
@@ -33,7 +46,7 @@ function OAuthCompletePage() {
 
           setTimeout(() => {
             window.location.href = '/profile';
-          }, 1000);
+          }, 750);
           return;
         }
 
@@ -59,87 +72,103 @@ function OAuthCompletePage() {
 
         if (result?.redirectUrl) {
           setStatus('success');
-          setMessage('Authentication successful! Redirecting to Minecraft...');
+          setTarget('minecraft');
+          setMessage(m.oauth_complete_auth_success_minecraft());
           setTimeout(() => {
             window.location.href = result.redirectUrl as string;
-          }, 1000);
+          }, 750);
         }
       } catch (error) {
         console.error('OAuth completion error:', error);
         setStatus('error');
-        setMessage(
-          'An error occurred during authentication. Please try again.',
-        );
+        setTarget(null);
+        setMessage(m.oauth_complete_auth_error());
       }
     };
 
     completeAuth();
   }, []);
 
+  if (status === 'loading') {
+    return (
+      <PageLoader
+        title={m.oauth_complete_title_completing_sign_in()}
+        description={message}
+        icon={<BeaconIcon className="size-6 text-primary" />}
+        compact
+      />
+    );
+  }
+
+  const isSuccess = status === 'success';
+  const title = isSuccess
+    ? m.oauth_complete_title_signed_in()
+    : m.oauth_complete_title_auth_failed();
+  const subtitle =
+    target === 'minecraft'
+      ? m.oauth_complete_subtitle_minecraft()
+      : target === 'profile'
+        ? m.oauth_complete_subtitle_profile()
+        : m.oauth_complete_subtitle_error();
+
   return (
-    <div className="flex items-center justify-center min-h-full p-4">
-      <div className="w-full max-w-md">
-        <Card>
-          <CardContent className="p-8">
-            <div className="text-center">
-              {status === 'loading' && (
-                <>
-                  <div className="inline-block mb-6">
-                    <BeaconIcon className="w-24 h-24" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-foreground mb-4">
-                    Processing...
-                  </h2>
-                  <div className="flex items-center justify-center gap-3 mb-4">
-                    <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                    <span className="text-muted-foreground">Please wait</span>
-                  </div>
-                </>
-              )}
+    <div className="min-h-full flex items-center justify-center p-4 bg-background">
+      <div className="w-full max-w-lg">
+        <Card className="border-0 shadow-lg bg-card/80 backdrop-blur supports-backdrop-filter:bg-card/70">
+          <CardHeader className="text-center">
+            <div className="mx-auto relative">
+              <div
+                className={
+                  isSuccess
+                    ? 'absolute -inset-3 rounded-full bg-green-500/15 blur'
+                    : 'absolute -inset-3 rounded-full bg-destructive/15 blur'
+                }
+              />
+              <div
+                className={
+                  isSuccess
+                    ? 'relative size-20 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center'
+                    : 'relative size-20 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center'
+                }
+              >
+                {isSuccess ? (
+                  <CheckCircle2 className="size-10 text-green-600 dark:text-green-400" />
+                ) : (
+                  <XCircle className="size-10 text-destructive" />
+                )}
+              </div>
+            </div>
 
-              {status === 'success' && (
-                <>
-                  <div className="inline-block mb-6">
-                    <div className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center border-2 border-green-500/50">
-                      <CheckCircle2 className="w-12 h-12 text-green-500" />
-                    </div>
-                  </div>
-                  <h2 className="text-2xl font-bold text-green-500 mb-4">
-                    Success!
-                  </h2>
-                </>
-              )}
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              {title}
+            </CardTitle>
+            <CardDescription className="text-base">{subtitle}</CardDescription>
+          </CardHeader>
 
-              {status === 'error' && (
-                <>
-                  <div className="inline-block mb-6">
-                    <div className="w-24 h-24 rounded-full bg-destructive/20 flex items-center justify-center border-2 border-destructive/50">
-                      <XCircle className="w-12 h-12 text-destructive" />
-                    </div>
-                  </div>
-                  <h2 className="text-2xl font-bold text-destructive mb-4">
-                    Authentication Failed
-                  </h2>
-                </>
-              )}
-
-              <p className="text-muted-foreground mb-6">{message}</p>
-
-              {status === 'error' && (
-                <div className="flex flex-col gap-3">
-                  <Link to="/login">
-                    <Button className="w-full">Try Again</Button>
-                  </Link>
-                  <Link to="/">
-                    <Button variant="outline" className="w-full">
-                      <Home className="mr-2 h-4 w-4" />
-                      Back to Home
-                    </Button>
-                  </Link>
-                </div>
-              )}
+          <CardContent className="pt-0">
+            <div className="rounded-lg border bg-background/40 px-4 py-3">
+              <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                {isSuccess ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                ) : null}
+                <span className="leading-relaxed">{message}</span>
+              </div>
             </div>
           </CardContent>
+
+          {status === 'error' ? (
+            <CardFooter className="flex flex-col sm:flex-row gap-3">
+              <Button asChild className="w-full sm:w-auto">
+                <Link to="/login">{m.oauth_complete_button_try_again()}</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link to="/">
+                  <Home className="mr-2 h-4 w-4" />
+                  {m.oauth_complete_button_back_home()}
+                </Link>
+              </Button>
+            </CardFooter>
+          ) : null}
         </Card>
       </div>
     </div>

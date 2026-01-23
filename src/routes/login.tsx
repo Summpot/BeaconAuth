@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageLoader } from '@/components/ui/page-loader';
 import { Separator } from '@/components/ui/separator';
 import * as m from '@/paraglide/messages';
 import { ApiError, apiClient, queryKeys } from '../utils/api';
@@ -36,12 +37,13 @@ const searchParamsSchema = z.object({
 
 type SearchParams = z.infer<typeof searchParamsSchema>;
 
-const loginFormSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-});
+const makeLoginFormSchema = () =>
+  z.object({
+    username: z.string().min(1, m.login_validation_username_required()),
+    password: z.string().min(1, m.login_validation_password_required()),
+  });
 
-type LoginFormData = z.infer<typeof loginFormSchema>;
+type LoginFormData = z.infer<ReturnType<typeof makeLoginFormSchema>>;
 
 interface ServerConfig {
   database_auth: boolean;
@@ -53,10 +55,7 @@ interface ServerConfig {
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof ApiError) {
     const data = error.data as { message?: string } | undefined;
-    return data?.message ?? error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
+    return data?.message ?? fallback;
   }
   return fallback;
 };
@@ -76,7 +75,7 @@ function LoginPage() {
     formState: { errors, isSubmitting },
     setError,
   } = useForm<LoginFormData>({
-    resolver: zodResolver(loginFormSchema),
+    resolver: zodResolver(makeLoginFormSchema()),
   });
 
   useEffect(() => {
@@ -232,7 +231,7 @@ function LoginPage() {
     } catch (error) {
       setError('root', {
         type: 'manual',
-        message: getErrorMessage(error, 'Failed to connect to server'),
+        message: getErrorMessage(error, m.login_error_failed_connect_server()),
       });
     }
   };
@@ -256,13 +255,13 @@ function LoginPage() {
       if (err instanceof WebAuthnError) {
         setPasskeyError(
           err.code === 'ERROR_CEREMONY_ABORTED'
-            ? 'Passkey authentication was cancelled'
-            : `Passkey error: ${err.message}`,
+            ? m.login_passkey_cancelled()
+            : m.login_passkey_error({ message: err.message }),
         );
       } else if (err instanceof Error) {
         setPasskeyError(err.message);
       } else {
-        setPasskeyError('An unknown error occurred');
+        setPasskeyError(m.login_passkey_unknown_error());
       }
     } finally {
       setPasskeyLoading(false);
@@ -316,18 +315,10 @@ function LoginPage() {
 
   if (configLoading) {
     return (
-      <div className="flex items-center justify-center min-h-full p-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="text-muted-foreground">
-                {m.profile_loading()}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <PageLoader
+        title={m.profile_loading()}
+        icon={<BeaconIcon className="size-6 text-primary" />}
+      />
     );
   }
 
@@ -481,14 +472,14 @@ function LoginPage() {
                           fill="currentColor"
                           viewBox="0 0 24 24"
                         >
-                          <title>GitHub</title>
+                          <title>{m.provider_github()}</title>
                           <path
                             fillRule="evenodd"
                             d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
                             clipRule="evenodd"
                           />
                         </svg>
-                        GitHub
+                        {m.provider_github()}
                       </Button>
                     )}
                     {config?.google_oauth && (
@@ -499,7 +490,7 @@ function LoginPage() {
                         className="bg-white hover:bg-gray-100 text-gray-700 border-gray-300"
                       >
                         <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                          <title>Google</title>
+                          <title>{m.provider_google()}</title>
                           <path
                             fill="#4285F4"
                             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -517,7 +508,7 @@ function LoginPage() {
                             d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                           />
                         </svg>
-                        Google
+                        {m.provider_google()}
                       </Button>
                     )}
                     {config?.microsoft_oauth && (
@@ -528,13 +519,13 @@ function LoginPage() {
                         className="bg-[#2F2F2F] hover:bg-[#1f1f1f] text-white hover:text-white border-gray-600"
                       >
                         <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                          <title>Microsoft</title>
+                          <title>{m.provider_microsoft()}</title>
                           <path fill="#F25022" d="M2 2h9v9H2z" />
                           <path fill="#7FBA00" d="M13 2h9v9h-9z" />
                           <path fill="#00A4EF" d="M2 13h9v9H2z" />
                           <path fill="#FFB900" d="M13 13h9v9h-9z" />
                         </svg>
-                        Microsoft
+                        {m.provider_microsoft()}
                       </Button>
                     )}
                   </div>

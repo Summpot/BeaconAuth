@@ -5,6 +5,7 @@ import {
 } from '@simplewebauthn/browser';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
+  CheckCircle2,
   Chrome,
   Github,
   Key,
@@ -14,6 +15,7 @@ import {
   Plus,
   Trash2,
   X,
+  XCircle,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -39,6 +41,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageLoader } from '@/components/ui/page-loader';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Tooltip,
@@ -48,44 +51,67 @@ import {
 import * as m from '@/paraglide/messages';
 import { ApiError, apiClient } from '../utils/api';
 
-const passwordChangeSchema = z
-  .object({
-    currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
+function formatProviderLabel(provider: string) {
+  switch (provider) {
+    case 'github':
+      return m.provider_github();
+    case 'google':
+      return m.provider_google();
+    case 'microsoft':
+      return m.provider_microsoft();
+    default:
+      return provider;
+  }
+}
+
+const makePasswordChangeSchema = () =>
+  z
+    .object({
+      currentPassword: z
+        .string()
+        .min(1, m.settings_validation_current_password_required()),
+      newPassword: z
+        .string()
+        .min(6, m.settings_validation_password_min_length({ min: 6 })),
+      confirmPassword: z
+        .string()
+        .min(1, m.settings_validation_confirm_password_required()),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+      message: m.settings_validation_passwords_dont_match(),
+      path: ['confirmPassword'],
+    });
+
+type PasswordChangeData = z.infer<ReturnType<typeof makePasswordChangeSchema>>;
+
+const makePasswordSetSchema = () =>
+  z
+    .object({
+      newPassword: z
+        .string()
+        .min(6, m.settings_validation_password_min_length({ min: 6 })),
+      confirmPassword: z
+        .string()
+        .min(1, m.settings_validation_confirm_password_required()),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+      message: m.settings_validation_passwords_dont_match(),
+      path: ['confirmPassword'],
+    });
+
+type PasswordSetData = z.infer<ReturnType<typeof makePasswordSetSchema>>;
+
+const makeUsernameChangeSchema = () =>
+  z.object({
+    username: z
+      .string()
+      .trim()
+      .min(3, m.settings_validation_username_min_length({ min: 3 }))
+      .max(16, m.settings_validation_username_max_length({ max: 16 }))
+      .regex(/^[A-Za-z0-9_]+$/, m.settings_validation_username_invalid_chars()),
   });
 
-type PasswordChangeData = z.infer<typeof passwordChangeSchema>;
-
-const passwordSetSchema = z
-  .object({
-    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  });
-
-type PasswordSetData = z.infer<typeof passwordSetSchema>;
-
-const usernameChangeSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, 'Username must be at least 3 characters')
-    .max(16, 'Username must be at most 16 characters')
-    .regex(
-      /^[A-Za-z0-9_]+$/,
-      'Username can only contain letters, numbers, and underscore',
-    ),
-});
-
-type UsernameChangeData = z.infer<typeof usernameChangeSchema>;
+type UsernameChangeData = z.infer<ReturnType<typeof makeUsernameChangeSchema>>;
 
 const profileSchema = z.object({
   email: z.string(),
@@ -127,15 +153,11 @@ interface IdentitiesResponse {
   passkey_count: number;
 }
 
-const getErrorMessage = (
-  error: unknown,
-  fallback = 'Failed to process request',
-) => {
+const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof ApiError) {
     const data = error.data as { message?: string } | undefined;
-    return data?.message ?? error.message;
+    return data?.message ?? fallback;
   }
-  if (error instanceof Error) return error.message;
   return fallback;
 };
 
@@ -161,15 +183,15 @@ function SettingsPage() {
   const isMicrosoftLinked = linkedProviders.has('microsoft');
 
   const changePasswordForm = useForm<PasswordChangeData>({
-    resolver: zodResolver(passwordChangeSchema),
+    resolver: zodResolver(makePasswordChangeSchema()),
   });
 
   const setPasswordForm = useForm<PasswordSetData>({
-    resolver: zodResolver(passwordSetSchema),
+    resolver: zodResolver(makePasswordSetSchema()),
   });
 
   const changeUsernameForm = useForm<UsernameChangeData>({
-    resolver: zodResolver(usernameChangeSchema),
+    resolver: zodResolver(makeUsernameChangeSchema()),
     defaultValues: { username: '' },
   });
 
@@ -237,13 +259,16 @@ function SettingsPage() {
           new_password: data.newPassword,
         },
       });
-      setMessage({ type: 'success', text: 'Password changed successfully!' });
+      setMessage({
+        type: 'success',
+        text: m.settings_success_password_changed(),
+      });
       changePasswordForm.reset();
       await refreshIdentities();
     } catch (error) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to connect to server'),
+        text: getErrorMessage(error, m.settings_error_failed_connect_server()),
       });
     }
   };
@@ -254,13 +279,13 @@ function SettingsPage() {
         method: 'POST',
         body: { current_password: '', new_password: data.newPassword },
       });
-      setMessage({ type: 'success', text: 'Password set successfully!' });
+      setMessage({ type: 'success', text: m.settings_success_password_set() });
       setPasswordForm.reset();
       await refreshIdentities();
     } catch (error) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to connect to server'),
+        text: getErrorMessage(error, m.settings_error_failed_connect_server()),
       });
     }
   };
@@ -276,12 +301,15 @@ function SettingsPage() {
       );
 
       setUser((prev) => (prev ? { ...prev, username: result.username } : prev));
-      setMessage({ type: 'success', text: 'Username updated successfully!' });
+      setMessage({
+        type: 'success',
+        text: m.settings_success_username_updated(),
+      });
       changeUsernameForm.reset({ username: result.username });
     } catch (error) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to update username'),
+        text: getErrorMessage(error, m.settings_error_failed_update_username()),
       });
     }
   };
@@ -298,11 +326,14 @@ function SettingsPage() {
 
       const userData = await apiClient<UserInfo>('/api/v1/user/me');
       setUser(userData);
-      setMessage({ type: 'success', text: 'Profile updated successfully!' });
+      setMessage({
+        type: 'success',
+        text: m.settings_success_profile_updated(),
+      });
     } catch (error) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to update profile'),
+        text: getErrorMessage(error, m.settings_error_failed_update_profile()),
       });
     }
   };
@@ -311,12 +342,18 @@ function SettingsPage() {
     if (!confirm(m.alert_confirm_unlink())) return;
     try {
       await apiClient(`/api/v1/identities/${id}`, { method: 'DELETE' });
-      setMessage({ type: 'success', text: 'Login method unlinked.' });
+      setMessage({
+        type: 'success',
+        text: m.settings_success_login_method_unlinked(),
+      });
       await refreshIdentities();
     } catch (error) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to unlink login method'),
+        text: getErrorMessage(
+          error,
+          m.settings_error_failed_unlink_login_method(),
+        ),
       });
     }
   };
@@ -338,7 +375,10 @@ function SettingsPage() {
     } catch (error) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to start OAuth link flow'),
+        text: getErrorMessage(
+          error,
+          m.settings_error_failed_start_oauth_link_flow(),
+        ),
       });
     }
   };
@@ -347,7 +387,10 @@ function SettingsPage() {
     e.preventDefault();
     const name = passkeyName.trim();
     if (!name) {
-      setMessage({ type: 'error', text: 'Passkey name is required' });
+      setMessage({
+        type: 'error',
+        text: m.settings_error_passkey_name_required(),
+      });
       return;
     }
     try {
@@ -361,7 +404,10 @@ function SettingsPage() {
         method: 'POST',
         body: { credential, name },
       });
-      setMessage({ type: 'success', text: 'Passkey registered successfully!' });
+      setMessage({
+        type: 'success',
+        text: m.settings_success_passkey_registered(),
+      });
       setShowPasskeyModal(false);
       setPasskeyName('');
       const passkeysData = await apiClient<{ passkeys: PasskeyInfo[] }>(
@@ -372,7 +418,9 @@ function SettingsPage() {
       console.error('Passkey registration failed:', error);
       setMessage({
         type: 'error',
-        text: `Failed to register passkey: ${getErrorMessage(error, 'Unknown error')}`,
+        text: m.settings_error_register_passkey_failed({
+          error: getErrorMessage(error, m.settings_error_unknown_error()),
+        }),
       });
       setShowPasskeyModal(false);
       setPasskeyName('');
@@ -383,30 +431,27 @@ function SettingsPage() {
     if (!confirm(m.alert_confirm_delete_passkey({ name }))) return;
     try {
       await apiClient(`/api/v1/passkey/${id}`, { method: 'DELETE' });
-      setMessage({ type: 'success', text: 'Passkey deleted successfully!' });
+      setMessage({
+        type: 'success',
+        text: m.settings_success_passkey_deleted(),
+      });
       setPasskeys(passkeys.filter((p) => p.id !== id));
     } catch (error) {
       setMessage({
         type: 'error',
-        text: `Failed to delete passkey: ${getErrorMessage(error, 'Unknown error')}`,
+        text: m.settings_error_delete_passkey_failed({
+          error: getErrorMessage(error, m.settings_error_unknown_error()),
+        }),
       });
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-full p-4 bg-background">
-        <Card className="border-0 shadow-lg">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="text-muted-foreground">
-                {m.profile_loading()}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <PageLoader
+        title={m.profile_loading()}
+        icon={<BeaconIcon className="size-6 text-primary" />}
+      />
     );
   }
 
@@ -450,15 +495,19 @@ function SettingsPage() {
         {message && (
           <Alert
             variant={message.type === 'success' ? 'default' : 'destructive'}
-            className="mb-8 shadow-sm"
+            className={
+              message.type === 'success'
+                ? 'mb-8 shadow-sm border-green-500/20 bg-green-500/5'
+                : 'mb-8 shadow-sm'
+            }
           >
-            <AlertDescription className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-xl">
-                  {message.type === 'success' ? '✓' : '✗'}
-                </span>
-                <p className="font-medium">{message.text}</p>
-              </div>
+            {message.type === 'success' ? (
+              <CheckCircle2 className="text-green-600 dark:text-green-400" />
+            ) : (
+              <XCircle />
+            )}
+            <AlertDescription className="flex items-center justify-between gap-4">
+              <p className="font-medium text-foreground">{message.text}</p>
               <Button
                 variant="ghost"
                 size="sm"
@@ -521,7 +570,7 @@ function SettingsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                aria-label="Email info"
+                                aria-label={m.aria_email_info()}
                               >
                                 <Lightbulb className="h-4 w-4 text-muted-foreground" />
                               </Button>
@@ -628,7 +677,7 @@ function SettingsPage() {
                                     role="img"
                                     className="h-4 w-4"
                                     viewBox="0 0 24 24"
-                                    aria-label="Microsoft"
+                                    aria-label={m.provider_microsoft()}
                                   >
                                     <path fill="#F25022" d="M2 2h9v9H2z" />
                                     <path fill="#7FBA00" d="M13 2h9v9h-9z" />
@@ -818,7 +867,7 @@ function SettingsPage() {
                                       role="img"
                                       className="h-5 w-5"
                                       viewBox="0 0 24 24"
-                                      aria-label="Microsoft"
+                                      aria-label={m.provider_microsoft()}
                                     >
                                       <path fill="#F25022" d="M2 2h9v9H2z" />
                                       <path fill="#7FBA00" d="M13 2h9v9h-9z" />
@@ -831,7 +880,7 @@ function SettingsPage() {
                                 </div>
                                 <div>
                                   <h3 className="font-semibold capitalize">
-                                    {i.provider}
+                                    {formatProviderLabel(i.provider)}
                                   </h3>
                                   <p className="text-xs text-muted-foreground break-all">
                                     {i.provider_user_id}
@@ -843,7 +892,7 @@ function SettingsPage() {
                                 size="icon"
                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => handleUnlinkIdentity(i.id)}
-                                title="Unlink"
+                                title={m.settings_unlink()}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -887,7 +936,7 @@ function SettingsPage() {
                               role="img"
                               className="h-4 w-4"
                               viewBox="0 0 24 24"
-                              aria-label="Microsoft"
+                              aria-label={m.provider_microsoft()}
                             >
                               <path fill="#F25022" d="M2 2h9v9H2z" />
                               <path fill="#7FBA00" d="M13 2h9v9h-9z" />
@@ -1020,8 +1069,7 @@ function SettingsPage() {
                   >
                     <Alert className="mb-4 bg-primary/5 border-primary/10">
                       <AlertDescription>
-                        You currently log in with social accounts. Set a
-                        password to log in with username/password as well.
+                        {m.settings_alert_set_password_info()}
                       </AlertDescription>
                     </Alert>
                     <div className="space-y-2">

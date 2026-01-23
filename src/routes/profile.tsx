@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { CheckCircle, Gamepad2, Loader2, Shield } from 'lucide-react';
+import {
+  CheckCircle,
+  CheckCircle2,
+  Gamepad2,
+  Shield,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
@@ -14,6 +20,7 @@ import {
   CardDescription,
   CardTitle,
 } from '@/components/ui/card';
+import { PageLoader } from '@/components/ui/page-loader';
 import * as m from '@/paraglide/messages';
 import { type ApiError, apiClient, queryKeys } from '../utils/api';
 
@@ -83,18 +90,10 @@ function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-full p-4 bg-background">
-        <Card className="border-0 shadow-lg">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="text-muted-foreground">
-                {m.profile_loading()}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <PageLoader
+        title={m.profile_loading()}
+        icon={<BeaconIcon className="size-6 text-primary" />}
+      />
     );
   }
 
@@ -137,13 +136,21 @@ function ProfilePage() {
             variant={
               statusMessage.type === 'success' ? 'default' : 'destructive'
             }
-            className="mb-8 shadow-sm"
+            className={
+              statusMessage.type === 'success'
+                ? 'mb-8 shadow-sm border-green-500/20 bg-green-500/5'
+                : 'mb-8 shadow-sm'
+            }
           >
-            <AlertDescription className="flex items-center gap-3">
-              <span className="text-xl">
-                {statusMessage.type === 'success' ? '✓' : '✗'}
-              </span>
-              <p className="font-medium">{statusMessage.text}</p>
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="text-green-600 dark:text-green-400" />
+            ) : (
+              <XCircle />
+            )}
+            <AlertDescription>
+              <p className="font-medium text-foreground">
+                {statusMessage.text}
+              </p>
             </AlertDescription>
           </Alert>
         )}
@@ -177,7 +184,7 @@ function ProfilePage() {
                 {m.profile_user_role()}
               </Badge>
               <span className="flex items-center gap-2 text-sm font-mono bg-muted/50 px-3 py-1 rounded-full">
-                ID: {user.id}
+                {m.profile_account_id()}: {user.id}
               </span>
             </div>
           </div>

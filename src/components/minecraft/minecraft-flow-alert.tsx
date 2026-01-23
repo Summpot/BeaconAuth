@@ -1,6 +1,7 @@
 import { Gamepad2 } from 'lucide-react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import * as m from '@/paraglide/messages';
 
 export interface MinecraftFlowAlertProps {
   title: string;
@@ -24,11 +25,15 @@ export function MinecraftFlowAlert({
           <span className="text-primary font-medium">{title}</span>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Challenge:</span>
+              <span className="text-muted-foreground">
+                {m.minecraft_flow_label_challenge()}
+              </span>
               <span className="text-foreground font-mono text-xs">{short}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Port:</span>
+              <span className="text-muted-foreground">
+                {m.minecraft_flow_label_port()}
+              </span>
               <span className="text-foreground">{redirectPort}</span>
             </div>
           </div>

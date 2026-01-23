@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
+import * as m from '@/paraglide/messages';
 
 function ErrorPage() {
   return (
@@ -11,16 +12,18 @@ function ErrorPage() {
           <CardContent className="p-8">
             <div className="text-center">
               <div className="text-6xl mb-4">⚠️</div>
-              <h1 className="text-2xl font-bold mb-4">Invalid Request</h1>
+              <h1 className="text-2xl font-bold mb-4">
+                {m.error_page_invalid_request_title()}
+              </h1>
               <p className="text-muted-foreground mb-4">
-                This page requires valid challenge and redirect_port parameters.
+                {m.error_page_invalid_request_desc_line1()}
                 <br />
-                Please access this page through the Minecraft mod.
+                {m.error_page_invalid_request_desc_line2()}
               </p>
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Missing required parameters in URL
+                  {m.error_page_missing_required_params()}
                 </AlertDescription>
               </Alert>
             </div>

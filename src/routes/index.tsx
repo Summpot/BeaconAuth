@@ -33,7 +33,7 @@ export function HomePage() {
         <div className="container mx-auto px-6 relative z-10 text-center">
           <div className="inline-flex items-center justify-center p-2 mb-8 rounded-full bg-secondary/50 border border-border backdrop-blur-sm">
             <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 rounded-full mr-2">
-              New
+              {m.home_badge_new()}
             </span>
             <span className="text-sm text-muted-foreground mr-2">
               {m.feature_passkeys_desc()}
@@ -213,7 +213,7 @@ export function HomePage() {
               <BeaconIcon className="w-8 h-8 text-muted-foreground" />
               <div className="flex flex-col">
                 <span className="font-semibold text-foreground">
-                  BeaconAuth
+                  {m.app_name()}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   © 2026 Summpot

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import * as m from '@/paraglide/messages';
 import { ApiError, apiClient, queryKeys } from '../utils/api';
 
 const searchParamsSchema = z.object({
@@ -26,26 +27,31 @@ const searchParamsSchema = z.object({
 
 type SearchParams = z.infer<typeof searchParamsSchema>;
 
-const registerFormSchema = z
-  .object({
-    username: z
-      .string()
-      .trim()
-      .min(3, 'Username must be at least 3 characters')
-      .max(16, 'Username must be at most 16 characters')
-      .regex(
-        /^[A-Za-z0-9_]+$/,
-        'Username can only contain letters, numbers, and underscore',
-      ),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  });
+const makeRegisterFormSchema = () =>
+  z
+    .object({
+      username: z
+        .string()
+        .trim()
+        .min(3, m.settings_validation_username_min_length({ min: 3 }))
+        .max(16, m.settings_validation_username_max_length({ max: 16 }))
+        .regex(
+          /^[A-Za-z0-9_]+$/,
+          m.settings_validation_username_invalid_chars(),
+        ),
+      password: z
+        .string()
+        .min(6, m.settings_validation_password_min_length({ min: 6 })),
+      confirmPassword: z
+        .string()
+        .min(1, m.settings_validation_confirm_password_required()),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: m.settings_validation_passwords_dont_match(),
+      path: ['confirmPassword'],
+    });
 
-type RegisterFormData = z.infer<typeof registerFormSchema>;
+type RegisterFormData = z.infer<ReturnType<typeof makeRegisterFormSchema>>;
 
 function RegisterPage() {
   const searchParams = Route.useSearch();
@@ -54,9 +60,8 @@ function RegisterPage() {
   const getErrorMessage = (error: unknown, fallback: string) => {
     if (error instanceof ApiError) {
       const data = error.data as { message?: string } | undefined;
-      return data?.message ?? error.message;
+      return data?.message ?? fallback;
     }
-    if (error instanceof Error) return error.message;
     return fallback;
   };
 
@@ -66,7 +71,7 @@ function RegisterPage() {
     formState: { errors, isSubmitting },
     setError,
   } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerFormSchema),
+    resolver: zodResolver(makeRegisterFormSchema()),
   });
 
   const onSubmit = async (data: RegisterFormData) => {
@@ -79,7 +84,7 @@ function RegisterPage() {
     } catch (error) {
       setError('root', {
         type: 'manual',
-        message: getErrorMessage(error, 'Registration failed'),
+        message: getErrorMessage(error, m.register_error_registration_failed()),
       });
       return;
     }
@@ -111,7 +116,7 @@ function RegisterPage() {
     } catch (error) {
       setError('root', {
         type: 'manual',
-        message: getErrorMessage(error, 'Failed to complete registration'),
+        message: getErrorMessage(error, m.register_error_complete_failed()),
       });
     }
   };
@@ -126,15 +131,17 @@ function RegisterPage() {
                 <BeaconIcon className="w-16 h-16" accentColor="#a855f7" />
               </div>
               <CardTitle className="text-3xl font-bold">
-                Create Account
+                {m.button_create_account()}
               </CardTitle>
-              <CardDescription>Join the BeaconAuth community</CardDescription>
+              <CardDescription>
+                {m.register_description_join_community()}
+              </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
               {searchParams.challenge && searchParams.redirect_port && (
                 <MinecraftFlowAlert
-                  title="Minecraft Registration"
+                  title={m.register_minecraft_title()}
                   challenge={searchParams.challenge}
                   redirectPort={searchParams.redirect_port}
                 />
@@ -146,7 +153,7 @@ function RegisterPage() {
                 className="space-y-4"
               >
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="username">{m.login_username_label()}</Label>
                   <Input
                     id="username"
                     type="text"
@@ -155,7 +162,7 @@ function RegisterPage() {
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
-                    placeholder="Choose a username"
+                    placeholder={m.register_username_placeholder()}
                     disabled={isSubmitting}
                     className="bg-background/50 border-input"
                   />
@@ -167,14 +174,14 @@ function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">{m.login_password_label()}</Label>
                   <Input
                     id="password"
                     type="password"
                     {...register('password')}
                     autoComplete="new-password"
                     minLength={6}
-                    placeholder="Create a password (min 6 chars)"
+                    placeholder={m.settings_create_password_placeholder()}
                     disabled={isSubmitting}
                     className="bg-background/50 border-input"
                   />
@@ -186,14 +193,16 @@ function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword">
+                    {m.settings_confirm_password_simple()}
+                  </Label>
                   <Input
                     id="confirmPassword"
                     type="password"
                     {...register('confirmPassword')}
                     autoComplete="new-password"
                     minLength={6}
-                    placeholder="Confirm your password"
+                    placeholder={m.settings_confirm_password_simple_placeholder()}
                     disabled={isSubmitting}
                     className="bg-background/50 border-input"
                   />
@@ -218,17 +227,17 @@ function RegisterPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating Account...
+                      {m.register_button_creating_account()}
                     </>
                   ) : (
-                    'Create Account'
+                    m.button_create_account()
                   )}
                 </Button>
               </form>
 
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
-                  Already have an account?{' '}
+                  {m.register_already_have_account()}{' '}
                   <Link
                     to="/login"
                     search={{
@@ -237,7 +246,7 @@ function RegisterPage() {
                     }}
                     className="text-primary hover:text-primary/80 font-medium transition-colors"
                   >
-                    Sign in
+                    {m.login_button_signin()}
                   </Link>
                 </p>
               </div>
@@ -246,7 +255,7 @@ function RegisterPage() {
 
           <div className="mt-6 text-center">
             <p className="text-xs text-muted-foreground">
-              🔒 Your password is stored securely
+              {m.register_password_stored_securely()}
             </p>
           </div>
         </div>
