@@ -1,18 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import {
-  CheckCircle,
-  Gamepad2,
-  Loader2,
-  LogOut,
-  Settings,
-  Shield,
-} from 'lucide-react';
+import { CheckCircle, Gamepad2, Loader2, Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
-import { LanguageToggle } from '@/components/language-toggle';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -49,7 +40,6 @@ function ProfilePage() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const {
@@ -63,17 +53,6 @@ function ProfilePage() {
     retry: (failureCount, err) => {
       if (err?.status === 401) return false;
       return failureCount < 1;
-    },
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiClient('/api/v1/logout', { method: 'POST' });
-    },
-    onSuccess: () => {
-      // Ensure we don't get stuck rendering a logged-out /profile state.
-      queryClient.removeQueries({ queryKey: queryKeys.userMe() });
-      navigate({ to: '/login', replace: true });
     },
   });
 
@@ -102,11 +81,9 @@ function ProfilePage() {
     }
   }, [error, isFetching, isLoading, navigate, user]);
 
-  const handleLogout = () => logoutMutation.mutate();
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4 bg-background">
+      <div className="flex items-center justify-center min-h-full p-4 bg-background">
         <Card className="border-0 shadow-lg">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-4">
@@ -123,7 +100,7 @@ function ProfilePage() {
 
   if (error && error.status !== 401) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-6 bg-background">
+      <div className="flex items-center justify-center min-h-full p-6 bg-background">
         <div className="w-full max-w-md">
           <Card className="text-center shadow-lg border-muted">
             <CardContent className="pt-10 pb-10">
@@ -153,50 +130,7 @@ function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3 group">
-              <BeaconIcon className="w-8 h-8 text-primary" />
-              <span className="text-xl text-primary font-bold">BeaconAuth</span>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                <Link to="/settings">
-                  <Settings className="h-4 w-4 mr-2" />
-                  {m.profile_nav_settings()}
-                </Link>
-              </Button>
-              <Link to="/settings" className="sm:hidden">
-                <Button variant="ghost" size="icon">
-                  <Settings className="h-5 w-5" />
-                </Button>
-              </Link>
-              <ThemeToggle />
-              <LanguageToggle />
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200 dark:border-red-900/50"
-                onClick={handleLogout}
-                disabled={logoutMutation.isPending}
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">
-                  {logoutMutation.isPending
-                    ? m.profile_logging_out()
-                    : m.profile_logout()}
-                </span>
-                <span className="sm:hidden">
-                  {m.profile_logout().split(' ')[0]}
-                </span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
+    <div className="min-h-full bg-background pb-20">
       <div className="container max-w-5xl mx-auto px-4 md:px-6 pt-12">
         {statusMessage && (
           <Alert

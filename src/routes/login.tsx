@@ -8,14 +8,12 @@ import {
 } from '@simplewebauthn/browser';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronLeft, KeyRound, Loader2 } from 'lucide-react';
+import { KeyRound, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
-import { LanguageToggle } from '@/components/language-toggle';
 import { MinecraftFlowAlert } from '@/components/minecraft/minecraft-flow-alert';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -318,7 +316,7 @@ function LoginPage() {
 
   if (configLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4">
+      <div className="flex items-center justify-center min-h-full p-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-4">
@@ -332,21 +330,7 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="p-4 flex items-center justify-between">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          {m.login_back_home()}
-        </Link>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <LanguageToggle />
-        </div>
-      </div>
-
+    <div className="min-h-full flex flex-col">
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <Card>

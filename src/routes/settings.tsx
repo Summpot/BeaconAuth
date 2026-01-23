@@ -5,7 +5,6 @@ import {
 } from '@simplewebauthn/browser';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
-  ChevronLeft,
   Chrome,
   Github,
   Key,
@@ -20,8 +19,6 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
-import { LanguageToggle } from '@/components/language-toggle';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -398,7 +395,7 @@ function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4 bg-background">
+      <div className="flex items-center justify-center min-h-full p-4 bg-background">
         <Card className="border-0 shadow-lg">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-4">
@@ -415,7 +412,7 @@ function SettingsPage() {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4 bg-background">
+      <div className="flex items-center justify-center min-h-full p-4 bg-background">
         <div className="w-full max-w-md">
           <Card className="text-center shadow-lg border-muted">
             <CardContent className="pt-8 pb-8">
@@ -439,35 +436,7 @@ function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3 group">
-              <BeaconIcon className="w-8 h-8 text-primary" />
-              <span className="text-xl text-primary font-bold">
-                {m.app_name()}
-              </span>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                <Link to="/profile">
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  {m.settings_nav_profile()}
-                </Link>
-              </Button>
-              <Link to="/profile" className="sm:hidden">
-                <Button variant="ghost" size="icon">
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-              </Link>
-              <ThemeToggle />
-              <LanguageToggle />
-            </div>
-          </div>
-        </div>
-      </nav>
-
+    <div className="min-h-full bg-background pb-20">
       <div className="container max-w-5xl mx-auto px-4 md:px-6 pt-12">
         <div className="mb-10">
           <h1 className="text-3xl font-extrabold tracking-tight mb-2">

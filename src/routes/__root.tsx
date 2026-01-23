@@ -10,6 +10,7 @@ import {
 import { defineI18nUI } from 'fumadocs-ui/i18n';
 import { RootProvider } from 'fumadocs-ui/provider/tanstack';
 import { type ReactNode, useState } from 'react';
+import { AppNavbar } from '@/components/app-navbar';
 import { ThemeProvider } from '@/components/theme-provider';
 import { i18n } from '@/lib/i18n';
 import { AnimatePresence, MotionConfig, motion } from '@/lib/motion';
@@ -48,25 +49,29 @@ function RootComponent() {
   );
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const showNavbar = !pathname.startsWith('/docs');
 
   return (
     <RootDocument>
       <ThemeProvider defaultTheme="system" storageKey="beaconauth-ui-theme">
         <QueryClientProvider client={queryClient}>
           <MotionConfig reducedMotion="user">
-            <div className="min-h-screen bg-background text-foreground relative">
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  // Keyed by pathname so route changes animate.
-                  key={pathname}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                >
-                  <Outlet />
-                </motion.div>
-              </AnimatePresence>
+            <div className="min-h-screen bg-background text-foreground relative flex flex-col">
+              {showNavbar ? <AppNavbar /> : null}
+              <main className="flex-1">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    // Keyed by pathname so route changes animate.
+                    key={pathname}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                  >
+                    <Outlet />
+                  </motion.div>
+                </AnimatePresence>
+              </main>
             </div>
           </MotionConfig>
         </QueryClientProvider>

@@ -2,8 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Gamepad2, Github, KeyRound, Shield } from 'lucide-react';
 import { BeaconIcon } from '@/components/beacon-icon';
-import { LanguageToggle } from '@/components/language-toggle';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import * as m from '@/paraglide/messages';
@@ -29,63 +27,9 @@ export function HomePage() {
   });
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3 group">
-              <BeaconIcon className="w-8 h-8 text-primary transition-transform group-hover:scale-110" />
-              <span className="text-xl font-bold tracking-tight">
-                {m.app_name()}
-              </span>
-            </Link>
-
-            <div className="flex items-center gap-4">
-              {user ? (
-                <>
-                  <Link to="/profile">
-                    <Button variant="ghost">{user.username}</Button>
-                  </Link>
-                  <Link to="/settings">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={m.nav_settings()}
-                    >
-                      <ThemeToggle />
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link to="/login">
-                    <Button variant="ghost">{m.nav_login()}</Button>
-                  </Link>
-                  <Link to="/register">
-                    <Button>{m.nav_get_started()}</Button>
-                  </Link>
-                </>
-              )}
-              <a
-                href="https://github.com/Summpot/beacon_auth"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden md:block"
-              >
-                <Button variant="ghost" size="icon">
-                  <Github className="h-5 w-5" />
-                </Button>
-              </a>
-              <ThemeToggle />
-              <LanguageToggle />
-            </div>
-          </div>
-        </div>
-      </nav>
-
+    <div className="min-h-full bg-background text-foreground selection:bg-primary/20">
       {/* Hero Section */}
-      <section className="relative pt-32 pb-24 md:pt-48 md:pb-32 overflow-hidden">
+      <section className="relative pt-20 pb-24 md:pt-32 md:pb-32 overflow-hidden">
         <div className="container mx-auto px-6 relative z-10 text-center">
           <div className="inline-flex items-center justify-center p-2 mb-8 rounded-full bg-secondary/50 border border-border backdrop-blur-sm">
             <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 rounded-full mr-2">
@@ -154,8 +98,8 @@ export function HomePage() {
 
         {/* Abstract Background Elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-          <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl opacity-50" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-3xl opacity-50" />
+          <div className="absolute top-[-10%] right-[-5%] w-125 h-125 bg-primary/5 rounded-full blur-3xl opacity-50" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-150 h-150 bg-purple-500/5 rounded-full blur-3xl opacity-50" />
         </div>
       </section>
 
