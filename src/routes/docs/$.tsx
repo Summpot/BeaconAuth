@@ -84,7 +84,7 @@ function Page() {
               <div className="h-8 w-64 rounded bg-muted/60 animate-pulse" />
               <div className="h-4 w-96 max-w-full rounded bg-muted/60 animate-pulse" />
               <div className="h-4 w-80 max-w-full rounded bg-muted/60 animate-pulse" />
-              <div className="h-4 w-[28rem] max-w-full rounded bg-muted/60 animate-pulse" />
+              <div className="h-4 w-md max-w-full rounded bg-muted/60 animate-pulse" />
             </div>
           </div>
         }

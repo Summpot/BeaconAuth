@@ -1,0 +1,39 @@
+{
+  "chat.beaconauth.welcome": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.welcome_title": "§6✦ §e歡迎來到伺服器!",
+  "chat.beaconauth.login_prompt": "§a[BeaconAuth] 請點擊此處登入。",
+  "chat.beaconauth.divider": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.authenticated": "§a✓ 您已通過身分驗證，歡迎回來!",
+  "chat.beaconauth.login_click": "§a[點擊此處登入]",
+  "chat.beaconauth.login_url": "§7或複製連結: %s",
+  "chat.beaconauth.success": "§a✓ 驗證成功: %s",
+  "chat.beaconauth.failed": "§c✗ 驗證失敗: %s",
+  "chat.beaconauth.server_not_ready": "§c驗證伺服器未啟動，無法登入",
+  "chat.beaconauth.generating_url": "§7正在產生登入連結...",
+  "chat.beaconauth.auto_login": "§7正在自動登入...",
+  "chat.beaconauth.login_cancelled": "§c驗證已取消",
+
+  "command.beaconauth.must_be_player": "此指令必須由玩家執行",
+  "command.beaconauth.login_failed": "啟動登入失敗: %s",
+  "command.beaconauth.login_request_sent": "§7已向您的客戶端送出登入請求",
+
+  "html.beaconauth.success.title": "登入成功",
+  "html.beaconauth.success.heading": "登入成功！",
+  "html.beaconauth.success.message": "您可以關閉此頁面並返回遊戲",
+  "html.beaconauth.error.title": "登入錯誤",
+  "html.beaconauth.error.heading": "登入錯誤",
+
+  "server.beaconauth.player_joined": "玩家 %s 加入了伺服器",
+  "server.beaconauth.not_authenticated": "玩家 %s 未驗證",
+  "server.beaconauth.already_authenticated": "玩家 %s 已驗證",
+  "server.beaconauth.auth_successful": "✓ 玩家 %s 驗證成功 (使用者: %s, ID: %s)",
+  "server.beaconauth.auth_failed": "✗ 玩家 %s 驗證失敗: %s",
+
+  "disconnect.beaconauth.timeout": "等待 BeaconAuth 驗證時逾時",
+  "disconnect.beaconauth.mod_required": "此伺服器在離線模式下需要安裝 BeaconAuth 模組",
+  "disconnect.beaconauth.invalid_init": "BeaconAuth 登入初始化資料無效",
+  "disconnect.beaconauth.server_error": "BeaconAuth 伺服器錯誤。請稍後再試",
+  "disconnect.beaconauth.invalid_verify": "BeaconAuth 驗證資料無效",
+  "disconnect.beaconauth.failure": "BeaconAuth 驗證失敗: %s",
+  "disconnect.beaconauth.cancelled": "驗證已取消: %s"
+}

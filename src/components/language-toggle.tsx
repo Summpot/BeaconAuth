@@ -31,6 +31,9 @@ export function LanguageToggle() {
         <DropdownMenuItem onClick={() => setLocale('ja')}>
           日本語
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLocale('ko')}>
+          한국어
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocale('zh-CN')}>
           中文 (简体)
         </DropdownMenuItem>

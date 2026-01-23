@@ -1,0 +1,110 @@
+---
+title: 개발 가이드
+description: 로컬 설정, 빌드, 테스트.
+---
+
+## 프로젝트 구조
+
+```
+beacon_auth/
+├── crates/                      # Rust workspace
+│   ├── beacon/                  # Main server binary
+│   ├── beacon-core/             # Shared core logic
+│   ├── beacon-worker/           # Cloudflare Worker (wasm)
+│   ├── beacon-lambda/           # Serverless runtime
+│   ├── beacon-passkey/          # WebAuthn/passkey logic
+│   ├── beacon-frontend-embed/   # Embeddable frontend
+│   ├── entity/                  # SeaORM entities
+│   └── migration/               # Database migrations
+├── src/                         # Frontend (React)
+├── modSrc/                      # Minecraft mod (Kotlin/Gradle)
+├── content/docs/                # Fumadocs documentation
+├── public/                      # Static assets
+├── Cargo.toml                   # Rust workspace definition
+└── package.json                 # Frontend dependencies
+```
+
+## 개발 환경 설정
+
+### 인증 서버 + UI
+
+```bash
+# 프론트엔드 의존성 설치
+pnpm install
+
+# 터미널 1: UI 실행
+pnpm dev
+
+# 터미널 2: 서버 실행
+cargo run --bin beacon serve
+```
+
+- UI: `http://localhost:5173`
+- API: `http://localhost:8080`
+
+### 모드 개발
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+개발 서버/클라이언트 실행:
+
+```bash
+# Fabric
+./gradlew :fabric:runServer
+./gradlew :fabric:runClient
+
+# Forge
+./gradlew :forge:runServer
+./gradlew :forge:runClient
+```
+
+## 컴포넌트 빌드
+
+### Rust 워크스페이스
+
+```bash
+cargo build --workspace
+```
+
+### 프론트엔드만
+
+```bash
+pnpm build
+```
+
+### 모드
+
+```bash
+cd modSrc
+./gradlew build
+```
+
+산출물:
+
+- Fabric: `modSrc/fabric/build/libs/beaconauth-fabric-*.jar`
+- Forge: `modSrc/forge/build/libs/beaconauth-forge-*.jar`
+- NeoForge: `modSrc/neoforge*/build/libs/*.jar`
+
+## 테스트
+
+### Rust
+
+```bash
+cargo test --workspace
+```
+
+### 프론트엔드
+
+```bash
+pnpm test
+```
+
+### 모드
+
+```bash
+cd modSrc
+./gradlew test
+```

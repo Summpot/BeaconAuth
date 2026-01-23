@@ -1,0 +1,74 @@
+---
+title: 시작하기
+description: 로컬 또는 프로덕션에서 BeaconAuth를 빠르게 실행하는 방법.
+---
+
+## Docker 사용 (권장)
+
+```bash
+# 최신 이미지 받기
+docker pull ghcr.io/summpot/beacon_auth:latest
+
+# 서버 실행
+docker run -d --name beaconauth \
+  -p 8080:8080 \
+  -v $(pwd)/data:/app/data \
+  -e DATABASE_URL=sqlite:///app/data/beacon_auth.db \
+  ghcr.io/summpot/beacon_auth:latest
+```
+
+서버는 `http://localhost:8080` 에서 접근할 수 있습니다.
+
+## 사전 빌드 바이너리 사용
+
+GitHub Releases 페이지에서 플랫폼에 맞는 최신 릴리스를 다운로드하세요.
+
+**Linux (amd64)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+**Windows (amd64)**:
+
+```powershell
+# zip 파일 다운로드 및 압축 해제
+# PowerShell에서 실행:
+.\beacon.exe serve
+```
+
+**macOS (Apple Silicon)**:
+
+```bash
+wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
+tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
+chmod +x beacon
+./beacon serve
+```
+
+## 소스에서 빌드
+
+### 준비물
+
+- Rust (stable)
+- Node.js (LTS)
+- pnpm
+
+### 빌드 단계
+
+```bash
+# 저장소 클론
+git clone https://github.com/Summpot/beacon_auth.git
+cd beacon_auth
+
+# 프론트엔드 의존성 설치
+pnpm install
+
+# Rust 워크스페이스 빌드
+cargo build --workspace --release
+```
+
+바이너리는 `target/release/beacon` 에 생성됩니다.

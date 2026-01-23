@@ -1,0 +1,79 @@
+---
+title: Cloudflare 배포
+description: UI를 Pages에, API를 Worker에 배포합니다.
+---
+
+## 개요
+
+BeaconAuth는 분리 배포를 지원합니다:
+
+- **Cloudflare Pages**: React UI
+- **Cloudflare Worker** (`crates/beacon-worker`): API
+
+두 배포는 `wrangler.jsonc` 와 `wrangler.workers.jsonc` 모두에서 동일한 프로젝트 이름(`name`)을
+공유합니다(이 저장소의 CI가 이를 검사합니다).
+
+## Wrangler 설정 파일
+
+- `wrangler.jsonc`: Cloudflare Pages 설정(UI 빌드 산출물은 `dist/`)
+- `wrangler.workers.jsonc`: Cloudflare Worker 설정(wasm 빌드 산출물)
+
+## CI 워크플로
+
+- `.github/workflows/deploy-cloudflare-pages.yml`: UI 배포
+- `.github/workflows/deploy-cloudflare-worker.yml`: API Worker 배포 및 마이그레이션 적용
+
+### 필요한 시크릿 (Pages)
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+선택:
+
+- `SENTRY_AUTH_TOKEN`
+
+### 필요한 시크릿 (Worker)
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `TURSO_PLATFORM_API_TOKEN`
+- `TURSO_ORG_SLUG`
+- `TURSO_DB_NAME`
+
+선택:
+
+- `TURSO_GROUP` (기본값 `default`)
+- `CLOUDFLARE_WORKER_BASE_URL` (기본값 `https://<name>.pages.dev`)
+- `CLOUDFLARE_WORKER_LIBSQL_URL` (Turso API 대신 libSQL URL을 직접 지정)
+- `CLOUDFLARE_WORKER_LIBSQL_AUTH_TOKEN`
+- `CLOUDFLARE_MIGRATIONS_API_TOKEN` (`/v1/admin/migrations/up`용)
+- OAuth 제공자 시크릿(아래 참고)
+
+### OAuth용 Worker 시크릿(선택)
+
+- `CLOUDFLARE_WORKER_GITHUB_CLIENT_ID`
+- `CLOUDFLARE_WORKER_GITHUB_CLIENT_SECRET`
+- `CLOUDFLARE_WORKER_GOOGLE_CLIENT_ID`
+- `CLOUDFLARE_WORKER_GOOGLE_CLIENT_SECRET`
+- `CLOUDFLARE_WORKER_MICROSOFT_CLIENT_ID`
+- `CLOUDFLARE_WORKER_MICROSOFT_CLIENT_SECRET`
+- `CLOUDFLARE_WORKER_MICROSOFT_TENANT`
+
+## 단일 오리진 라우팅 (선택)
+
+UI와 API가 단일 오리진을 공유하도록 하고 싶다면, 이 저장소는 Nitro 서버 엔트리를 통해 이미 이를
+지원합니다.
+
+- 서버 엔트리는 `src/server.ts` 에 있습니다.
+- Nitro는 빌드 시 Cloudflare Pages worker 번들(`_worker.js`)을 자동으로 생성합니다.
+	수동으로 Pages worker 엔트리 파일을 만들 필요가 없습니다.
+- Pages 프로젝트에 `BACKEND` 라는 서비스 바인딩을 만들고 API Worker를 가리키도록 설정하세요
+	(`wrangler.jsonc` 참고).
+
+기본적으로 서버 엔트리는 경로가 `/api/`, `/v1/`, 또는 `/.well-known/` 로 시작하는 요청을
+`env.BACKEND` 로 프록시하고, 그 외에는 UI를 제공합니다.
+
+## 참고
+
+- Worker 배포는 libSQL/Turso를 사용합니다(`LIBSQL_URL`, `LIBSQL_AUTH_TOKEN` 설정).
+- 마이그레이션은 CI에서 Worker 엔드포인트 `POST /v1/admin/migrations/up` 를 통해 적용됩니다.

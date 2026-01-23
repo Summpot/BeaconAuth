@@ -27,26 +27,44 @@ const { provider } = defineI18nUI(i18n, {
     'zh-CN': {
       displayName: '简体中文',
       search: '搜索',
+      toc: '本页目录',
+      chooseLanguage: '选择语言',
     },
     'zh-TW': {
       displayName: '繁體中文',
       search: '搜尋',
+      toc: '本頁目錄',
+      chooseLanguage: '選擇語言',
     },
     fr: {
       displayName: 'Français',
       search: 'Recherche',
+      toc: 'Sur cette page',
+      chooseLanguage: 'Choisir la langue',
     },
     de: {
       displayName: 'Deutsch',
       search: 'Suche',
+      toc: 'Auf dieser Seite',
+      chooseLanguage: 'Sprache auswählen',
     },
     ja: {
       displayName: '日本語',
       search: '検索',
+      toc: 'このページの内容',
+      chooseLanguage: '言語を選択',
+    },
+    ko: {
+      displayName: '한국어',
+      search: '검색',
+      toc: '이 페이지의 목차',
+      chooseLanguage: '언어 선택',
     },
     en: {
       displayName: 'English',
       search: 'Search',
+      toc: 'On this page',
+      chooseLanguage: 'Choose language',
     },
   },
 });

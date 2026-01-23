@@ -1,0 +1,41 @@
+---
+title: 문제 해결
+description: 자주 발생하는 문제와 해결 방법.
+---
+
+## 서버가 시작되지 않음 (데이터베이스 오류)
+
+```bash
+# 데이터베이스 디렉터리가 존재하는지 확인
+mkdir -p data
+
+# 마이그레이션 실행
+beacon migrate --database-url sqlite://./data/beacon_auth.db
+```
+
+## 모드 인증 실패
+
+1. `config/beaconauth-server.toml` 의 `authentication.base_url` 이 배포된 `BASE_URL` 과 일치하는지 확인합니다.
+2. JWKS 엔드포인트에 접근 가능한지 확인합니다:
+   - 기본값: `${base_url}/.well-known/jwks.json`
+3. JKU가 활성화되어 있다면, JWT `jku` 호스트가 allowlist에 포함되어 있고 `https://` 를 사용하는지 확인합니다.
+4. 서버 로그에서 `[BeaconAuth]` 관련 로그를 확인합니다.
+
+## 멀티플레이 채팅이 전송되지 않음 (보안 채팅)
+
+Minecraft 1.19+는 서명된 채팅을 사용합니다. BeaconAuth 사용자는 Mojang 서명 키를 가지지 않습니다.
+BeaconAuth는 BeaconAuth 인증 세션에 대해 서명되지 않은 채팅 패킷을 보내고, 지원되는 빌드에서는
+"secure profile" 강제 적용을 비활성화합니다. 동일한 Minecraft 버전에 맞는 모드가 클라이언트와
+서버 모두에 설치되어 있는지 확인하세요.
+
+## 게임 내 표시되는 유저명이 BeaconAuth 유저명이 아님
+
+BeaconAuth는 JWT claim `username` 을 통해 별도의 Minecraft 유저명을 제공할 수 있습니다.
+이 값이 없거나 유효하지 않으면, 게임은 런처에서 제공된 이름으로 되돌아갑니다.
+
+## OAuth 리다이렉트 실패
+
+1. OAuth 콜백 URL이 정확히 일치하는지 확인합니다:
+   - `${BASE_URL}/api/v1/oauth/callback`
+2. `BASE_URL` 이 올바르게 설정되어 있는지 확인합니다.
+3. 프로덕션에서는 HTTPS를 사용하세요.
