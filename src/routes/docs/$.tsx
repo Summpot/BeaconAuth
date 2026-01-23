@@ -14,6 +14,7 @@ import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { Suspense } from 'react';
 import { baseOptions } from '@/lib/layout.shared';
 import { source } from '@/lib/source';
+import { getLocale } from '@/paraglide/runtime';
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,
@@ -21,6 +22,7 @@ export const Route = createFileRoute('/docs/$')({
     const data = await loader({
       data: {
         slugs: params._splat?.split('/') ?? [],
+        lang: getLocale(),
       },
     });
     await clientLoader.preload(data.path);
@@ -31,12 +33,12 @@ export const Route = createFileRoute('/docs/$')({
 const loader = createServerFn({
   method: 'GET',
 })
-  .inputValidator((params: { slugs: string[] }) => params)
-  .handler(async ({ data: { slugs } }) => {
-    const page = source.getPage(slugs);
+  .inputValidator((params: { slugs: string[]; lang?: string }) => params)
+  .handler(async ({ data: { slugs, lang } }) => {
+    const page = source.getPage(slugs, lang);
     if (!page) throw notFound();
     return {
-      tree: source.getPageTree() as object,
+      tree: source.getPageTree(lang) as object,
       path: page.path,
     };
   });
