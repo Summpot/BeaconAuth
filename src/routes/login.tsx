@@ -1,4 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   browserSupportsWebAuthnAutofill,
   type PublicKeyCredentialCreationOptionsJSON,
@@ -6,11 +5,11 @@ import {
   startAuthentication,
   WebAuthnError,
 } from '@simplewebauthn/browser';
+import { useForm } from '@tanstack/react-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
 import { MinecraftFlowAlert } from '@/components/minecraft/minecraft-flow-alert';
@@ -43,8 +42,6 @@ const makeLoginFormSchema = () =>
     password: z.string().min(1, m.login_validation_password_required()),
   });
 
-type LoginFormData = z.infer<ReturnType<typeof makeLoginFormSchema>>;
-
 interface ServerConfig {
   database_auth: boolean;
   github_oauth: boolean;
@@ -60,6 +57,16 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const getFieldErrorMessage = (errors: Array<unknown> | undefined) => {
+  const error = errors?.[0];
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: string }).message ?? '');
+  }
+  return '';
+};
+
 function LoginPage() {
   const searchParams = Route.useSearch();
   const queryClient = useQueryClient();
@@ -67,15 +74,53 @@ function LoginPage() {
   const [configLoading, setConfigLoading] = useState(true);
   const [passkeyError, setPasskeyError] = useState<string>('');
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [formError, setFormError] = useState<string>('');
   const conditionalUIStarted = useRef(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    setError,
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(makeLoginFormSchema()),
+  const loginFormSchema = makeLoginFormSchema();
+  const form = useForm({
+    defaultValues: {
+      username: '',
+      password: '',
+    },
+    validators: {
+      onChange: loginFormSchema,
+      onSubmit: loginFormSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setFormError('');
+      try {
+        await apiClient('/api/v1/login', {
+          method: 'POST',
+          requiresAuth: false,
+          body: { username: value.username, password: value.password },
+        });
+
+        await queryClient.invalidateQueries({ queryKey: queryKeys.userMe() });
+        tryAutoRegisterPasskey().catch(() => {});
+
+        if (searchParams.challenge && searchParams.redirect_port) {
+          const result = await apiClient<{ redirectUrl?: string }>(
+            '/api/v1/minecraft-jwt',
+            {
+              method: 'POST',
+              body: {
+                challenge: searchParams.challenge,
+                redirect_port: searchParams.redirect_port,
+                profile_url: `${window.location.origin}/profile`,
+              },
+            },
+          );
+          if (result.redirectUrl) window.location.href = result.redirectUrl;
+        } else {
+          window.location.href = '/profile';
+        }
+      } catch (error) {
+        setFormError(
+          getErrorMessage(error, m.login_error_failed_connect_server()),
+        );
+      }
+    },
   });
 
   useEffect(() => {
@@ -201,41 +246,6 @@ function LoginPage() {
     }
   };
 
-  const onSubmit = async (data: LoginFormData) => {
-    try {
-      await apiClient('/api/v1/login', {
-        method: 'POST',
-        requiresAuth: false,
-        body: { username: data.username, password: data.password },
-      });
-
-      await queryClient.invalidateQueries({ queryKey: queryKeys.userMe() });
-      tryAutoRegisterPasskey().catch(() => {});
-
-      if (searchParams.challenge && searchParams.redirect_port) {
-        const result = await apiClient<{ redirectUrl?: string }>(
-          '/api/v1/minecraft-jwt',
-          {
-            method: 'POST',
-            body: {
-              challenge: searchParams.challenge,
-              redirect_port: searchParams.redirect_port,
-              profile_url: `${window.location.origin}/profile`,
-            },
-          },
-        );
-        if (result.redirectUrl) window.location.href = result.redirectUrl;
-      } else {
-        window.location.href = '/profile';
-      }
-    } catch (error) {
-      setError('root', {
-        type: 'manual',
-        message: getErrorMessage(error, m.login_error_failed_connect_server()),
-      });
-    }
-  };
-
   const handlePasskeyLogin = async () => {
     setPasskeyError('');
     setPasskeyLoading(true);
@@ -350,64 +360,116 @@ function LoginPage() {
 
               {config?.database_auth && (
                 <form
-                  onSubmit={handleSubmit(onSubmit)}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void form.handleSubmit();
+                  }}
                   method="post"
                   className="space-y-4"
                 >
-                  <div className="space-y-2">
-                    <Label htmlFor="username">{m.login_username_label()}</Label>
-                    <Input
-                      id="username"
-                      type="text"
-                      {...register('username')}
-                      placeholder={m.login_username_placeholder()}
-                      disabled={isSubmitting}
-                      autoComplete="username webauthn"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                    />
-                    {errors.username && (
-                      <p className="text-sm text-destructive">
-                        {errors.username.message}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">{m.login_password_label()}</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      {...register('password')}
-                      placeholder={m.login_password_placeholder()}
-                      disabled={isSubmitting}
-                      autoComplete="current-password webauthn"
-                    />
-                    {errors.password && (
-                      <p className="text-sm text-destructive">
-                        {errors.password.message}
-                      </p>
-                    )}
-                  </div>
-                  {errors.root && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{errors.root.message}</AlertDescription>
-                    </Alert>
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full"
-                  >
-                    {isSubmitting ? (
+                  <form.Subscribe selector={(state) => [state.isSubmitting]}>
+                    {([isSubmitting]) => (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {m.login_button_authenticating()}
+                        <form.Field name="username">
+                          {(field) => {
+                            const isInvalid =
+                              field.state.meta.isTouched &&
+                              !field.state.meta.isValid;
+                            const errorMessage = getFieldErrorMessage(
+                              field.state.meta.errors,
+                            );
+
+                            return (
+                              <div className="space-y-2">
+                                <Label htmlFor="username">
+                                  {m.login_username_label()}
+                                </Label>
+                                <Input
+                                  id="username"
+                                  name={field.name}
+                                  type="text"
+                                  value={field.state.value}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) =>
+                                    field.handleChange(event.target.value)
+                                  }
+                                  placeholder={m.login_username_placeholder()}
+                                  disabled={isSubmitting}
+                                  autoComplete="username webauthn"
+                                  autoCapitalize="none"
+                                  autoCorrect="off"
+                                  spellCheck={false}
+                                  aria-invalid={isInvalid}
+                                />
+                                {isInvalid && errorMessage ? (
+                                  <p className="text-sm text-destructive">
+                                    {errorMessage}
+                                  </p>
+                                ) : null}
+                              </div>
+                            );
+                          }}
+                        </form.Field>
+                        <form.Field name="password">
+                          {(field) => {
+                            const isInvalid =
+                              field.state.meta.isTouched &&
+                              !field.state.meta.isValid;
+                            const errorMessage = getFieldErrorMessage(
+                              field.state.meta.errors,
+                            );
+
+                            return (
+                              <div className="space-y-2">
+                                <Label htmlFor="password">
+                                  {m.login_password_label()}
+                                </Label>
+                                <Input
+                                  id="password"
+                                  name={field.name}
+                                  type="password"
+                                  value={field.state.value}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) =>
+                                    field.handleChange(event.target.value)
+                                  }
+                                  placeholder={m.login_password_placeholder()}
+                                  disabled={isSubmitting}
+                                  autoComplete="current-password webauthn"
+                                  aria-invalid={isInvalid}
+                                />
+                                {isInvalid && errorMessage ? (
+                                  <p className="text-sm text-destructive">
+                                    {errorMessage}
+                                  </p>
+                                ) : null}
+                              </div>
+                            );
+                          }}
+                        </form.Field>
+                        {formError && (
+                          <Alert variant="destructive">
+                            <AlertDescription>{formError}</AlertDescription>
+                          </Alert>
+                        )}
+                        <Button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full"
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              {m.login_button_authenticating()}
+                            </>
+                          ) : (
+                            m.login_button_signin()
+                          )}
+                        </Button>
                       </>
-                    ) : (
-                      m.login_button_signin()
                     )}
-                  </Button>
+                  </form.Subscribe>
                 </form>
               )}
 

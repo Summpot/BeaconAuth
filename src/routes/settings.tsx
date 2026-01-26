@@ -1,8 +1,8 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type PublicKeyCredentialCreationOptionsJSON,
   startRegistration,
 } from '@simplewebauthn/browser';
+import { useForm } from '@tanstack/react-form';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   CheckCircle2,
@@ -18,7 +18,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -82,8 +81,6 @@ const makePasswordChangeSchema = () =>
       path: ['confirmPassword'],
     });
 
-type PasswordChangeData = z.infer<ReturnType<typeof makePasswordChangeSchema>>;
-
 const makePasswordSetSchema = () =>
   z
     .object({
@@ -99,8 +96,6 @@ const makePasswordSetSchema = () =>
       path: ['confirmPassword'],
     });
 
-type PasswordSetData = z.infer<ReturnType<typeof makePasswordSetSchema>>;
-
 const makeUsernameChangeSchema = () =>
   z.object({
     username: z
@@ -110,8 +105,6 @@ const makeUsernameChangeSchema = () =>
       .max(16, m.settings_validation_username_max_length({ max: 16 }))
       .regex(/^[A-Za-z0-9_]+$/, m.settings_validation_username_invalid_chars()),
   });
-
-type UsernameChangeData = z.infer<ReturnType<typeof makeUsernameChangeSchema>>;
 
 const profileSchema = z.object({
   email: z.string(),
@@ -161,6 +154,16 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const getFieldErrorMessage = (errors: Array<unknown> | undefined) => {
+  const error = errors?.[0];
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: string }).message ?? '');
+  }
+  return '';
+};
+
 function SettingsPage() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([]);
@@ -182,22 +185,158 @@ function SettingsPage() {
   const isGoogleLinked = linkedProviders.has('google');
   const isMicrosoftLinked = linkedProviders.has('microsoft');
 
-  const changePasswordForm = useForm<PasswordChangeData>({
-    resolver: zodResolver(makePasswordChangeSchema()),
+  const refreshIdentities = async () => {
+    try {
+      const identitiesData =
+        await apiClient<IdentitiesResponse>('/api/v1/identities');
+      setIdentities(identitiesData);
+    } catch (error) {
+      console.error('Failed to refresh identities', error);
+    }
+  };
+
+  const passwordChangeSchema = makePasswordChangeSchema();
+  const passwordSetSchema = makePasswordSetSchema();
+  const usernameChangeSchema = makeUsernameChangeSchema();
+
+  const changePasswordForm = useForm({
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+    validators: {
+      onChange: passwordChangeSchema,
+      onSubmit: passwordChangeSchema,
+    },
+    onSubmit: async ({ value, formApi }) => {
+      try {
+        await apiClient('/api/v1/user/change-password', {
+          method: 'POST',
+          body: {
+            current_password: value.currentPassword,
+            new_password: value.newPassword,
+          },
+        });
+        setMessage({
+          type: 'success',
+          text: m.settings_success_password_changed(),
+        });
+        formApi.reset();
+        await refreshIdentities();
+      } catch (error) {
+        setMessage({
+          type: 'error',
+          text: getErrorMessage(
+            error,
+            m.settings_error_failed_connect_server(),
+          ),
+        });
+      }
+    },
   });
 
-  const setPasswordForm = useForm<PasswordSetData>({
-    resolver: zodResolver(makePasswordSetSchema()),
+  const setPasswordForm = useForm({
+    defaultValues: {
+      newPassword: '',
+      confirmPassword: '',
+    },
+    validators: {
+      onChange: passwordSetSchema,
+      onSubmit: passwordSetSchema,
+    },
+    onSubmit: async ({ value, formApi }) => {
+      try {
+        await apiClient('/api/v1/user/change-password', {
+          method: 'POST',
+          body: { current_password: '', new_password: value.newPassword },
+        });
+        setMessage({
+          type: 'success',
+          text: m.settings_success_password_set(),
+        });
+        formApi.reset();
+        await refreshIdentities();
+      } catch (error) {
+        setMessage({
+          type: 'error',
+          text: getErrorMessage(
+            error,
+            m.settings_error_failed_connect_server(),
+          ),
+        });
+      }
+    },
   });
 
-  const changeUsernameForm = useForm<UsernameChangeData>({
-    resolver: zodResolver(makeUsernameChangeSchema()),
+  const changeUsernameForm = useForm({
     defaultValues: { username: '' },
+    validators: {
+      onChange: usernameChangeSchema,
+      onSubmit: usernameChangeSchema,
+    },
+    onSubmit: async ({ value, formApi }) => {
+      try {
+        const result = await apiClient<{ success: boolean; username: string }>(
+          '/api/v1/user/change-username',
+          {
+            method: 'POST',
+            body: { username: value.username },
+          },
+        );
+
+        setUser((prev) =>
+          prev ? { ...prev, username: result.username } : prev,
+        );
+        setMessage({
+          type: 'success',
+          text: m.settings_success_username_updated(),
+        });
+        formApi.reset({ username: result.username });
+      } catch (error) {
+        setMessage({
+          type: 'error',
+          text: getErrorMessage(
+            error,
+            m.settings_error_failed_update_username(),
+          ),
+        });
+      }
+    },
   });
 
-  const profileForm = useForm<ProfileData>({
-    resolver: zodResolver(profileSchema),
+  const profileForm = useForm({
     defaultValues: { email: '', avatar_source: '' },
+    validators: {
+      onChange: profileSchema,
+      onSubmit: profileSchema,
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        await apiClient('/api/v1/user/profile', {
+          method: 'POST',
+          body: {
+            email: value.email,
+            avatar_source: value.avatar_source,
+          },
+        });
+
+        const userData = await apiClient<UserInfo>('/api/v1/user/me');
+        setUser(userData);
+        setMessage({
+          type: 'success',
+          text: m.settings_success_profile_updated(),
+        });
+      } catch (error) {
+        setMessage({
+          type: 'error',
+          text: getErrorMessage(
+            error,
+            m.settings_error_failed_update_profile(),
+          ),
+        });
+      }
+    },
   });
 
   useEffect(() => {
@@ -239,104 +378,6 @@ function SettingsPage() {
     };
     fetchData();
   }, []);
-
-  const refreshIdentities = async () => {
-    try {
-      const identitiesData =
-        await apiClient<IdentitiesResponse>('/api/v1/identities');
-      setIdentities(identitiesData);
-    } catch (error) {
-      console.error('Failed to refresh identities', error);
-    }
-  };
-
-  const onPasswordChange = async (data: PasswordChangeData) => {
-    try {
-      await apiClient('/api/v1/user/change-password', {
-        method: 'POST',
-        body: {
-          current_password: data.currentPassword,
-          new_password: data.newPassword,
-        },
-      });
-      setMessage({
-        type: 'success',
-        text: m.settings_success_password_changed(),
-      });
-      changePasswordForm.reset();
-      await refreshIdentities();
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(error, m.settings_error_failed_connect_server()),
-      });
-    }
-  };
-
-  const onPasswordSet = async (data: PasswordSetData) => {
-    try {
-      await apiClient('/api/v1/user/change-password', {
-        method: 'POST',
-        body: { current_password: '', new_password: data.newPassword },
-      });
-      setMessage({ type: 'success', text: m.settings_success_password_set() });
-      setPasswordForm.reset();
-      await refreshIdentities();
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(error, m.settings_error_failed_connect_server()),
-      });
-    }
-  };
-
-  const onUsernameChange = async (data: UsernameChangeData) => {
-    try {
-      const result = await apiClient<{ success: boolean; username: string }>(
-        '/api/v1/user/change-username',
-        {
-          method: 'POST',
-          body: { username: data.username },
-        },
-      );
-
-      setUser((prev) => (prev ? { ...prev, username: result.username } : prev));
-      setMessage({
-        type: 'success',
-        text: m.settings_success_username_updated(),
-      });
-      changeUsernameForm.reset({ username: result.username });
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(error, m.settings_error_failed_update_username()),
-      });
-    }
-  };
-
-  const onProfileUpdate = async (data: ProfileData) => {
-    try {
-      await apiClient('/api/v1/user/profile', {
-        method: 'POST',
-        body: {
-          email: data.email,
-          avatar_source: data.avatar_source,
-        },
-      });
-
-      const userData = await apiClient<UserInfo>('/api/v1/user/me');
-      setUser(userData);
-      setMessage({
-        type: 'success',
-        text: m.settings_success_profile_updated(),
-      });
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(error, m.settings_error_failed_update_profile()),
-      });
-    }
-  };
 
   const handleUnlinkIdentity = async (id: string) => {
     if (!confirm(m.alert_confirm_unlink())) return;
@@ -530,211 +571,271 @@ function SettingsPage() {
             </div>
 
             <Card className="border border-border/60 shadow-xs">
-              <form onSubmit={profileForm.handleSubmit(onProfileUpdate)}>
-                <CardContent className="p-6 space-y-6">
-                  <p className="text-muted-foreground text-sm">
-                    {m.settings_profile_desc()}
-                  </p>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void profileForm.handleSubmit();
+                }}
+              >
+                <profileForm.Subscribe
+                  selector={(state) =>
+                    [state.isSubmitting, state.values.email] as const
+                  }
+                >
+                  {([isSubmitting, email]) => (
+                    <>
+                      <CardContent className="p-6 space-y-6">
+                        <p className="text-muted-foreground text-sm">
+                          {m.settings_profile_desc()}
+                        </p>
 
-                  <div className="flex flex-col sm:flex-row gap-6 items-start">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-16 w-16 border border-border">
-                        {user.avatar_url ? (
-                          <AvatarImage
-                            src={user.avatar_url}
-                            alt={user.username}
-                          />
-                        ) : null}
-                        <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                          {user.username.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-semibold">{user.username}</div>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {user.id}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 space-y-5">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="email">
-                            {m.settings_email_label()}
-                          </Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                aria-label={m.aria_email_info()}
-                              >
-                                <Lightbulb className="h-4 w-4 text-muted-foreground" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {m.settings_email_tooltip()}
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <Input
-                          id="email"
-                          {...profileForm.register('email')}
-                          placeholder={m.settings_email_placeholder()}
-                          disabled={profileForm.formState.isSubmitting}
-                        />
-                      </div>
-
-                      <div className="space-y-3">
-                        <Label>{m.settings_avatar_source_label()}</Label>
-                        <RadioGroup
-                          value={profileForm.watch('avatar_source')}
-                          onValueChange={(v) =>
-                            profileForm.setValue(
-                              'avatar_source',
-                              v as ProfileData['avatar_source'],
-                            )
-                          }
-                          className="grid gap-3"
-                        >
-                          <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                            <div className="flex items-center gap-3">
-                              <RadioGroupItem value="" id="avatar_auto" />
-                              <Label
-                                htmlFor="avatar_auto"
-                                className="cursor-pointer"
-                              >
-                                {m.settings_avatar_source_auto()}
-                              </Label>
+                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                          <div className="flex items-center gap-4">
+                            <Avatar className="h-16 w-16 border border-border">
+                              {user.avatar_url ? (
+                                <AvatarImage
+                                  src={user.avatar_url}
+                                  alt={user.username}
+                                />
+                              ) : null}
+                              <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                                {user.username.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-semibold">
+                                {user.username}
+                              </div>
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {user.id}
+                              </div>
                             </div>
                           </div>
 
-                          {config?.github_oauth && (
-                            <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                              <div className="flex items-center gap-3">
-                                <RadioGroupItem
-                                  value="github"
-                                  id="avatar_github"
-                                  disabled={!isGithubLinked}
-                                />
-                                <Label
-                                  htmlFor="avatar_github"
-                                  className="cursor-pointer flex items-center gap-2"
-                                >
-                                  <Github className="h-4 w-4" />
-                                  {m.settings_avatar_source_github()}
-                                </Label>
-                              </div>
-                              {!isGithubLinked && (
-                                <Badge variant="secondary">
-                                  {m.settings_avatar_requires_linked()}
-                                </Badge>
-                              )}
-                            </div>
-                          )}
+                          <div className="flex-1 space-y-5">
+                            <profileForm.Field name="email">
+                              {(field) => {
+                                const isInvalid =
+                                  field.state.meta.isTouched &&
+                                  !field.state.meta.isValid;
+                                const errorMessage = getFieldErrorMessage(
+                                  field.state.meta.errors,
+                                );
 
-                          {config?.google_oauth && (
-                            <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                              <div className="flex items-center gap-3">
-                                <RadioGroupItem
-                                  value="google"
-                                  id="avatar_google"
-                                  disabled={!isGoogleLinked}
-                                />
-                                <Label
-                                  htmlFor="avatar_google"
-                                  className="cursor-pointer flex items-center gap-2"
-                                >
-                                  <Chrome className="h-4 w-4" />
-                                  {m.settings_avatar_source_google()}
-                                </Label>
-                              </div>
-                              {!isGoogleLinked && (
-                                <Badge variant="secondary">
-                                  {m.settings_avatar_requires_linked()}
-                                </Badge>
-                              )}
-                            </div>
-                          )}
+                                return (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <Label htmlFor="email">
+                                        {m.settings_email_label()}
+                                      </Label>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7"
+                                            aria-label={m.aria_email_info()}
+                                          >
+                                            <Lightbulb className="h-4 w-4 text-muted-foreground" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {m.settings_email_tooltip()}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                    <Input
+                                      id="email"
+                                      name={field.name}
+                                      value={field.state.value}
+                                      onBlur={field.handleBlur}
+                                      onChange={(event) =>
+                                        field.handleChange(event.target.value)
+                                      }
+                                      placeholder={m.settings_email_placeholder()}
+                                      disabled={isSubmitting}
+                                      aria-invalid={isInvalid}
+                                    />
+                                    {isInvalid && errorMessage ? (
+                                      <p className="text-sm text-destructive">
+                                        {errorMessage}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                );
+                              }}
+                            </profileForm.Field>
 
-                          {config?.microsoft_oauth && (
-                            <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                              <div className="flex items-center gap-3">
-                                <RadioGroupItem
-                                  value="microsoft"
-                                  id="avatar_microsoft"
-                                  disabled={!isMicrosoftLinked}
-                                />
-                                <Label
-                                  htmlFor="avatar_microsoft"
-                                  className="cursor-pointer flex items-center gap-2"
-                                >
-                                  <svg
-                                    role="img"
-                                    className="h-4 w-4"
-                                    viewBox="0 0 24 24"
-                                    aria-label={m.provider_microsoft()}
+                            <profileForm.Field name="avatar_source">
+                              {(field) => (
+                                <div className="space-y-3">
+                                  <Label>
+                                    {m.settings_avatar_source_label()}
+                                  </Label>
+                                  <RadioGroup
+                                    value={field.state.value}
+                                    onValueChange={(value) =>
+                                      field.handleChange(
+                                        value as ProfileData['avatar_source'],
+                                      )
+                                    }
+                                    className="grid gap-3"
                                   >
-                                    <path fill="#F25022" d="M2 2h9v9H2z" />
-                                    <path fill="#7FBA00" d="M13 2h9v9h-9z" />
-                                    <path fill="#00A4EF" d="M2 13h9v9H2z" />
-                                    <path fill="#FFB900" d="M13 13h9v9h-9z" />
-                                  </svg>
-                                  {m.settings_avatar_source_microsoft()}
-                                </Label>
-                              </div>
-                              {!isMicrosoftLinked && (
-                                <Badge variant="secondary">
-                                  {m.settings_avatar_requires_linked()}
-                                </Badge>
+                                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                                      <div className="flex items-center gap-3">
+                                        <RadioGroupItem
+                                          value=""
+                                          id="avatar_auto"
+                                        />
+                                        <Label
+                                          htmlFor="avatar_auto"
+                                          className="cursor-pointer"
+                                        >
+                                          {m.settings_avatar_source_auto()}
+                                        </Label>
+                                      </div>
+                                    </div>
+
+                                    {config?.github_oauth && (
+                                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                                        <div className="flex items-center gap-3">
+                                          <RadioGroupItem
+                                            value="github"
+                                            id="avatar_github"
+                                            disabled={!isGithubLinked}
+                                          />
+                                          <Label
+                                            htmlFor="avatar_github"
+                                            className="cursor-pointer flex items-center gap-2"
+                                          >
+                                            <Github className="h-4 w-4" />
+                                            {m.settings_avatar_source_github()}
+                                          </Label>
+                                        </div>
+                                        {!isGithubLinked && (
+                                          <Badge variant="secondary">
+                                            {m.settings_avatar_requires_linked()}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {config?.google_oauth && (
+                                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                                        <div className="flex items-center gap-3">
+                                          <RadioGroupItem
+                                            value="google"
+                                            id="avatar_google"
+                                            disabled={!isGoogleLinked}
+                                          />
+                                          <Label
+                                            htmlFor="avatar_google"
+                                            className="cursor-pointer flex items-center gap-2"
+                                          >
+                                            <Chrome className="h-4 w-4" />
+                                            {m.settings_avatar_source_google()}
+                                          </Label>
+                                        </div>
+                                        {!isGoogleLinked && (
+                                          <Badge variant="secondary">
+                                            {m.settings_avatar_requires_linked()}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {config?.microsoft_oauth && (
+                                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                                        <div className="flex items-center gap-3">
+                                          <RadioGroupItem
+                                            value="microsoft"
+                                            id="avatar_microsoft"
+                                            disabled={!isMicrosoftLinked}
+                                          />
+                                          <Label
+                                            htmlFor="avatar_microsoft"
+                                            className="cursor-pointer flex items-center gap-2"
+                                          >
+                                            <svg
+                                              role="img"
+                                              className="h-4 w-4"
+                                              viewBox="0 0 24 24"
+                                              aria-label={m.provider_microsoft()}
+                                            >
+                                              <path
+                                                fill="#F25022"
+                                                d="M2 2h9v9H2z"
+                                              />
+                                              <path
+                                                fill="#7FBA00"
+                                                d="M13 2h9v9h-9z"
+                                              />
+                                              <path
+                                                fill="#00A4EF"
+                                                d="M2 13h9v9H2z"
+                                              />
+                                              <path
+                                                fill="#FFB900"
+                                                d="M13 13h9v9h-9z"
+                                              />
+                                            </svg>
+                                            {m.settings_avatar_source_microsoft()}
+                                          </Label>
+                                        </div>
+                                        {!isMicrosoftLinked && (
+                                          <Badge variant="secondary">
+                                            {m.settings_avatar_requires_linked()}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                                      <div className="flex items-center gap-3">
+                                        <RadioGroupItem
+                                          value="gravatar"
+                                          id="avatar_gravatar"
+                                          disabled={email.trim().length === 0}
+                                        />
+                                        <Label
+                                          htmlFor="avatar_gravatar"
+                                          className="cursor-pointer"
+                                        >
+                                          {m.settings_avatar_source_gravatar()}
+                                        </Label>
+                                      </div>
+                                      {email.trim().length === 0 && (
+                                        <Badge variant="secondary">
+                                          {m.settings_avatar_requires_email()}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </RadioGroup>
+                                </div>
                               )}
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                            <div className="flex items-center gap-3">
-                              <RadioGroupItem
-                                value="gravatar"
-                                id="avatar_gravatar"
-                                disabled={
-                                  profileForm.watch('email').trim().length === 0
-                                }
-                              />
-                              <Label
-                                htmlFor="avatar_gravatar"
-                                className="cursor-pointer"
-                              >
-                                {m.settings_avatar_source_gravatar()}
-                              </Label>
-                            </div>
-                            {profileForm.watch('email').trim().length === 0 && (
-                              <Badge variant="secondary">
-                                {m.settings_avatar_requires_email()}
-                              </Badge>
-                            )}
+                            </profileForm.Field>
                           </div>
-                        </RadioGroup>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
+                        </div>
+                      </CardContent>
 
-                <CardFooter className="border-t justify-end px-6 pb-6">
-                  <Button
-                    type="submit"
-                    disabled={profileForm.formState.isSubmitting}
-                    className="w-full sm:w-auto"
-                  >
-                    {profileForm.formState.isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      m.settings_update_profile()
-                    )}
-                  </Button>
-                </CardFooter>
+                      <CardFooter className="border-t justify-end px-6 pb-6">
+                        <Button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full sm:w-auto"
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            m.settings_update_profile()
+                          )}
+                        </Button>
+                      </CardFooter>
+                    </>
+                  )}
+                </profileForm.Subscribe>
               </form>
             </Card>
           </section>
@@ -748,45 +849,76 @@ function SettingsPage() {
             </div>
             <Card className="border border-border/60 shadow-xs">
               <form
-                onSubmit={changeUsernameForm.handleSubmit(onUsernameChange)}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void changeUsernameForm.handleSubmit();
+                }}
               >
-                <CardContent className="p-6">
-                  <p className="text-muted-foreground mb-6 text-sm">
-                    {m.settings_change_username_desc()}
-                  </p>
+                <changeUsernameForm.Subscribe
+                  selector={(state) => [state.isSubmitting]}
+                >
+                  {([isSubmitting]) => (
+                    <>
+                      <CardContent className="p-6">
+                        <p className="text-muted-foreground mb-6 text-sm">
+                          {m.settings_change_username_desc()}
+                        </p>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="username" className="sr-only">
-                      {m.settings_username_label()}
-                    </Label>
-                    <Input
-                      id="username"
-                      {...changeUsernameForm.register('username')}
-                      placeholder={m.settings_username_placeholder()}
-                      disabled={changeUsernameForm.formState.isSubmitting}
-                      className="h-10"
-                    />
-                    {changeUsernameForm.formState.errors.username && (
-                      <p className="text-sm text-destructive mt-1">
-                        {changeUsernameForm.formState.errors.username.message}
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
+                        <changeUsernameForm.Field name="username">
+                          {(field) => {
+                            const isInvalid =
+                              field.state.meta.isTouched &&
+                              !field.state.meta.isValid;
+                            const errorMessage = getFieldErrorMessage(
+                              field.state.meta.errors,
+                            );
 
-                <CardFooter className="border-t justify-end px-6 pb-6">
-                  <Button
-                    type="submit"
-                    disabled={changeUsernameForm.formState.isSubmitting}
-                    className="w-full sm:w-auto"
-                  >
-                    {changeUsernameForm.formState.isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      m.settings_update_username()
-                    )}
-                  </Button>
-                </CardFooter>
+                            return (
+                              <div className="space-y-2">
+                                <Label htmlFor="username" className="sr-only">
+                                  {m.settings_username_label()}
+                                </Label>
+                                <Input
+                                  id="username"
+                                  name={field.name}
+                                  value={field.state.value}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) =>
+                                    field.handleChange(event.target.value)
+                                  }
+                                  placeholder={m.settings_username_placeholder()}
+                                  disabled={isSubmitting}
+                                  className="h-10"
+                                  aria-invalid={isInvalid}
+                                />
+                                {isInvalid && errorMessage ? (
+                                  <p className="text-sm text-destructive mt-1">
+                                    {errorMessage}
+                                  </p>
+                                ) : null}
+                              </div>
+                            );
+                          }}
+                        </changeUsernameForm.Field>
+                      </CardContent>
+
+                      <CardFooter className="border-t justify-end px-6 pb-6">
+                        <Button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full sm:w-auto"
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            m.settings_update_username()
+                          )}
+                        </Button>
+                      </CardFooter>
+                    </>
+                  )}
+                </changeUsernameForm.Subscribe>
               </form>
             </Card>
           </section>
@@ -978,152 +1110,252 @@ function SettingsPage() {
               <CardContent className="p-6">
                 {hasPassword ? (
                   <form
-                    onSubmit={changePasswordForm.handleSubmit(onPasswordChange)}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void changePasswordForm.handleSubmit();
+                    }}
                     className="gap-4"
                   >
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="currentPassword">
-                          {m.settings_current_password()}
-                        </Label>
-                        <Input
-                          id="currentPassword"
-                          type="password"
-                          {...changePasswordForm.register('currentPassword')}
-                          placeholder="••••••••"
-                          disabled={changePasswordForm.formState.isSubmitting}
-                        />
-                        {changePasswordForm.formState.errors
-                          .currentPassword && (
-                          <p className="text-sm text-destructive">
-                            {
-                              changePasswordForm.formState.errors
-                                .currentPassword.message
-                            }
-                          </p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="newPassword">
-                          {m.settings_new_password()}
-                        </Label>
-                        <Input
-                          id="newPassword"
-                          type="password"
-                          {...changePasswordForm.register('newPassword')}
-                          placeholder="••••••••"
-                          disabled={changePasswordForm.formState.isSubmitting}
-                        />
-                        {changePasswordForm.formState.errors.newPassword && (
-                          <p className="text-sm text-destructive">
-                            {
-                              changePasswordForm.formState.errors.newPassword
-                                .message
-                            }
-                          </p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">
-                          {m.settings_confirm_password()}
-                        </Label>
-                        <Input
-                          id="confirmPassword"
-                          type="password"
-                          {...changePasswordForm.register('confirmPassword')}
-                          placeholder="••••••••"
-                          disabled={changePasswordForm.formState.isSubmitting}
-                        />
-                        {changePasswordForm.formState.errors
-                          .confirmPassword && (
-                          <p className="text-sm text-destructive">
-                            {
-                              changePasswordForm.formState.errors
-                                .confirmPassword.message
-                            }
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-end justify-end">
-                        <Button
-                          type="submit"
-                          disabled={changePasswordForm.formState.isSubmitting}
-                          className="w-full md:w-auto"
-                        >
-                          {changePasswordForm.formState.isSubmitting ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              {m.settings_changing_password()}
-                            </>
-                          ) : (
-                            m.settings_change_password()
-                          )}
-                        </Button>
-                      </div>
-                    </div>
+                    <changePasswordForm.Subscribe
+                      selector={(state) => [state.isSubmitting]}
+                    >
+                      {([isSubmitting]) => (
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <changePasswordForm.Field name="currentPassword">
+                            {(field) => {
+                              const isInvalid =
+                                field.state.meta.isTouched &&
+                                !field.state.meta.isValid;
+                              const errorMessage = getFieldErrorMessage(
+                                field.state.meta.errors,
+                              );
+
+                              return (
+                                <div className="space-y-2">
+                                  <Label htmlFor="currentPassword">
+                                    {m.settings_current_password()}
+                                  </Label>
+                                  <Input
+                                    id="currentPassword"
+                                    name={field.name}
+                                    type="password"
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    placeholder="••••••••"
+                                    disabled={isSubmitting}
+                                    aria-invalid={isInvalid}
+                                  />
+                                  {isInvalid && errorMessage ? (
+                                    <p className="text-sm text-destructive">
+                                      {errorMessage}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            }}
+                          </changePasswordForm.Field>
+                          <changePasswordForm.Field name="newPassword">
+                            {(field) => {
+                              const isInvalid =
+                                field.state.meta.isTouched &&
+                                !field.state.meta.isValid;
+                              const errorMessage = getFieldErrorMessage(
+                                field.state.meta.errors,
+                              );
+
+                              return (
+                                <div className="space-y-2">
+                                  <Label htmlFor="newPassword">
+                                    {m.settings_new_password()}
+                                  </Label>
+                                  <Input
+                                    id="newPassword"
+                                    name={field.name}
+                                    type="password"
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    placeholder="••••••••"
+                                    disabled={isSubmitting}
+                                    aria-invalid={isInvalid}
+                                  />
+                                  {isInvalid && errorMessage ? (
+                                    <p className="text-sm text-destructive">
+                                      {errorMessage}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            }}
+                          </changePasswordForm.Field>
+                          <changePasswordForm.Field name="confirmPassword">
+                            {(field) => {
+                              const isInvalid =
+                                field.state.meta.isTouched &&
+                                !field.state.meta.isValid;
+                              const errorMessage = getFieldErrorMessage(
+                                field.state.meta.errors,
+                              );
+
+                              return (
+                                <div className="space-y-2">
+                                  <Label htmlFor="confirmPassword">
+                                    {m.settings_confirm_password()}
+                                  </Label>
+                                  <Input
+                                    id="confirmPassword"
+                                    name={field.name}
+                                    type="password"
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    placeholder="••••••••"
+                                    disabled={isSubmitting}
+                                    aria-invalid={isInvalid}
+                                  />
+                                  {isInvalid && errorMessage ? (
+                                    <p className="text-sm text-destructive">
+                                      {errorMessage}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            }}
+                          </changePasswordForm.Field>
+                          <div className="flex items-end justify-end">
+                            <Button
+                              type="submit"
+                              disabled={isSubmitting}
+                              className="w-full md:w-auto"
+                            >
+                              {isSubmitting ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  {m.settings_changing_password()}
+                                </>
+                              ) : (
+                                m.settings_change_password()
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </changePasswordForm.Subscribe>
                   </form>
                 ) : (
                   <form
-                    onSubmit={setPasswordForm.handleSubmit(onPasswordSet)}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void setPasswordForm.handleSubmit();
+                    }}
                     className="space-y-4 max-w-md"
                   >
-                    <Alert className="mb-4 bg-card/90 border-border/70">
-                      <AlertDescription>
-                        {m.settings_alert_set_password_info()}
-                      </AlertDescription>
-                    </Alert>
-                    <div className="space-y-2">
-                      <Label htmlFor="newPassword">
-                        {m.settings_new_password()}
-                      </Label>
-                      <Input
-                        id="newPassword"
-                        type="password"
-                        {...setPasswordForm.register('newPassword')}
-                        placeholder="••••••••"
-                        disabled={setPasswordForm.formState.isSubmitting}
-                      />
-                      {setPasswordForm.formState.errors.newPassword && (
-                        <p className="text-sm text-destructive">
-                          {setPasswordForm.formState.errors.newPassword.message}
-                        </p>
+                    <setPasswordForm.Subscribe
+                      selector={(state) => [state.isSubmitting]}
+                    >
+                      {([isSubmitting]) => (
+                        <>
+                          <Alert className="mb-4 bg-card/90 border-border/70">
+                            <AlertDescription>
+                              {m.settings_alert_set_password_info()}
+                            </AlertDescription>
+                          </Alert>
+                          <setPasswordForm.Field name="newPassword">
+                            {(field) => {
+                              const isInvalid =
+                                field.state.meta.isTouched &&
+                                !field.state.meta.isValid;
+                              const errorMessage = getFieldErrorMessage(
+                                field.state.meta.errors,
+                              );
+
+                              return (
+                                <div className="space-y-2">
+                                  <Label htmlFor="newPassword">
+                                    {m.settings_new_password()}
+                                  </Label>
+                                  <Input
+                                    id="newPassword"
+                                    name={field.name}
+                                    type="password"
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    placeholder="••••••••"
+                                    disabled={isSubmitting}
+                                    aria-invalid={isInvalid}
+                                  />
+                                  {isInvalid && errorMessage ? (
+                                    <p className="text-sm text-destructive">
+                                      {errorMessage}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            }}
+                          </setPasswordForm.Field>
+                          <setPasswordForm.Field name="confirmPassword">
+                            {(field) => {
+                              const isInvalid =
+                                field.state.meta.isTouched &&
+                                !field.state.meta.isValid;
+                              const errorMessage = getFieldErrorMessage(
+                                field.state.meta.errors,
+                              );
+
+                              return (
+                                <div className="space-y-2">
+                                  <Label htmlFor="confirmPassword">
+                                    {m.settings_confirm_password_simple()}
+                                  </Label>
+                                  <Input
+                                    id="confirmPassword"
+                                    name={field.name}
+                                    type="password"
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    placeholder="••••••••"
+                                    disabled={isSubmitting}
+                                    aria-invalid={isInvalid}
+                                  />
+                                  {isInvalid && errorMessage ? (
+                                    <p className="text-sm text-destructive">
+                                      {errorMessage}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            }}
+                          </setPasswordForm.Field>
+                          <div className="flex justify-end pt-2">
+                            <Button type="submit" disabled={isSubmitting}>
+                              {isSubmitting ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  {m.settings_setting_password()}
+                                </>
+                              ) : (
+                                m.settings_set_password()
+                              )}
+                            </Button>
+                          </div>
+                        </>
                       )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">
-                        {m.settings_confirm_password_simple()}
-                      </Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        {...setPasswordForm.register('confirmPassword')}
-                        placeholder="••••••••"
-                        disabled={setPasswordForm.formState.isSubmitting}
-                      />
-                      {setPasswordForm.formState.errors.confirmPassword && (
-                        <p className="text-sm text-destructive">
-                          {
-                            setPasswordForm.formState.errors.confirmPassword
-                              .message
-                          }
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex justify-end pt-2">
-                      <Button
-                        type="submit"
-                        disabled={setPasswordForm.formState.isSubmitting}
-                      >
-                        {setPasswordForm.formState.isSubmitting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {m.settings_setting_password()}
-                          </>
-                        ) : (
-                          m.settings_set_password()
-                        )}
-                      </Button>
-                    </div>
+                    </setPasswordForm.Subscribe>
                   </form>
                 )}
               </CardContent>
