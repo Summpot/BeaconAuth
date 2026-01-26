@@ -101,19 +101,19 @@ function ProfilePage() {
     return (
       <div className="flex items-center justify-center min-h-full p-6 bg-background">
         <div className="w-full max-w-md">
-          <Card className="text-center shadow-lg border-muted">
+          <Card className="text-center shadow-sm border-border/70">
             <CardContent className="pt-10 pb-10">
-              <div className="inline-block mb-6 p-4 rounded-full bg-red-50 text-red-500">
+              <div className="inline-block mb-6 p-4 rounded-full bg-destructive/10 text-destructive">
                 <BeaconIcon className="w-12 h-12" />
               </div>
-              <CardTitle className="text-2xl font-bold mb-4">
+              <CardTitle className="text-2xl font-semibold mb-4">
                 {m.profile_error_title()}
               </CardTitle>
               <CardDescription className="mb-8">
                 {error.message}
               </CardDescription>
               <div className="flex flex-col gap-3">
-                <Button asChild size="lg" className="rounded-full">
+                <Button asChild size="lg">
                   <Link to="/">{m.profile_back_home()}</Link>
                 </Button>
               </div>
@@ -138,12 +138,12 @@ function ProfilePage() {
             }
             className={
               statusMessage.type === 'success'
-                ? 'mb-8 shadow-sm border-green-500/20 bg-green-500/5'
-                : 'mb-8 shadow-sm'
+                ? 'mb-8 border-border/70 bg-card/90'
+                : 'mb-8'
             }
           >
             {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="text-green-600 dark:text-green-400" />
+              <CheckCircle2 className="text-chart-1" />
             ) : (
               <XCircle />
             )}
@@ -157,7 +157,7 @@ function ProfilePage() {
 
         <div className="flex flex-col md:flex-row gap-8 mb-12 items-center md:items-start text-center md:text-left">
           <div className="relative group">
-            <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
+            <Avatar className="h-32 w-32 border border-border/70 shadow-sm">
               {user.avatar_url ? (
                 <AvatarImage src={user.avatar_url} alt={user.username} />
               ) : null}
@@ -166,41 +166,37 @@ function ProfilePage() {
               </AvatarFallback>
             </Avatar>
             <div
-              className="absolute bottom-2 right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-background flex items-center justify-center shadow-sm"
+              className="absolute bottom-2 right-2 w-8 h-8 bg-chart-1 rounded-full border-2 border-background flex items-center justify-center shadow-xs"
               title={m.profile_status_authenticated()}
             >
               <CheckCircle className="h-4 w-4 text-white" />
             </div>
           </div>
           <div className="flex-1 pt-4">
-            <h1 className="text-4xl font-extrabold tracking-tight mb-2 text-foreground">
+            <h1 className="text-3xl font-semibold tracking-tight mb-2 text-foreground">
               {user.username}
             </h1>
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-muted-foreground">
               <Badge
                 variant="secondary"
-                className="px-3 py-1 text-sm font-medium rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                className="px-3 py-1 text-sm font-medium rounded-full"
               >
                 {m.profile_user_role()}
               </Badge>
-              <span className="flex items-center gap-2 text-sm font-mono bg-muted/50 px-3 py-1 rounded-full">
+              <span className="flex items-center gap-2 text-sm font-mono bg-muted/40 px-3 py-1 rounded-full">
                 {m.profile_account_id()}: {user.id}
               </span>
             </div>
           </div>
-          <Button
-            asChild
-            size="lg"
-            className="rounded-full px-8 shadow-lg shadow-primary/10"
-          >
+          <Button asChild size="lg" className="px-6">
             <Link to="/settings">{m.button_manage_settings()}</Link>
           </Button>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow bg-card">
+          <Card className="border border-border/60 shadow-xs hover:shadow-sm transition-shadow bg-card">
             <CardContent className="p-8 flex items-start gap-5">
-              <div className="w-12 h-12 rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0 text-green-600 dark:text-green-400">
+              <div className="w-12 h-12 rounded-xl bg-chart-1/15 flex items-center justify-center shrink-0 text-chart-1">
                 <CheckCircle className="h-6 w-6" />
               </div>
               <div>
@@ -212,7 +208,7 @@ function ProfilePage() {
                 </p>
                 <Badge
                   variant="outline"
-                  className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/10 dark:text-green-400 dark:border-green-800"
+                  className="text-chart-1 border-chart-1/30 bg-chart-1/10"
                 >
                   {m.profile_status_authenticated()}
                 </Badge>
@@ -220,9 +216,9 @@ function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow bg-card">
+          <Card className="border border-border/60 shadow-xs hover:shadow-sm transition-shadow bg-card">
             <CardContent className="p-8 flex items-start gap-5">
-              <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400">
+              <div className="w-12 h-12 rounded-xl bg-chart-2/15 flex items-center justify-center shrink-0 text-chart-2">
                 <Gamepad2 className="h-6 w-6" />
               </div>
               <div>
@@ -234,7 +230,7 @@ function ProfilePage() {
                 </p>
                 <Badge
                   variant="outline"
-                  className="text-purple-600 border-purple-200 bg-purple-50 dark:bg-purple-900/10 dark:text-purple-400 dark:border-purple-800"
+                  className="text-chart-2 border-chart-2/30 bg-chart-2/10"
                 >
                   {m.profile_connected()}
                 </Badge>

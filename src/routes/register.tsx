@@ -122,15 +122,15 @@ function RegisterPage() {
   };
 
   return (
-    <div className="min-h-full flex flex-col">
-      <div className="flex-1 flex items-center justify-center p-4">
+    <div className="min-h-full flex flex-col bg-background">
+      <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="text-center pb-4">
               <div className="flex justify-center mb-4">
-                <BeaconIcon className="w-16 h-16" accentColor="#a855f7" />
+                <BeaconIcon className="w-16 h-16" />
               </div>
-              <CardTitle className="text-3xl font-bold">
+              <CardTitle className="text-2xl font-semibold">
                 {m.button_create_account()}
               </CardTitle>
               <CardDescription>
@@ -164,7 +164,6 @@ function RegisterPage() {
                     spellCheck={false}
                     placeholder={m.register_username_placeholder()}
                     disabled={isSubmitting}
-                    className="bg-background/50 border-input"
                   />
                   {errors.username && (
                     <p className="text-sm text-destructive">
@@ -183,7 +182,6 @@ function RegisterPage() {
                     minLength={6}
                     placeholder={m.settings_create_password_placeholder()}
                     disabled={isSubmitting}
-                    className="bg-background/50 border-input"
                   />
                   {errors.password && (
                     <p className="text-sm text-destructive">
@@ -204,7 +202,6 @@ function RegisterPage() {
                     minLength={6}
                     placeholder={m.settings_confirm_password_simple_placeholder()}
                     disabled={isSubmitting}
-                    className="bg-background/50 border-input"
                   />
                   {errors.confirmPassword && (
                     <p className="text-sm text-destructive">

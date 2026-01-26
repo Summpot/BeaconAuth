@@ -49,12 +49,11 @@ function PageLoader({
         className
       )}
     >
-      <Card className="border-0 shadow-lg bg-card/80 backdrop-blur supports-backdrop-filter:bg-card/70">
+      <Card className="border border-border/70 shadow-sm bg-card/90">
         <CardContent className={cn("p-8", contentClassName)}>
           <div className="flex items-start gap-4">
             <div className="relative">
-              <div className="absolute -inset-2 rounded-2xl bg-linear-to-br from-primary/25 via-primary/10 to-transparent blur" />
-              <div className="relative size-12 rounded-2xl border bg-background/70 shadow-sm flex items-center justify-center">
+              <div className="relative size-12 rounded-xl border border-border/60 bg-secondary/70 shadow-xs flex items-center justify-center">
                 {icon ?? <Spinner className="size-5 text-primary" />}
               </div>
             </div>

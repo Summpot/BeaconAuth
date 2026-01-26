@@ -27,27 +27,25 @@ export function HomePage() {
   });
 
   return (
-    <div className="min-h-full bg-background text-foreground selection:bg-primary/20">
+    <div className="min-h-full bg-background text-foreground selection:bg-primary/15">
       {/* Hero Section */}
-      <section className="relative pt-20 pb-24 md:pt-32 md:pb-32 overflow-hidden">
+      <section className="relative pt-16 pb-20 md:pt-24 md:pb-24 overflow-hidden">
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-flex items-center justify-center p-2 mb-8 rounded-full bg-secondary/50 border border-border backdrop-blur-sm">
-            <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 rounded-full mr-2">
+          <div className="inline-flex items-center justify-center gap-2 px-3 py-2 mb-8 rounded-full bg-card/60 border border-border/70">
+            <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 rounded-full">
               {m.home_badge_new()}
             </span>
-            <span className="text-sm text-muted-foreground mr-2">
+            <span className="text-sm text-muted-foreground">
               {m.feature_passkeys_desc()}
             </span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 text-balance">
+          <h1 className="text-4xl md:text-6xl font-semibold tracking-tight mb-6 text-balance">
             {m.home_hero_title_1()}
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-primary to-purple-600">
-              {m.home_hero_title_2()}
-            </span>
+            <span className="text-primary">{m.home_hero_title_2()}</span>
           </h1>
 
-          <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed text-balance">
+          <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-3xl mx-auto leading-relaxed text-balance">
             {m.home_hero_subtitle()}
           </p>
 
@@ -55,10 +53,7 @@ export function HomePage() {
             {user ? (
               <>
                 <Link to="/profile">
-                  <Button
-                    size="lg"
-                    className="h-12 px-8 text-lg rounded-full shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
-                  >
+                  <Button size="lg" className="h-11 px-6 text-base">
                     {m.button_view_profile()}
                   </Button>
                 </Link>
@@ -66,7 +61,7 @@ export function HomePage() {
                   <Button
                     variant="outline"
                     size="lg"
-                    className="h-12 px-8 text-lg rounded-full"
+                    className="h-11 px-6 text-base"
                   >
                     {m.button_manage_settings()}
                   </Button>
@@ -75,10 +70,7 @@ export function HomePage() {
             ) : (
               <>
                 <Link to="/login">
-                  <Button
-                    size="lg"
-                    className="h-12 px-8 text-lg rounded-full shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
-                  >
+                  <Button size="lg" className="h-11 px-6 text-base">
                     {m.button_login_now()}
                   </Button>
                 </Link>
@@ -86,7 +78,7 @@ export function HomePage() {
                   <Button
                     variant="outline"
                     size="lg"
-                    className="h-12 px-8 text-lg rounded-full"
+                    className="h-11 px-6 text-base"
                   >
                     {m.button_create_account()}
                   </Button>
@@ -98,16 +90,16 @@ export function HomePage() {
 
         {/* Abstract Background Elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-          <div className="absolute top-[-10%] right-[-5%] w-125 h-125 bg-primary/5 rounded-full blur-3xl opacity-50" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-150 h-150 bg-purple-500/5 rounded-full blur-3xl opacity-50" />
+          <div className="absolute top-[-12%] right-[-6%] w-120 h-120 bg-primary/5 rounded-full blur-3xl opacity-60" />
+          <div className="absolute bottom-[-12%] left-[-8%] w-140 h-140 bg-chart-2/10 rounded-full blur-3xl opacity-60" />
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-24 bg-secondary/30">
+      <section className="py-20 bg-secondary/40">
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">
+            <h2 className="text-3xl md:text-4xl font-semibold mb-4 tracking-tight">
               {m.why_beaconauth_title()}
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto text-lg text-balance">
@@ -116,12 +108,12 @@ export function HomePage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-0 shadow-none bg-background/50 hover:bg-background transition-colors duration-300">
+            <Card className="border border-border/60 bg-card/70 shadow-xs hover:bg-card/90 transition-colors duration-300">
               <CardContent className="p-8">
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 text-primary">
+                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-6 text-primary">
                   <KeyRound className="h-7 w-7" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">
+                <h3 className="text-lg font-semibold mb-3">
                   {m.card_multi_auth_title()}
                 </h3>
                 <p className="text-muted-foreground leading-relaxed">
@@ -130,12 +122,12 @@ export function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-none bg-background/50 hover:bg-background transition-colors duration-300">
+            <Card className="border border-border/60 bg-card/70 shadow-xs hover:bg-card/90 transition-colors duration-300">
               <CardContent className="p-8">
-                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 text-blue-500">
+                <div className="w-14 h-14 rounded-xl bg-chart-2/15 flex items-center justify-center mb-6 text-chart-2">
                   <Shield className="h-7 w-7" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">
+                <h3 className="text-lg font-semibold mb-3">
                   {m.card_enterprise_security_title()}
                 </h3>
                 <p className="text-muted-foreground leading-relaxed">
@@ -144,12 +136,12 @@ export function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-none bg-background/50 hover:bg-background transition-colors duration-300">
+            <Card className="border border-border/60 bg-card/70 shadow-xs hover:bg-card/90 transition-colors duration-300">
               <CardContent className="p-8">
-                <div className="w-14 h-14 rounded-2xl bg-green-500/10 flex items-center justify-center mb-6 text-green-500">
+                <div className="w-14 h-14 rounded-xl bg-chart-1/15 flex items-center justify-center mb-6 text-chart-1">
                   <Gamepad2 className="h-7 w-7" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">
+                <h3 className="text-lg font-semibold mb-3">
                   {m.card_seamless_integration_title()}
                 </h3>
                 <p className="text-muted-foreground leading-relaxed">
@@ -162,18 +154,14 @@ export function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 relative overflow-hidden">
+      <section className="py-20 relative overflow-hidden">
         <div className="container mx-auto px-6">
-          <div className="bg-primary text-primary-foreground rounded-3xl p-12 md:p-20 text-center relative overflow-hidden">
-            {/* Decorative circles */}
-            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-white/10 rounded-full blur-3xl opacity-50" />
-            <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-white/10 rounded-full blur-3xl opacity-50" />
-
+          <div className="bg-card/90 border border-border/70 rounded-2xl p-10 md:p-16 text-center relative overflow-hidden">
             <div className="relative z-10 max-w-3xl mx-auto">
-              <h2 className="text-3xl md:text-5xl font-bold mb-6 tracking-tight">
+              <h2 className="text-3xl md:text-4xl font-semibold mb-4 tracking-tight">
                 {m.cta_title()}
               </h2>
-              <p className="text-primary-foreground/80 text-lg md:text-xl mb-10 max-w-2xl mx-auto">
+              <p className="text-muted-foreground text-lg md:text-xl mb-8 max-w-2xl mx-auto">
                 {m.cta_desc()}
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -182,20 +170,13 @@ export function HomePage() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <Button
-                    size="lg"
-                    variant="secondary"
-                    className="h-12 px-8 text-primary font-semibold rounded-full"
-                  >
+                  <Button size="lg" variant="outline" className="h-11 px-6">
                     <Github className="mr-2 h-5 w-5" />
                     {m.button_view_github()}
                   </Button>
                 </a>
                 <Link to="/login">
-                  <Button
-                    size="lg"
-                    className="h-12 px-8 bg-white/20 hover:bg-white/30 text-white border-0 rounded-full backdrop-blur-sm"
-                  >
+                  <Button size="lg" className="h-11 px-6">
                     {m.button_try_demo()}
                   </Button>
                 </Link>

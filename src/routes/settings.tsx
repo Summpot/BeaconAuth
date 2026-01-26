@@ -459,18 +459,18 @@ function SettingsPage() {
     return (
       <div className="flex items-center justify-center min-h-full p-4 bg-background">
         <div className="w-full max-w-md">
-          <Card className="text-center shadow-lg border-muted">
+          <Card className="text-center shadow-sm border-border/70">
             <CardContent className="pt-8 pb-8">
               <div className="inline-block mb-6 text-muted-foreground opacity-50">
                 <BeaconIcon className="w-16 h-16" />
               </div>
-              <CardTitle className="text-2xl font-bold mb-4">
+              <CardTitle className="text-2xl font-semibold mb-4">
                 {m.settings_not_authenticated()}
               </CardTitle>
               <CardDescription className="mb-8">
                 {m.settings_login_required()}
               </CardDescription>
-              <Button asChild size="lg" className="rounded-full">
+              <Button asChild size="lg">
                 <Link to="/login">{m.settings_sign_in()}</Link>
               </Button>
             </CardContent>
@@ -484,7 +484,7 @@ function SettingsPage() {
     <div className="min-h-full bg-background pb-20">
       <div className="container max-w-5xl mx-auto px-4 md:px-6 pt-12">
         <div className="mb-10">
-          <h1 className="text-3xl font-extrabold tracking-tight mb-2">
+          <h1 className="text-3xl font-semibold tracking-tight mb-2">
             {m.settings_title()}
           </h1>
           <p className="text-muted-foreground text-lg">
@@ -497,12 +497,12 @@ function SettingsPage() {
             variant={message.type === 'success' ? 'default' : 'destructive'}
             className={
               message.type === 'success'
-                ? 'mb-8 shadow-sm border-green-500/20 bg-green-500/5'
-                : 'mb-8 shadow-sm'
+                ? 'mb-8 border-border/70 bg-card/90'
+                : 'mb-8'
             }
           >
             {message.type === 'success' ? (
-              <CheckCircle2 className="text-green-600 dark:text-green-400" />
+              <CheckCircle2 className="text-chart-1" />
             ) : (
               <XCircle />
             )}
@@ -523,13 +523,13 @@ function SettingsPage() {
         <div className="grid gap-8">
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary rounded-full" />
+              <div className="h-8 w-1 bg-primary/20 rounded-full" />
               <h2 className="text-xl font-bold">
                 {m.settings_profile_title()}
               </h2>
             </div>
 
-            <Card className="border-0 shadow-md">
+            <Card className="border border-border/60 shadow-xs">
               <form onSubmit={profileForm.handleSubmit(onProfileUpdate)}>
                 <CardContent className="p-6 space-y-6">
                   <p className="text-muted-foreground text-sm">
@@ -585,7 +585,6 @@ function SettingsPage() {
                           {...profileForm.register('email')}
                           placeholder={m.settings_email_placeholder()}
                           disabled={profileForm.formState.isSubmitting}
-                          className="bg-background/50"
                         />
                       </div>
 
@@ -601,7 +600,7 @@ function SettingsPage() {
                           }
                           className="grid gap-3"
                         >
-                          <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                          <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
                             <div className="flex items-center gap-3">
                               <RadioGroupItem value="" id="avatar_auto" />
                               <Label
@@ -614,7 +613,7 @@ function SettingsPage() {
                           </div>
 
                           {config?.github_oauth && (
-                            <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                            <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
                               <div className="flex items-center gap-3">
                                 <RadioGroupItem
                                   value="github"
@@ -638,7 +637,7 @@ function SettingsPage() {
                           )}
 
                           {config?.google_oauth && (
-                            <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                            <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
                               <div className="flex items-center gap-3">
                                 <RadioGroupItem
                                   value="google"
@@ -662,7 +661,7 @@ function SettingsPage() {
                           )}
 
                           {config?.microsoft_oauth && (
-                            <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                            <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
                               <div className="flex items-center gap-3">
                                 <RadioGroupItem
                                   value="microsoft"
@@ -695,7 +694,7 @@ function SettingsPage() {
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between rounded-xl border border-border p-4 bg-background/50">
+                          <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
                             <div className="flex items-center gap-3">
                               <RadioGroupItem
                                 value="gravatar"
@@ -742,12 +741,12 @@ function SettingsPage() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary rounded-full" />
+              <div className="h-8 w-1 bg-primary/20 rounded-full" />
               <h2 className="text-xl font-bold">
                 {m.settings_change_username_title()}
               </h2>
             </div>
-            <Card className="border-0 shadow-md">
+            <Card className="border border-border/60 shadow-xs">
               <form
                 onSubmit={changeUsernameForm.handleSubmit(onUsernameChange)}
               >
@@ -765,7 +764,7 @@ function SettingsPage() {
                       {...changeUsernameForm.register('username')}
                       placeholder={m.settings_username_placeholder()}
                       disabled={changeUsernameForm.formState.isSubmitting}
-                      className="bg-background/50 h-10"
+                      className="h-10"
                     />
                     {changeUsernameForm.formState.errors.username && (
                       <p className="text-sm text-destructive mt-1">
@@ -794,13 +793,13 @@ function SettingsPage() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary rounded-full" />
+              <div className="h-8 w-1 bg-primary/20 rounded-full" />
               <h2 className="text-xl font-bold">
                 {m.settings_login_methods_title()}
               </h2>
             </div>
 
-            <Card className="border-0 shadow-md">
+            <Card className="border border-border/60 shadow-xs">
               <CardContent className="p-0">
                 <div className="p-6 pb-0">
                   <p className="text-muted-foreground mb-6 text-sm">
@@ -809,9 +808,9 @@ function SettingsPage() {
                 </div>
                 <div className="divide-y divide-border">
                   {/* Password Method */}
-                  <div className="flex items-center justify-between p-6 bg-green-50/50 dark:bg-green-900/10">
+                  <div className="flex items-center justify-between p-6 bg-chart-1/10">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-background flex items-center justify-center shadow-xs text-primary">
+                      <div className="w-10 h-10 rounded-xl bg-card/80 flex items-center justify-center shadow-xs text-primary">
                         <Key className="h-5 w-5" />
                       </div>
                       <div>
@@ -826,8 +825,12 @@ function SettingsPage() {
                       </div>
                     </div>
                     <Badge
-                      variant={hasPassword ? 'default' : 'outline'}
-                      className={hasPassword ? 'bg-green-600' : ''}
+                      variant="outline"
+                      className={
+                        hasPassword
+                          ? 'text-chart-1 border-chart-1/30 bg-chart-1/10'
+                          : ''
+                      }
                     >
                       {hasPassword
                         ? m.settings_enabled()
@@ -844,7 +847,7 @@ function SettingsPage() {
                     {(identities?.identities || []).filter(
                       (i) => i.provider !== 'password',
                     ).length === 0 ? (
-                      <div className="text-center p-8 border-2 border-dashed rounded-xl text-muted-foreground bg-muted/30">
+                      <div className="text-center p-8 border-2 border-dashed rounded-xl text-muted-foreground bg-secondary/30">
                         {m.settings_no_oauth()}
                       </div>
                     ) : (
@@ -854,7 +857,7 @@ function SettingsPage() {
                           .map((i) => (
                             <div
                               key={i.id}
-                              className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50"
+                              className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card/80"
                             >
                               <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-secondary-foreground">
@@ -964,14 +967,14 @@ function SettingsPage() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary rounded-full" />
+              <div className="h-8 w-1 bg-primary/20 rounded-full" />
               <h2 className="text-xl font-bold">
                 {hasPassword
                   ? m.settings_change_password()
                   : m.settings_set_password()}
               </h2>
             </div>
-            <Card className="border-0 shadow-md">
+            <Card className="border border-border/60 shadow-xs">
               <CardContent className="p-6">
                 {hasPassword ? (
                   <form
@@ -989,7 +992,6 @@ function SettingsPage() {
                           {...changePasswordForm.register('currentPassword')}
                           placeholder="••••••••"
                           disabled={changePasswordForm.formState.isSubmitting}
-                          className="bg-background/50"
                         />
                         {changePasswordForm.formState.errors
                           .currentPassword && (
@@ -1011,7 +1013,6 @@ function SettingsPage() {
                           {...changePasswordForm.register('newPassword')}
                           placeholder="••••••••"
                           disabled={changePasswordForm.formState.isSubmitting}
-                          className="bg-background/50"
                         />
                         {changePasswordForm.formState.errors.newPassword && (
                           <p className="text-sm text-destructive">
@@ -1032,7 +1033,6 @@ function SettingsPage() {
                           {...changePasswordForm.register('confirmPassword')}
                           placeholder="••••••••"
                           disabled={changePasswordForm.formState.isSubmitting}
-                          className="bg-background/50"
                         />
                         {changePasswordForm.formState.errors
                           .confirmPassword && (
@@ -1067,7 +1067,7 @@ function SettingsPage() {
                     onSubmit={setPasswordForm.handleSubmit(onPasswordSet)}
                     className="space-y-4 max-w-md"
                   >
-                    <Alert className="mb-4 bg-primary/5 border-primary/10">
+                    <Alert className="mb-4 bg-card/90 border-border/70">
                       <AlertDescription>
                         {m.settings_alert_set_password_info()}
                       </AlertDescription>
@@ -1082,7 +1082,6 @@ function SettingsPage() {
                         {...setPasswordForm.register('newPassword')}
                         placeholder="••••••••"
                         disabled={setPasswordForm.formState.isSubmitting}
-                        className="bg-background/50"
                       />
                       {setPasswordForm.formState.errors.newPassword && (
                         <p className="text-sm text-destructive">
@@ -1100,7 +1099,6 @@ function SettingsPage() {
                         {...setPasswordForm.register('confirmPassword')}
                         placeholder="••••••••"
                         disabled={setPasswordForm.formState.isSubmitting}
-                        className="bg-background/50"
                       />
                       {setPasswordForm.formState.errors.confirmPassword && (
                         <p className="text-sm text-destructive">
@@ -1135,26 +1133,22 @@ function SettingsPage() {
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 mb-2">
-                <div className="h-8 w-1 bg-primary rounded-full" />
+                <div className="h-8 w-1 bg-primary/20 rounded-full" />
                 <h2 className="text-xl font-bold">
                   {m.settings_passkeys_title()}
                 </h2>
               </div>
-              <Button
-                onClick={() => setShowPasskeyModal(true)}
-                size="sm"
-                className="rounded-full"
-              >
+              <Button onClick={() => setShowPasskeyModal(true)} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 {m.settings_add_passkey()}
               </Button>
             </div>
 
-            <Card className="border-0 shadow-md">
+            <Card className="border border-border/60 shadow-xs">
               <CardContent className="p-6">
                 {passkeys.length === 0 ? (
-                  <div className="text-center py-12 border-2 border-dashed border-border rounded-xl bg-muted/20">
-                    <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4 text-muted-foreground">
+                  <div className="text-center py-12 border-2 border-dashed border-border rounded-xl bg-secondary/30">
+                    <div className="w-16 h-16 mx-auto bg-secondary/60 rounded-full flex items-center justify-center mb-4 text-muted-foreground">
                       <Key className="h-8 w-8" />
                     </div>
                     <p className="text-muted-foreground font-medium mb-1">
@@ -1169,7 +1163,7 @@ function SettingsPage() {
                     {passkeys.map((passkey) => (
                       <div
                         key={passkey.id}
-                        className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50"
+                        className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card/80"
                       >
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -1212,9 +1206,9 @@ function SettingsPage() {
                   </div>
                 )}
 
-                <Alert className="mt-8 bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900">
-                  <Lightbulb className="h-4 w-4 text-blue-500" />
-                  <AlertDescription className="text-blue-700 dark:text-blue-300">
+                <Alert className="mt-8 bg-card/90 border-border/70">
+                  <Lightbulb className="h-4 w-4 text-chart-2" />
+                  <AlertDescription className="text-muted-foreground">
                     <h3 className="font-semibold mb-1">
                       {m.settings_what_are_passkeys()}
                     </h3>
@@ -1229,7 +1223,7 @@ function SettingsPage() {
         </div>
 
         <Dialog open={showPasskeyModal} onOpenChange={setShowPasskeyModal}>
-          <DialogContent className="bg-card border-border">
+          <DialogContent className="bg-card/95">
             <DialogHeader>
               <DialogTitle>{m.settings_add_new_passkey_title()}</DialogTitle>
               <DialogDescription>
@@ -1248,7 +1242,6 @@ function SettingsPage() {
                     value={passkeyName}
                     onChange={(e) => setPasskeyName(e.target.value)}
                     placeholder={m.settings_passkey_name_placeholder()}
-                    className="bg-background/50"
                   />
                 </div>
                 <div className="flex gap-3">

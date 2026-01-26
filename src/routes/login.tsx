@@ -323,15 +323,15 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-full flex flex-col">
-      <div className="flex-1 flex items-center justify-center p-4">
+    <div className="min-h-full flex flex-col bg-background">
+      <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="text-center pb-4">
               <div className="flex justify-center mb-4">
                 <BeaconIcon className="w-16 h-16" />
               </div>
-              <CardTitle className="text-3xl font-bold">
+              <CardTitle className="text-2xl font-semibold">
                 {m.login_welcome_title()}
               </CardTitle>
               <CardDescription>
@@ -366,7 +366,6 @@ function LoginPage() {
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
-                      className="bg-background/50 border-input"
                     />
                     {errors.username && (
                       <p className="text-sm text-destructive">
@@ -383,7 +382,6 @@ function LoginPage() {
                       placeholder={m.login_password_placeholder()}
                       disabled={isSubmitting}
                       autoComplete="current-password webauthn"
-                      className="bg-background/50 border-input"
                     />
                     {errors.password && (
                       <p className="text-sm text-destructive">
@@ -465,7 +463,7 @@ function LoginPage() {
                         type="button"
                         variant="outline"
                         onClick={() => handleOAuthLogin('github')}
-                        className="bg-[#24292e] hover:bg-[#2f363d] text-white hover:text-white border-gray-600"
+                        className="bg-card/80 hover:bg-card text-foreground border-border/70"
                       >
                         <svg
                           className="w-4 h-4 mr-2"
@@ -487,7 +485,7 @@ function LoginPage() {
                         type="button"
                         variant="outline"
                         onClick={() => handleOAuthLogin('google')}
-                        className="bg-white hover:bg-gray-100 text-gray-700 border-gray-300"
+                        className="bg-card/80 hover:bg-card text-foreground border-border/70"
                       >
                         <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                           <title>{m.provider_google()}</title>
@@ -516,7 +514,7 @@ function LoginPage() {
                         type="button"
                         variant="outline"
                         onClick={() => handleOAuthLogin('microsoft')}
-                        className="bg-[#2F2F2F] hover:bg-[#1f1f1f] text-white hover:text-white border-gray-600"
+                        className="bg-card/80 hover:bg-card text-foreground border-border/70"
                       >
                         <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                           <title>{m.provider_microsoft()}</title>
