@@ -88,7 +88,7 @@ pub async fn handle_passkey_register_start(mut req: Request, env: &Env) -> Resul
         return error_response(&req, 401, "unauthorized", "Not authenticated");
     };
 
-    let user_id = match verify_access_token(jwt, &access_token).await {
+    let user_id = match verify_access_token(&jwt, &access_token).await {
         Ok(id) => id,
         Err(e) => return error_response(&req, 401, "invalid_token", e),
     };
@@ -148,7 +148,7 @@ pub async fn handle_passkey_register_finish(mut req: Request, env: &Env) -> Resu
         return error_response(&req, 401, "unauthorized", "Not authenticated");
     };
 
-    let user_id = match verify_access_token(jwt, &access_token).await {
+    let user_id = match verify_access_token(&jwt, &access_token).await {
         Ok(id) => id,
         Err(e) => return error_response(&req, 401, "invalid_token", e),
     };
@@ -302,7 +302,7 @@ pub async fn handle_passkey_auth_finish(mut req: Request, env: &Env) -> Result<R
         exp: access_exp.timestamp(),
         token_type: "access".to_string(),
     };
-    let access_token = sign_jwt(jwt, &access_claims)?;
+    let access_token = sign_jwt(&jwt, &access_claims)?;
 
     let refresh_token = new_refresh_token();
     let token_hash = sha256_hex(&refresh_token);
@@ -325,7 +325,7 @@ pub async fn handle_passkey_list(req: &Request, env: &Env) -> Result<Response> {
         return error_response(req, 401, "unauthorized", "Not authenticated");
     };
 
-    let user_id = match verify_access_token(jwt, &access_token).await {
+    let user_id = match verify_access_token(&jwt, &access_token).await {
         Ok(id) => id,
         Err(e) => return error_response(req, 401, "invalid_token", e),
     };
@@ -355,7 +355,7 @@ pub async fn handle_passkey_delete_by_id(req: &Request, env: &Env, id: String) -
         return error_response(req, 401, "unauthorized", "Not authenticated");
     };
 
-    let user_id = match verify_access_token(jwt, &access_token).await {
+    let user_id = match verify_access_token(&jwt, &access_token).await {
         Ok(id) => id,
         Err(e) => return error_response(req, 401, "invalid_token", e),
     };

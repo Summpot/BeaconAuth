@@ -1,7 +1,12 @@
 use beacon_core::models;
 use worker::{Cache, Env, Method, Request, RequestInit, Response, Result};
 
-use crate::wasm::{env::env_string, http::json_with_cors, state::get_jwt_state, util::sha256_hex};
+use crate::wasm::{
+    env::env_string,
+    http::json_with_cors,
+    state::get_jwt_state,
+    util::{now_ts, sha256_hex},
+};
 
 pub async fn handle_get_config(req: &Request, env: &Env) -> Result<Response> {
     // We can infer OAuth config from env variables, even if Workers OAuth routes are not enabled yet.
@@ -49,13 +54,22 @@ pub async fn handle_get_jwks(req: &Request, env: &Env) -> Result<Response> {
 
     let cache = Cache::default();
     if let Some(resp) = cache.get(&cache_key_req, false).await? {
-        return Ok(resp);
+        // Prevent serving a stale JWKS across a rotation boundary.
+        // Cache API does not revalidate by ETag; we must enforce freshness ourselves.
+        if let Some(not_after_raw) = resp.headers().get("X-JWKS-Not-After")? {
+            if let Ok(not_after) = not_after_raw.parse::<i64>() {
+                if now_ts() < not_after {
+                    return Ok(resp);
+                }
+            }
+        }
     }
 
     // Cache miss: build the JWKS response.
     // We fetch JwtState only after checking the cache to avoid unnecessary cold-start DB work.
     let jwt = get_jwt_state(env).await?;
     let etag = format!("\"{}\"", sha256_hex(&jwt.jwks_json));
+    let not_after = jwt.next_jwks_rotation_at;
 
     // If the client already has this JWKS, allow an efficient conditional response.
     if let Some(if_none_match) = req.headers().get("If-None-Match")? {
@@ -66,6 +80,7 @@ pub async fn handle_get_jwks(req: &Request, env: &Env) -> Result<Response> {
         if matched {
             let mut resp = Response::empty()?.with_status(304);
             resp.headers_mut().set("ETag", &etag)?;
+            resp.headers_mut().set("X-JWKS-Not-After", &not_after.to_string())?;
             resp.headers_mut().set(
                 "Cache-Control",
                 &format!("public, max-age={max_age}, s-maxage={s_maxage}"),
@@ -85,6 +100,7 @@ pub async fn handle_get_jwks(req: &Request, env: &Env) -> Result<Response> {
             &format!("public, max-age={max_age}, s-maxage={s_maxage}"),
         )?;
         resp.headers_mut().set("ETag", &etag)?;
+        resp.headers_mut().set("X-JWKS-Not-After", &not_after.to_string())?;
         // JWKS is public; keep CORS invariant so it can be safely cached/shared.
         resp.headers_mut().set("Access-Control-Allow-Origin", "*")?;
         resp.headers_mut().set("Access-Control-Allow-Methods", "GET, OPTIONS")?;

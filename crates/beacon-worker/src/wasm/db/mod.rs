@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectOptions, Database, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use sea_orm::sea_query::Expr;
 
@@ -654,4 +654,34 @@ pub async fn db_get_or_create_jwks(
     }
 
     Ok((encoding, decoding, jwks_json))
+}
+
+pub async fn db_list_jwks_keys_by_kid_prefix(
+    db: &DatabaseConnection,
+    kid_prefix: &str,
+    rotating_limit: u64,
+) -> Result<Vec<JwksKeyRow>> {
+    let mut rows: Vec<JwksKeyRow> = Vec::new();
+
+    // Legacy / non-rotating kid: include if present (backwards compatible rollout).
+    if let Some(row) = jwks_key::Entity::find_by_id(kid_prefix.to_string())
+        .one(db)
+        .await
+        .map_err(map_db_err)?
+    {
+        rows.push(row);
+    }
+
+    // Rotating kids: include the most recently created N keys.
+    let dashed_prefix = format!("{kid_prefix}-");
+    let rotating = jwks_key::Entity::find()
+        .filter(jwks_key::Column::Kid.starts_with(dashed_prefix))
+        .order_by_desc(jwks_key::Column::CreatedAt)
+        .limit(rotating_limit)
+        .all(db)
+        .await
+        .map_err(map_db_err)?;
+
+    rows.extend(rotating);
+    Ok(rows)
 }

@@ -1,9 +1,17 @@
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
+use serde_json::Value;
 use url::Url;
 use worker::{Env, Error, Result};
 
-use super::{db::{db_connect, db_get_or_create_jwks}, env::env_string};
+use super::{
+    db::{db_connect, db_get_or_create_jwks, db_list_jwks_keys_by_kid_prefix},
+    env::env_string,
+    util::now_ts,
+};
+
+const JWKS_ROTATION_SECS: i64 = 24 * 60 * 60;
+const JWKS_PUBLISHED_ROTATING_KEYS: u64 = 2;
 
 #[derive(Clone)]
 pub struct JwtState {
@@ -20,26 +28,73 @@ pub struct JwtState {
     pub encoding_key: jsonwebtoken::EncodingKey,
     pub decoding_key: jsonwebtoken::DecodingKey,
     pub jwks_json: String,
+    /// Timestamp at which the worker should refresh/rotate its active signing key.
+    pub next_jwks_rotation_at: i64,
 
     pub access_token_expiration: i64,
     pub refresh_token_expiration: i64,
     pub jwt_expiration: i64,
 }
 
-static JWT_STATE: OnceLock<JwtState> = OnceLock::new();
+static JWT_STATE: OnceLock<Mutex<JwtState>> = OnceLock::new();
 
 static PASSKEY_RP: OnceLock<beacon_passkey::RpConfig> = OnceLock::new();
 
+fn format_rotating_kid(prefix: &str, bucket: i64) -> String {
+    if prefix.ends_with('-') {
+        format!("{prefix}{bucket}")
+    } else {
+        format!("{prefix}-{bucket}")
+    }
+}
+
+fn mutex_poisoned(name: &str) -> Error {
+    Error::RustError(format!("{name} mutex poisoned"))
+}
+
 async fn init_jwt_state(env: &Env) -> Result<JwtState> {
     let issuer = env_string(env, "BASE_URL").unwrap_or_else(|| "https://beaconauth.pages.dev".to_string());
-    let kid = env_string(env, "JWT_KID").unwrap_or_else(|| "beacon-auth-key-1".to_string());
+    let kid_prefix = env_string(env, "JWT_KID").unwrap_or_else(|| "beacon-auth-key-1".to_string());
 
     // BeaconAuth is JWKS-first: this worker serves its public key at `/.well-known/jwks.json` and
     // advertises that URL via the JWT header `jku`.
     //
     // Use libsql to persist the ES256 keypair so all worker instances share the same JWKS.
     let db = db_connect(env).await?;
-    let (encoding_key, decoding_key, jwks_json) = db_get_or_create_jwks(&db, &kid).await?;
+
+    let now = now_ts();
+    let bucket = now / JWKS_ROTATION_SECS;
+    let kid = format_rotating_kid(&kid_prefix, bucket);
+    let next_jwks_rotation_at = (bucket + 1) * JWKS_ROTATION_SECS;
+
+    let (encoding_key, decoding_key, active_jwks_json) = db_get_or_create_jwks(&db, &kid).await?;
+
+    // Build a multi-key JWKS set. We keep the current and previous rotation keys published
+    // at the same time to avoid edge cases where an access token minted right before rotation
+    // becomes unverifiable right after.
+    let jwks_rows = db_list_jwks_keys_by_kid_prefix(&db, &kid_prefix, JWKS_PUBLISHED_ROTATING_KEYS).await?;
+    let mut keys: Vec<Value> = Vec::new();
+    for row in jwks_rows {
+        let parsed: Value = serde_json::from_str(&row.jwks_json)
+            .map_err(|e| Error::RustError(format!("Invalid JWKS JSON in database for kid='{}': {e}", row.kid)))?;
+        if let Some(arr) = parsed.get("keys").and_then(|v| v.as_array()) {
+            for k in arr {
+                keys.push(k.clone());
+            }
+        }
+    }
+    // Fallback: never publish an empty JWKS.
+    if keys.is_empty() {
+        let parsed: Value = serde_json::from_str(&active_jwks_json)
+            .map_err(|e| Error::RustError(format!("Failed to parse active JWKS JSON: {e}")))?;
+        if let Some(arr) = parsed.get("keys").and_then(|v| v.as_array()) {
+            for k in arr {
+                keys.push(k.clone());
+            }
+        }
+    }
+    let jwks_json = serde_json::to_string(&serde_json::json!({ "keys": keys }))
+        .map_err(|e| Error::RustError(e.to_string()))?;
 
     let jwks_url = env_string(env, "JWKS_URL").unwrap_or_else(|| {
         format!(
@@ -85,25 +140,38 @@ async fn init_jwt_state(env: &Env) -> Result<JwtState> {
         encoding_key,
         decoding_key,
         jwks_json,
+        next_jwks_rotation_at,
         access_token_expiration,
         refresh_token_expiration,
         jwt_expiration,
     })
 }
 
-pub async fn get_jwt_state(env: &Env) -> Result<&'static JwtState> {
-    if let Some(state) = JWT_STATE.get() {
-        return Ok(state);
+pub async fn get_jwt_state(env: &Env) -> Result<JwtState> {
+    // Fast path: initialized and not yet due for rotation.
+    if let Some(m) = JWT_STATE.get() {
+        let now = now_ts();
+        let snapshot = {
+            let guard = m.lock().map_err(|_| mutex_poisoned("JWT_STATE"))?;
+            guard.clone()
+        };
+        if now < snapshot.next_jwks_rotation_at {
+            return Ok(snapshot);
+        }
+
+        // Due for rotation/refresh.
+        let refreshed = init_jwt_state(env).await?;
+        {
+            let mut guard = m.lock().map_err(|_| mutex_poisoned("JWT_STATE"))?;
+            *guard = refreshed.clone();
+        }
+        return Ok(refreshed);
     }
 
-    // `OnceLock::get_or_try_init` is still unstable on some toolchains/targets.
-    // Keep initialization race-safe: if another request initialized it first,
-    // we just read the already-set value.
+    // First initialization.
     let state = init_jwt_state(env).await?;
-    let _ = JWT_STATE.set(state);
-    Ok(JWT_STATE
-        .get()
-        .expect("JWT_STATE must be initialized after set()"))
+    let _ = JWT_STATE.set(Mutex::new(state.clone()));
+    Ok(state)
 }
 
 fn init_passkey_rp(env: &Env) -> Result<beacon_passkey::RpConfig> {

@@ -88,27 +88,32 @@ async fn decode_with_dynamic_jwks<T: serde::de::DeserializeOwned>(
     let header = decode_header(token).map_err(|e| format!("Invalid JWT header: {e}"))?;
     let preferred_kid = header.kid.as_deref();
 
-    let mut remote_key: Option<jsonwebtoken::DecodingKey> = None;
-    let key_ref: &jsonwebtoken::DecodingKey = if let Some(jku_raw) = header.jku.as_deref() {
-        // Fast-path: if the token points at our own advertised JWKS URL, we can verify locally.
+    let selected_key: Option<jsonwebtoken::DecodingKey> = if let Some(jku_raw) = header.jku.as_deref() {
+        // Fast-path: if the token points at our own advertised JWKS URL, we can verify locally
+        // against the full locally-served JWKS set (supports key rotation).
         if jku_raw == state.jwks_url {
-            &state.decoding_key
-        } else {
-        let jku = Url::parse(jku_raw).map_err(|e| format!("Invalid token jku URL '{jku_raw}': {e}"))?;
-        if is_allowed_jku(state, &jku) {
-            let jwks_json = fetch_jwks_json(&jku).await?;
             let (decoding_key, _selected_kid, _x, _y) =
-                crypto::decoding_key_from_jwks_json(&jwks_json, preferred_kid)
-                    .map_err(|e| format!("Failed to parse remote JWKS: {e}"))?;
-            remote_key = Some(decoding_key);
-            remote_key.as_ref().expect("set above")
+                crypto::decoding_key_from_jwks_json(&state.jwks_json, preferred_kid)
+                    .map_err(|e| format!("Failed to select local JWKS key: {e}"))?;
+            Some(decoding_key)
         } else {
-            &state.decoding_key
-        }
+            let jku = Url::parse(jku_raw)
+                .map_err(|e| format!("Invalid token jku URL '{jku_raw}': {e}"))?;
+            if is_allowed_jku(state, &jku) {
+                let jwks_json = fetch_jwks_json(&jku).await?;
+                let (decoding_key, _selected_kid, _x, _y) =
+                    crypto::decoding_key_from_jwks_json(&jwks_json, preferred_kid)
+                        .map_err(|e| format!("Failed to parse remote JWKS: {e}"))?;
+                Some(decoding_key)
+            } else {
+                None
+            }
         }
     } else {
-        &state.decoding_key
+        None
     };
+
+    let key_ref: &jsonwebtoken::DecodingKey = selected_key.as_ref().unwrap_or(&state.decoding_key);
 
     decode::<T>(token, key_ref, validation)
         .map_err(|e| format!("Invalid token: {e:?}"))

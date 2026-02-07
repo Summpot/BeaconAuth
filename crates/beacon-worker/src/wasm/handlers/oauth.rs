@@ -408,7 +408,7 @@ pub async fn handle_oauth_start(mut req: Request, env: &Env) -> Result<Response>
         link_user_id: None,
     };
 
-    let state_token = match sign_jwt(jwt, &claims) {
+    let state_token = match sign_jwt(&jwt, &claims) {
         Ok(t) => t,
         Err(e) => return internal_error_response(&req, "Failed to encode OAuth state JWT", &e),
     };
@@ -499,7 +499,7 @@ pub async fn handle_oauth_link_start(mut req: Request, env: &Env) -> Result<Resp
         return error_response(&req, 401, "unauthorized", "Not authenticated");
     };
 
-    let link_user_id = match verify_access_token(jwt, &access_token).await {
+    let link_user_id = match verify_access_token(&jwt, &access_token).await {
         Ok(id) => id,
         Err(e) => return error_response(&req, 401, "invalid_token", e),
     };
@@ -530,7 +530,7 @@ pub async fn handle_oauth_link_start(mut req: Request, env: &Env) -> Result<Resp
         link_user_id: Some(link_user_id),
     };
 
-    let state_token = match sign_jwt(jwt, &claims) {
+    let state_token = match sign_jwt(&jwt, &claims) {
         Ok(t) => t,
         Err(e) => return internal_error_response(&req, "Failed to encode OAuth state JWT", &e),
     };
@@ -624,7 +624,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
     // Validate and decode stateless OAuth state.
     // This uses the token header `jku` to dynamically fetch the correct JWKS, so callbacks can
     // be verified across instances without a shared signing key.
-    let oauth_state = match verify_oauth_state_token(jwt, &state_token).await {
+    let oauth_state = match verify_oauth_state_token(&jwt, &state_token).await {
         Ok(claims) => claims,
         Err(e) => {
             worker::console_log!("Invalid OAuth state token: {e}");
@@ -835,7 +835,7 @@ pub async fn handle_oauth_callback(req: &Request, env: &Env) -> Result<Response>
         token_type: "access".to_string(),
     };
 
-    let access_token = match sign_jwt(jwt, &access_claims) {
+    let access_token = match sign_jwt(&jwt, &access_claims) {
         Ok(t) => t,
         Err(e) => return internal_error_response(req, "Failed to sign access token", &e),
     };
