@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "index",
+    "---사용자용---",
+    "getting-started",
+    "configuration",
+    "server-deployment",
+    "cloudflare-deployment",
+    "mod-installation",
+    "troubleshooting",
+    "---개발자용---",
+    "architecture",
+    "development",
+    "api",
+    "contributing"
+  ]
+}

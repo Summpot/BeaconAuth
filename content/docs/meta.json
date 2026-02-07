@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "index",
+    "---For users---",
+    "getting-started",
+    "configuration",
+    "server-deployment",
+    "cloudflare-deployment",
+    "mod-installation",
+    "troubleshooting",
+    "---For developers---",
+    "architecture",
+    "development",
+    "api",
+    "contributing"
+  ]
+}
