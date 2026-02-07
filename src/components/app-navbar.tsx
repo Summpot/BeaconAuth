@@ -83,18 +83,16 @@ export function AppNavbar() {
               {m.app_name()}
             </span>
           </Link>
-
-          <nav className="hidden md:flex items-center gap-1 ml-3">
-            <Button variant="ghost" asChild>
-              <Link to="/docs/$">
-                <BookOpen className="h-4 w-4 mr-2" />
-                {m.nav_docs()}
-              </Link>
-            </Button>
-          </nav>
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
+          <Button variant="ghost" asChild className="hidden md:inline-flex">
+            <Link to="/docs/$">
+              <BookOpen className="h-4 w-4 mr-2" />
+              {m.nav_docs()}
+            </Link>
+          </Button>
+
           <a
             href="https://github.com/Summpot/beacon_auth"
             target="_blank"
