@@ -21,13 +21,12 @@ docker run -d --name beaconauth \
 
 ## 事前ビルド済みバイナリを使う
 
-GitHub Releases から、対象プラットフォーム向けの最新リリースをダウンロードしてください。
+公式プロジェクトのリリースページから、OS と CPU に合うサーバー用アーカイブをダウンロードしてローカルで展開してください。
 
-**Linux (amd64)**:
+**Linux / macOS**:
 
 ```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
-tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-<platform>.tar.gz
 chmod +x beacon
 ./beacon serve
 ```
@@ -38,15 +37,6 @@ chmod +x beacon
 # zip をダウンロードして展開
 # PowerShell で実行:
 .\beacon.exe serve
-```
-
-**macOS (Apple Silicon)**:
-
-```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
-tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
-chmod +x beacon
-./beacon serve
 ```
 
 ## ソースからビルドする

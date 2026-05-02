@@ -3,13 +3,13 @@
   "app_name": "BeaconAuth",
   "home_hero_title_1": "Une authentification sécurisée pour ",
   "home_hero_title_2": "chaque joueur",
-  "home_hero_subtitle": "Le pont entre les mondes hors ligne et en ligne. Une authentification fluide pour les joueurs crackés comme premium.",
+  "home_hero_subtitle": "Une couche de connexion sécurisée pour les communautés Minecraft, avec authentification web, OAuth et passkeys.",
   "button_view_profile": "Voir le profil",
   "button_manage_settings": "Gérer les paramètres",
   "button_login_now": "Se connecter",
   "button_create_account": "Créer un compte",
   "feature_signed_sessions_title": "Accès universel",
-  "feature_signed_sessions_desc": "Un flux de connexion unifié pour les joueurs premium et non premium.",
+  "feature_signed_sessions_desc": "Un flux de connexion unifié pour l’accès aux serveurs gérés par la communauté.",
   "feature_oauth_login_title": "Connexion sociale",
   "feature_oauth_login_desc": "Connectez-vous avec GitHub, Google ou Microsoft pour un accès instantané.",
   "feature_passkeys_title": "Clés d’accès (Passkeys)",
@@ -17,7 +17,7 @@
   "why_beaconauth_title": "Pourquoi BeaconAuth ?",
   "why_beaconauth_desc": "Conçu pour rassembler tout le monde. Une authentification sécurisée, moderne et inclusive pour votre communauté.",
   "card_multi_auth_title": "Flexibilité hybride",
-  "card_multi_auth_desc": "Prend en charge les joueurs en mode hors ligne en toute sécurité, tout en permettant aux joueurs premium d’ignorer l’écran de connexion.",
+  "card_multi_auth_desc": "Les administrateurs peuvent exiger BeaconAuth pour les clients moddès tout en autorisant, selon la configuration, les connexions vanilla déjà vérifiées.",
   "card_enterprise_security_title": "Protection des joueurs",
   "card_enterprise_security_desc": "La sécurité de votre compte est notre priorité. Le chiffrement aux standards de l’industrie protège vos données.",
   "card_seamless_integration_title": "Zéro friction",
@@ -141,7 +141,6 @@
   "aria_change_language": "Changer de langue",
   "alert_confirm_unlink": "Voulez-vous vraiment délier cette méthode de connexion ?",
   "alert_confirm_delete_passkey": "Voulez-vous vraiment supprimer la passkey « {name} » ?",
-
   "oauth_complete_processing_authentication": "Traitement de l’authentification…",
   "oauth_complete_auth_success_profile": "Authentification réussie ! Redirection vers votre profil…",
   "oauth_complete_auth_success_minecraft": "Authentification réussie ! Redirection vers Minecraft…",
@@ -154,14 +153,12 @@
   "oauth_complete_subtitle_error": "Veuillez réessayer.",
   "oauth_complete_button_try_again": "Réessayer",
   "oauth_complete_button_back_home": "Retour à l’accueil",
-
   "login_validation_username_required": "Le nom d’utilisateur est requis",
   "login_validation_password_required": "Le mot de passe est requis",
   "login_error_failed_connect_server": "Impossible de se connecter au serveur",
   "login_passkey_cancelled": "La connexion par passkey a été annulée",
   "login_passkey_error": "Erreur passkey : {message}",
   "login_passkey_unknown_error": "Une erreur inconnue est survenue",
-
   "settings_validation_current_password_required": "Le mot de passe actuel est requis",
   "settings_validation_password_min_length": "Le mot de passe doit contenir au moins {min} caractères",
   "settings_validation_confirm_password_required": "Veuillez confirmer votre mot de passe",
@@ -207,33 +204,25 @@
   "error_page_invalid_request_desc_line1": "Cette page nécessite des paramètres challenge et redirect_port valides.",
   "error_page_invalid_request_desc_line2": "Veuillez accéder à cette page via le mod Minecraft.",
   "error_page_missing_required_params": "Paramètres requis manquants dans l’URL",
-
   "nav_menu": "Menu",
-
   "sidebar_title": "Barre latérale",
   "sidebar_description": "Affiche la barre latérale mobile.",
   "sidebar_toggle": "Basculer la barre latérale",
-
   "pagination_aria_label": "Pagination",
   "pagination_go_previous_page": "Aller à la page précédente",
   "pagination_go_next_page": "Aller à la page suivante",
   "pagination_previous": "Précédent",
   "pagination_next": "Suivant",
   "pagination_more_pages": "Plus de pages",
-
   "breadcrumb_aria_label": "Fil d’Ariane",
   "breadcrumb_more": "Plus",
-
   "common_close": "Fermer",
-
   "carousel_previous_slide": "Diapositive précédente",
   "carousel_next_slide": "Diapositive suivante",
-
   "theme_toggle": "Basculer le thème",
   "theme_light": "Clair",
   "theme_dark": "Sombre",
   "theme_system": "Système",
-
   "command_palette_title": "Palette de commandes",
   "command_palette_description": "Recherchez une commande à exécuter…"
 }

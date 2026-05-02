@@ -3,13 +3,13 @@
   "app_name": "BeaconAuth",
   "home_hero_title_1": "Secure Authentication for ",
   "home_hero_title_2": "Every Player",
-  "home_hero_subtitle": "The bridge between offline and online worlds. Seamless authentication for cracked and premium players alike.",
+  "home_hero_subtitle": "A secure sign-in layer for Minecraft communities, with web, OAuth, and passkey authentication.",
   "button_view_profile": "View Profile",
   "button_manage_settings": "Manage Settings",
   "button_login_now": "Login Now",
   "button_create_account": "Create Account",
   "feature_signed_sessions_title": "Universal Access",
-  "feature_signed_sessions_desc": "Unified login flow for both premium and non-premium players.",
+  "feature_signed_sessions_desc": "A unified login flow for community-managed server access.",
   "feature_oauth_login_title": "Social Login",
   "feature_oauth_login_desc": "Connect with GitHub, Google, or Microsoft for instant access.",
   "feature_passkeys_title": "Passkeys",
@@ -17,7 +17,7 @@
   "why_beaconauth_title": "Why BeaconAuth?",
   "why_beaconauth_desc": "Designed to bring everyone together. Secure, modern, and inclusive authentication for your community.",
   "card_multi_auth_title": "Hybrid Flexibility",
-  "card_multi_auth_desc": "Support offline-mode players securely while letting premium users skip the login screen.",
+  "card_multi_auth_desc": "Let server operators require BeaconAuth for modded clients while allowing already-verified vanilla connections when configured.",
   "card_enterprise_security_title": "Player Protection",
   "card_enterprise_security_desc": "Your account safety is our priority. Industry-standard encryption keeps your data safe.",
   "card_seamless_integration_title": "Zero Friction",
@@ -141,7 +141,6 @@
   "aria_change_language": "Change language",
   "alert_confirm_unlink": "Are you sure you want to unlink this login method?",
   "alert_confirm_delete_passkey": "Are you sure you want to delete passkey \"{name}\"?",
-
   "oauth_complete_processing_authentication": "Processing authentication...",
   "oauth_complete_auth_success_profile": "Authentication successful! Redirecting to your profile...",
   "oauth_complete_auth_success_minecraft": "Authentication successful! Redirecting to Minecraft...",
@@ -154,14 +153,12 @@
   "oauth_complete_subtitle_error": "Please try again.",
   "oauth_complete_button_try_again": "Try again",
   "oauth_complete_button_back_home": "Back to home",
-
   "login_validation_username_required": "Username is required",
   "login_validation_password_required": "Password is required",
   "login_error_failed_connect_server": "Failed to connect to server",
   "login_passkey_cancelled": "Passkey authentication was cancelled",
   "login_passkey_error": "Passkey error: {message}",
   "login_passkey_unknown_error": "An unknown error occurred",
-
   "settings_validation_current_password_required": "Current password is required",
   "settings_validation_password_min_length": "Password must be at least {min} characters",
   "settings_validation_confirm_password_required": "Please confirm your password",
@@ -207,33 +204,25 @@
   "error_page_invalid_request_desc_line1": "This page requires valid challenge and redirect_port parameters.",
   "error_page_invalid_request_desc_line2": "Please access this page through the Minecraft mod.",
   "error_page_missing_required_params": "Missing required parameters in URL",
-
   "nav_menu": "Menu",
-
   "sidebar_title": "Sidebar",
   "sidebar_description": "Displays the mobile sidebar.",
   "sidebar_toggle": "Toggle Sidebar",
-
   "pagination_aria_label": "Pagination",
   "pagination_go_previous_page": "Go to previous page",
   "pagination_go_next_page": "Go to next page",
   "pagination_previous": "Previous",
   "pagination_next": "Next",
   "pagination_more_pages": "More pages",
-
   "breadcrumb_aria_label": "Breadcrumb",
   "breadcrumb_more": "More",
-
   "common_close": "Close",
-
   "carousel_previous_slide": "Previous slide",
   "carousel_next_slide": "Next slide",
-
   "theme_toggle": "Toggle theme",
   "theme_light": "Light",
   "theme_dark": "Dark",
   "theme_system": "System",
-
   "command_palette_title": "Command Palette",
   "command_palette_description": "Search for a command to run..."
 }

@@ -35,6 +35,6 @@
   "disconnect.beaconauth.server_error": "BeaconAuth サーバーエラー。後でもう一度お試しください",
   "disconnect.beaconauth.invalid_verify": "BeaconAuth 検証ペイロードが無効です",
   "disconnect.beaconauth.failure": "BeaconAuth 検証に失敗しました: %s",
-  "disconnect.beaconauth.premium_name_conflict": "名前 '%s' はこのサーバーのプレミアム Minecraft プレイヤーに既に使用されています。BeaconAuth ユーザー名を変更してから再試行してください。",
+  "disconnect.beaconauth.official_name_conflict": "名前 '%s' はこのサーバーの公式 Minecraft プレイヤーに既に使用されています。BeaconAuth ユーザー名を変更してから再試行してください。",
   "disconnect.beaconauth.cancelled": "認証がキャンセルされました: %s"
 }

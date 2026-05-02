@@ -10,10 +10,10 @@ import java.util.Optional
 import java.util.UUID
 
 /**
- * Prevents BeaconAuth display names from colliding with premium players already known to this server.
+ * Prevents BeaconAuth display names from colliding with official Minecraft players already known to this server.
  */
-object PremiumNameGuard {
-    private val logger = LoggerFactory.getLogger("BeaconAuth/PremiumNameGuard")
+object OfficialNameGuard {
+    private val logger = LoggerFactory.getLogger("BeaconAuth/OfficialNameGuard")
 
     fun findConflict(server: MinecraftServer, username: String, beaconAuthUuid: UUID?): GameProfile? {
         val requestedName = username.trim()
@@ -30,7 +30,7 @@ object PremiumNameGuard {
         }
 
         return findLocalDifferentProfile(server, requestedName, beaconAuthUuid)
-            ?.takeIf { isLikelyPremiumProfile(it, requestedName, beaconAuthUuid) && hasServerRecordFor(server, it) }
+            ?.takeIf { isLikelyOfficialProfile(it, requestedName, beaconAuthUuid) && hasServerRecordFor(server, it) }
     }
 
     private fun hasServerRecordFor(server: MinecraftServer, profile: GameProfile): Boolean {
@@ -110,7 +110,7 @@ object PremiumNameGuard {
                 else -> null
             }
         } catch (e: Exception) {
-            logger.warn("Unable to look up premium profile for '$username': ${e.message}")
+            logger.warn("Unable to look up official Minecraft profile for '$username': ${e.message}")
             null
         }
     }
@@ -138,7 +138,7 @@ object PremiumNameGuard {
             method.invoke(repository, arrayOf(username), minecraftAgent, callback)
             foundProfile
         } catch (e: Exception) {
-            logger.warn("Unable to look up premium profile for '$username': ${e.message}")
+            logger.warn("Unable to look up official Minecraft profile for '$username': ${e.message}")
             null
         }
     }
@@ -148,7 +148,7 @@ object PremiumNameGuard {
         return profileUuid != beaconAuthUuid
     }
 
-    private fun isLikelyPremiumProfile(profile: GameProfile, username: String, beaconAuthUuid: UUID?): Boolean {
+    private fun isLikelyOfficialProfile(profile: GameProfile, username: String, beaconAuthUuid: UUID?): Boolean {
         val profileUuid = profile.id ?: return false
         return profileUuid.version() == 4 && profileUuid != beaconAuthUuid && profileUuid != offlineUuid(username)
     }

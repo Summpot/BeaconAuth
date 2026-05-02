@@ -3,13 +3,13 @@
   "app_name": "BeaconAuth",
   "home_hero_title_1": "为每位玩家打造的",
   "home_hero_title_2": "安全验证",
-  "home_hero_subtitle": "连接离线与在线世界。为离线和正版玩家提供无缝且统一的认证体验。",
+  "home_hero_subtitle": "为 Minecraft 社区提供安全登录层，支持网页、OAuth 与通行密钥认证。",
   "button_view_profile": "查看个人资料",
   "button_manage_settings": "管理设置",
   "button_login_now": "立即登录",
   "button_create_account": "创建一个账户",
   "feature_signed_sessions_title": "统一验证",
-  "feature_signed_sessions_desc": "统一正版与离线玩家的登录流程",
+  "feature_signed_sessions_desc": "面向社区服务器访问管理的统一登录流程。",
   "feature_oauth_login_title": "社交登录",
   "feature_oauth_login_desc": "支持 GitHub / Google / Microsoft 快捷登录",
   "feature_passkeys_title": "通行密钥",
@@ -17,7 +17,7 @@
   "why_beaconauth_title": "为什么选择 BeaconAuth？",
   "why_beaconauth_desc": "旨在连接整个社区。为所有玩家提供安全、现代且包容的身份验证体验。",
   "card_multi_auth_title": "混合验证支持",
-  "card_multi_auth_desc": "安全支持离线模式玩家，同时允许正版玩家跳过登录界面，两全其美。",
+  "card_multi_auth_desc": "服务器管理员可按配置要求模组客户端通过 BeaconAuth 认证，并允许已验证的原版连接。",
   "card_enterprise_security_title": "玩家及账户保护",
   "card_enterprise_security_desc": "您的账户安全是我们的首要任务。采用行业标准加密技术保护您的数据。",
   "card_seamless_integration_title": "零摩擦体验",
@@ -141,7 +141,6 @@
   "aria_change_language": "切换语言",
   "alert_confirm_unlink": "您确定要解除此登录方式的绑定吗？",
   "alert_confirm_delete_passkey": "您确定要删除通行密钥 “{name}” 吗？",
-
   "oauth_complete_processing_authentication": "正在处理认证...",
   "oauth_complete_auth_success_profile": "认证成功！正在跳转到个人资料...",
   "oauth_complete_auth_success_minecraft": "认证成功！正在跳转回 Minecraft...",
@@ -154,14 +153,12 @@
   "oauth_complete_subtitle_error": "请重试。",
   "oauth_complete_button_try_again": "重试",
   "oauth_complete_button_back_home": "返回首页",
-
   "login_validation_username_required": "用户名不能为空",
   "login_validation_password_required": "密码不能为空",
   "login_error_failed_connect_server": "无法连接到服务器",
   "login_passkey_cancelled": "通行密钥认证已取消",
   "login_passkey_error": "通行密钥错误：{message}",
   "login_passkey_unknown_error": "发生未知错误",
-
   "settings_validation_current_password_required": "当前密码不能为空",
   "settings_validation_password_min_length": "密码至少需要 {min} 个字符",
   "settings_validation_confirm_password_required": "请确认您的密码",
@@ -207,33 +204,25 @@
   "error_page_invalid_request_desc_line1": "该页面需要有效的 challenge 和 redirect_port 参数。",
   "error_page_invalid_request_desc_line2": "请通过 Minecraft 模组访问该页面。",
   "error_page_missing_required_params": "URL 缺少必需参数",
-
   "nav_menu": "菜单",
-
   "sidebar_title": "侧边栏",
   "sidebar_description": "显示移动端侧边栏。",
   "sidebar_toggle": "切换侧边栏",
-
   "pagination_aria_label": "分页",
   "pagination_go_previous_page": "转到上一页",
   "pagination_go_next_page": "转到下一页",
   "pagination_previous": "上一页",
   "pagination_next": "下一页",
   "pagination_more_pages": "更多页面",
-
   "breadcrumb_aria_label": "面包屑导航",
   "breadcrumb_more": "更多",
-
   "common_close": "关闭",
-
   "carousel_previous_slide": "上一张幻灯片",
   "carousel_next_slide": "下一张幻灯片",
-
   "theme_toggle": "切换主题",
   "theme_light": "浅色",
   "theme_dark": "深色",
   "theme_system": "跟随系统",
-
   "command_palette_title": "命令面板",
   "command_palette_description": "搜索要执行的命令…"
 }

@@ -35,6 +35,6 @@
   "disconnect.beaconauth.server_error": "BeaconAuth server error. Please try again later",
   "disconnect.beaconauth.invalid_verify": "Invalid BeaconAuth verification payload",
   "disconnect.beaconauth.failure": "BeaconAuth verification failed: %s",
-  "disconnect.beaconauth.premium_name_conflict": "The name '%s' is already used by a premium Minecraft player on this server. Please change your BeaconAuth username and try again.",
+  "disconnect.beaconauth.official_name_conflict": "The name '%s' is already used by an official Minecraft player on this server. Please change your BeaconAuth username and try again.",
   "disconnect.beaconauth.cancelled": "Authentication cancelled: %s"
 }

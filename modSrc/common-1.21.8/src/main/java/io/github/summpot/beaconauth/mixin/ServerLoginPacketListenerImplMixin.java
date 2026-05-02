@@ -28,7 +28,7 @@ import java.util.UUID;
  * All logic delegated to ServerLoginHandler (Kotlin).
  * 
  * This Mixin works on both Fabric and Forge:
- * - Intercepts handleHello to skip Mojang auth when BeaconAuth should be used
+ * - Intercepts handleHello to route login to BeaconAuth negotiation when BeaconAuth should be used
  * - On Forge: Intercepts NetworkHooks.tickNegotiation() via @Redirect to prevent NPE
  * - On Fabric & Forge: Uses @Inject to handle BeaconAuth flow at READY_TO_ACCEPT state
  */
@@ -52,12 +52,12 @@ public abstract class ServerLoginPacketListenerImplMixin {
      * Intercept handleHello to decide whether to use BeaconAuth or Mojang authentication.
      * 
      * BeaconAuth is designed to work on online-mode=true servers, allowing offline-mode
-     * players (without Mojang accounts) to authenticate via the custom BeaconAuth system.
+     * players (using community-managed accounts) to authenticate via the custom BeaconAuth system.
      * 
-     * This intercept skips Mojang authentication and goes directly to NEGOTIATING state,
+     * This intercept routes the login to BeaconAuth negotiation and goes directly to NEGOTIATING state,
      * where BeaconAuth will probe the client and decide whether to:
-     * - Use BeaconAuth authentication (for modded clients without valid Mojang sessions)
-     * - Bypass authentication (for clients that already passed Mojang auth)
+     * - Use BeaconAuth authentication (for modded clients that need community-managed server access)
+     * - Allow the existing session (for clients that already passed Mojang auth)
      * - Reject the connection (for vanilla clients when configured to require the mod)
      */
     @Inject(method = "handleHello", at = @At("HEAD"), cancellable = true)
@@ -89,7 +89,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
         }
 
         // Server is in online-mode. BeaconAuth is designed for this scenario.
-        // Skip Mojang authentication and let BeaconAuth handle authentication instead.
+        // Route the login to BeaconAuth negotiation and let BeaconAuth handle authentication instead.
         BEACON_LOGGER.info("Intercepting handleHello for {} - starting BeaconAuth flow", packet.name());
         
         beaconAuth$shouldUseBeaconAuth = true;
@@ -99,11 +99,11 @@ public abstract class ServerLoginPacketListenerImplMixin {
         // installs the stable per-account UUID.
         this.gameProfile = new GameProfile(beaconAuth$offlineUuid(packet.name()), packet.name());
         
-        // Transition directly to NEGOTIATING state, bypassing Mojang authentication
+        // Transition directly to NEGOTIATING state, routing login to BeaconAuth negotiation
         beaconAuth$setState("NEGOTIATING");
         
         // CRITICAL: Start BeaconAuth negotiation immediately
-        // We can't wait for READY_TO_ACCEPT since we skipped Mojang auth
+        // We can't wait for READY_TO_ACCEPT since we routed login to BeaconAuth negotiation
         beaconAuth$startNegotiationNow();
         
         // Cancel the original handleHello execution

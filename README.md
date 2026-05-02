@@ -70,6 +70,7 @@ Documentation is maintained in Fumadocs under `content/docs`.
 - [Server deployment](content/docs/server-deployment.mdx)
 - [Cloudflare deployment](content/docs/cloudflare-deployment.mdx)
 - [Mod installation](content/docs/mod-installation.mdx)
+- [Network and privacy](content/docs/network-privacy.mdx)
 - [Troubleshooting](content/docs/troubleshooting.mdx)
 - [Architecture](content/docs/architecture.mdx)
 - [Development](content/docs/development.mdx)

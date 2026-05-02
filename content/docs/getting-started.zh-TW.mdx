@@ -21,13 +21,12 @@ docker run -d --name beaconauth \
 
 ## 使用預先編譯的執行檔
 
-請從 GitHub Releases 下載適用於您平台的最新版本。
+請從專案官方發布頁下載適合作業系統和 CPU 的伺服器壓縮包，然後在本機解壓縮。
 
-**Linux (amd64)**:
+**Linux / macOS**:
 
 ```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
-tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-<platform>.tar.gz
 chmod +x beacon
 ./beacon serve
 ```
@@ -38,15 +37,6 @@ chmod +x beacon
 # 下載並解壓縮 zip
 # 在 PowerShell 執行:
 .\beacon.exe serve
-```
-
-**macOS (Apple Silicon)**:
-
-```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
-tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
-chmod +x beacon
-./beacon serve
 ```
 
 ## 從原始碼建置

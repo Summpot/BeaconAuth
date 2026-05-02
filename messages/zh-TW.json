@@ -3,13 +3,13 @@
   "app_name": "BeaconAuth",
   "home_hero_title_1": "為每位玩家打造的",
   "home_hero_title_2": "安全驗證",
-  "home_hero_subtitle": "連接離線與線上世界。為離線與正版玩家提供無縫且統一的認證體驗。",
+  "home_hero_subtitle": "為 Minecraft 社群提供安全登入層，支援網頁、OAuth 與通行金鑰驗證。",
   "button_view_profile": "查看個人資料",
   "button_manage_settings": "管理設定",
   "button_login_now": "立即登入",
   "button_create_account": "建立帳戶",
   "feature_signed_sessions_title": "統一驗證",
-  "feature_signed_sessions_desc": "統一正版與離線玩家的登入流程。",
+  "feature_signed_sessions_desc": "面向社群伺服器存取管理的統一登入流程。",
   "feature_oauth_login_title": "社群登入",
   "feature_oauth_login_desc": "支援 GitHub / Google / Microsoft 快速登入。",
   "feature_passkeys_title": "通行金鑰",
@@ -17,7 +17,7 @@
   "why_beaconauth_title": "為什麼選擇 BeaconAuth？",
   "why_beaconauth_desc": "旨在連結整個社群。為所有玩家提供安全、現代且包容的身分驗證體驗。",
   "card_multi_auth_title": "混合驗證支援",
-  "card_multi_auth_desc": "安全支援離線模式玩家，同時允許正版玩家跳過登入畫面，兩全其美。",
+  "card_multi_auth_desc": "伺服器管理員可依設定要求模組客戶端通過 BeaconAuth 驗證，並允許已驗證的原版連線。",
   "card_enterprise_security_title": "玩家與帳戶保護",
   "card_enterprise_security_desc": "您的帳戶安全是我們的首要任務。採用業界標準加密技術保護您的資料。",
   "card_seamless_integration_title": "零摩擦體驗",
@@ -141,7 +141,6 @@
   "aria_change_language": "切換語言",
   "alert_confirm_unlink": "您確定要解除綁定此登入方式嗎？",
   "alert_confirm_delete_passkey": "您確定要刪除通行金鑰「{name}」嗎？",
-
   "oauth_complete_processing_authentication": "正在處理驗證…",
   "oauth_complete_auth_success_profile": "登入成功！正在前往個人資料…",
   "oauth_complete_auth_success_minecraft": "登入成功！正在返回 Minecraft…",
@@ -154,14 +153,12 @@
   "oauth_complete_subtitle_error": "如果問題持續發生，請重新登入或聯絡伺服器管理員。",
   "oauth_complete_button_try_again": "再試一次",
   "oauth_complete_button_back_home": "返回首頁",
-
   "login_validation_username_required": "請輸入使用者名稱",
   "login_validation_password_required": "請輸入密碼",
   "login_error_failed_connect_server": "無法連線到伺服器",
   "login_passkey_cancelled": "已取消通行金鑰登入",
   "login_passkey_error": "通行金鑰錯誤：{message}",
   "login_passkey_unknown_error": "未知的通行金鑰錯誤",
-
   "settings_validation_current_password_required": "請輸入目前密碼",
   "settings_validation_password_min_length": "密碼至少需要 {min} 個字元",
   "settings_validation_confirm_password_required": "請確認新密碼",
@@ -169,7 +166,6 @@
   "settings_validation_username_min_length": "使用者名稱至少需要 {min} 個字元",
   "settings_validation_username_max_length": "使用者名稱最多 {max} 個字元",
   "settings_validation_username_invalid_chars": "使用者名稱只能包含英文字母、數字與底線（_）",
-
   "settings_success_password_changed": "已變更密碼",
   "settings_success_password_set": "已設定密碼",
   "settings_success_username_updated": "已更新使用者名稱",
@@ -177,7 +173,6 @@
   "settings_success_login_method_unlinked": "已解除綁定登入方式",
   "settings_success_passkey_registered": "已註冊通行金鑰",
   "settings_success_passkey_deleted": "已刪除通行金鑰",
-
   "settings_error_failed_connect_server": "無法連線到伺服器",
   "settings_error_failed_update_username": "無法更新使用者名稱",
   "settings_error_failed_update_profile": "無法更新個人資料",
@@ -187,7 +182,6 @@
   "settings_error_passkey_name_required": "請輸入通行金鑰名稱",
   "settings_error_register_passkey_failed": "註冊通行金鑰失敗：{error}",
   "settings_error_delete_passkey_failed": "刪除通行金鑰失敗：{error}",
-
   "settings_alert_set_password_info": "你目前只使用社群登入。在移除所有登入方式之前，請先設定密碼。",
   "settings_unlink": "解除綁定",
   "aria_email_info": "電子郵件資訊",
@@ -210,33 +204,25 @@
   "error_page_invalid_request_desc_line1": "此頁面需要有效的 challenge 與 redirect_port 參數。",
   "error_page_invalid_request_desc_line2": "請透過 Minecraft 模組存取此頁面。",
   "error_page_missing_required_params": "URL 缺少必要參數",
-
   "nav_menu": "選單",
-
   "sidebar_title": "側邊欄",
   "sidebar_description": "顯示行動版側邊欄。",
   "sidebar_toggle": "切換側邊欄",
-
   "pagination_aria_label": "分頁",
   "pagination_go_previous_page": "前往上一頁",
   "pagination_go_next_page": "前往下一頁",
   "pagination_previous": "上一頁",
   "pagination_next": "下一頁",
   "pagination_more_pages": "更多頁面",
-
   "breadcrumb_aria_label": "麵包屑導覽",
   "breadcrumb_more": "更多",
-
   "common_close": "關閉",
-
   "carousel_previous_slide": "上一張投影片",
   "carousel_next_slide": "下一張投影片",
-
   "theme_toggle": "切換主題",
   "theme_light": "淺色",
   "theme_dark": "深色",
   "theme_system": "跟隨系統",
-
   "command_palette_title": "命令面板",
   "command_palette_description": "搜尋要執行的命令…"
 }

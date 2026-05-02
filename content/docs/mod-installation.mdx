@@ -5,8 +5,9 @@ description: Install and configure the BeaconAuth Minecraft mod.
 
 ## Server installation
 
-1. Download the latest mod jar from GitHub Releases.
-   - Latest release: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. Download the matching mod jar from the file page on the platform where you found BeaconAuth.
+   - CurseForge: use the Files tab and choose the jar matching your Minecraft version and loader.
+   - Modrinth: use the Versions tab and choose the jar matching your Minecraft version and loader.
    - Fabric: `beaconauth-fabric-*.jar`
    - Forge: `beaconauth-forge-*.jar`
    - NeoForge: `beaconauth-neoforge-*.jar`
@@ -15,8 +16,7 @@ description: Install and configure the BeaconAuth Minecraft mod.
 
 ## Client installation
 
-1. Download the same mod jar as the server.
-   - Latest release: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. Download the same mod jar as the server from the same release platform.
 2. Place it in the client `mods/` directory.
 3. Launch the game and authenticate when prompted.
 
@@ -57,7 +57,7 @@ audience = "minecraft-client"
 allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
 
 [behavior]
-# If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode
+# If true: Players with verified Mojang sessions may continue without the BeaconAuth web flow when server is in online-mode
 bypass_if_online_mode_verified = true
 # If true: Modded clients MUST authenticate when server is offline-mode
 force_auth_if_offline_mode = true

@@ -3,13 +3,13 @@
   "app_name": "BeaconAuth",
   "home_hero_title_1": "すべてのプレイヤーへ ",
   "home_hero_title_2": "安全な認証を",
-  "home_hero_subtitle": "オフラインとオンラインの世界をつなぐ架け橋。割れ・正規プレイヤーのどちらにもシームレスな認証体験を提供します。",
+  "home_hero_subtitle": "Minecraft コミュニティ向けの安全なサインイン基盤。Web、OAuth、パスキー認証に対応します。",
   "button_view_profile": "プロフィールを見る",
   "button_manage_settings": "設定を管理",
   "button_login_now": "今すぐログイン",
   "button_create_account": "アカウントを作成",
   "feature_signed_sessions_title": "ユニバーサルアクセス",
-  "feature_signed_sessions_desc": "正規/非正規どちらのプレイヤーにも統一されたログインフロー。",
+  "feature_signed_sessions_desc": "コミュニティ管理サーバーへのアクセスに向けた統一ログインフロー。",
   "feature_oauth_login_title": "ソーシャルログイン",
   "feature_oauth_login_desc": "GitHub、Google、Microsoft で連携してすぐに利用できます。",
   "feature_passkeys_title": "パスキー",
@@ -17,7 +17,7 @@
   "why_beaconauth_title": "なぜ BeaconAuth？",
   "why_beaconauth_desc": "みんなをつなぐために設計。安全でモダン、そして誰にとっても使いやすい認証をコミュニティへ。",
   "card_multi_auth_title": "ハイブリッドな柔軟性",
-  "card_multi_auth_desc": "オフラインモードのプレイヤーを安全にサポートしつつ、正規プレイヤーはログイン画面をスキップできます。",
+  "card_multi_auth_desc": "サーバー管理者は Mod クライアントに BeaconAuth を要求しつつ、設定に応じて検証済みのバニラ接続を許可できます。",
   "card_enterprise_security_title": "プレイヤー保護",
   "card_enterprise_security_desc": "アカウントの安全を最優先に。業界標準の暗号化でデータを守ります。",
   "card_seamless_integration_title": "手間ゼロ",
@@ -141,7 +141,6 @@
   "aria_change_language": "言語を変更",
   "alert_confirm_unlink": "このログイン方法の連携を解除してもよろしいですか？",
   "alert_confirm_delete_passkey": "パスキー「{name}」を削除してもよろしいですか？",
-
   "oauth_complete_processing_authentication": "認証を処理しています…",
   "oauth_complete_auth_success_profile": "認証に成功しました。プロフィールへリダイレクトします…",
   "oauth_complete_auth_success_minecraft": "認証に成功しました。Minecraft へリダイレクトします…",
@@ -154,14 +153,12 @@
   "oauth_complete_subtitle_error": "もう一度お試しください。",
   "oauth_complete_button_try_again": "再試行",
   "oauth_complete_button_back_home": "ホームに戻る",
-
   "login_validation_username_required": "ユーザー名は必須です",
   "login_validation_password_required": "パスワードは必須です",
   "login_error_failed_connect_server": "サーバーに接続できませんでした",
   "login_passkey_cancelled": "パスキー認証がキャンセルされました",
   "login_passkey_error": "パスキーエラー: {message}",
   "login_passkey_unknown_error": "不明なエラーが発生しました",
-
   "settings_validation_current_password_required": "現在のパスワードは必須です",
   "settings_validation_password_min_length": "パスワードは {min} 文字以上である必要があります",
   "settings_validation_confirm_password_required": "パスワードを確認してください",
@@ -207,33 +204,25 @@
   "error_page_invalid_request_desc_line1": "このページには有効な challenge と redirect_port パラメータが必要です。",
   "error_page_invalid_request_desc_line2": "Minecraft の Mod からこのページにアクセスしてください。",
   "error_page_missing_required_params": "URL に必要なパラメータがありません",
-
   "nav_menu": "メニュー",
-
   "sidebar_title": "サイドバー",
   "sidebar_description": "モバイルサイドバーを表示します。",
   "sidebar_toggle": "サイドバーを切り替え",
-
   "pagination_aria_label": "ページネーション",
   "pagination_go_previous_page": "前のページへ",
   "pagination_go_next_page": "次のページへ",
   "pagination_previous": "前へ",
   "pagination_next": "次へ",
   "pagination_more_pages": "他のページ",
-
   "breadcrumb_aria_label": "パンくずリスト",
   "breadcrumb_more": "その他",
-
   "common_close": "閉じる",
-
   "carousel_previous_slide": "前のスライド",
   "carousel_next_slide": "次のスライド",
-
   "theme_toggle": "テーマを切り替え",
   "theme_light": "ライト",
   "theme_dark": "ダーク",
   "theme_system": "システム",
-
   "command_palette_title": "コマンドパレット",
   "command_palette_description": "実行するコマンドを検索…"
 }

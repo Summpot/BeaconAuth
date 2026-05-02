@@ -5,8 +5,9 @@ description: Den BeaconAuth Minecraft-Mod installieren und konfigurieren.
 
 ## Server-Installation
 
-1. Lade das neueste Mod-Jar von GitHub Releases herunter.
-   - Neueste Version: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. Lade das passende Mod-Jar von der Dateiseite der Plattform herunter, auf der du BeaconAuth gefunden hast.
+   - CurseForge: Verwende den Files-Tab und wähle das Jar für deine Minecraft-Version und deinen Loader.
+   - Modrinth: Verwende den Versions-Tab und wähle das Jar für deine Minecraft-Version und deinen Loader.
    - Fabric: `beaconauth-fabric-*.jar`
    - Forge: `beaconauth-forge-*.jar`
    - NeoForge: `beaconauth-neoforge-*.jar`
@@ -15,8 +16,7 @@ description: Den BeaconAuth Minecraft-Mod installieren und konfigurieren.
 
 ## Client-Installation
 
-1. Lade dasselbe Mod-Jar wie auf dem Server herunter.
-   - Neueste Version: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. Lade dasselbe Mod-Jar wie auf dem Server von derselben Veröffentlichungsplattform herunter.
 2. Lege es in das Client-Verzeichnis `mods/`.
 3. Starte das Spiel und authentifiziere dich, wenn du dazu aufgefordert wirst.
 
@@ -57,7 +57,7 @@ audience = "minecraft-client"
 allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
 
 [behavior]
-# If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode
+# If true: Players with verified Mojang sessions may continue without the BeaconAuth web flow when server is in online-mode
 bypass_if_online_mode_verified = true
 # If true: Modded clients MUST authenticate when server is offline-mode
 force_auth_if_offline_mode = true

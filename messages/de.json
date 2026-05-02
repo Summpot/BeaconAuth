@@ -3,13 +3,13 @@
   "app_name": "BeaconAuth",
   "home_hero_title_1": "Sichere Authentifizierung für ",
   "home_hero_title_2": "jeden Spieler",
-  "home_hero_subtitle": "Die Brücke zwischen Offline- und Online-Welten. Nahtlose Anmeldung für Cracked- und Premium-Spieler gleichermaßen.",
+  "home_hero_subtitle": "Eine sichere Anmeldeschicht für Minecraft-Communities mit Web-, OAuth- und Passkey-Authentifizierung.",
   "button_view_profile": "Profil anzeigen",
   "button_manage_settings": "Einstellungen verwalten",
   "button_login_now": "Jetzt anmelden",
   "button_create_account": "Konto erstellen",
   "feature_signed_sessions_title": "Universeller Zugriff",
-  "feature_signed_sessions_desc": "Ein einheitlicher Login-Flow für Premium- und Nicht-Premium-Spieler.",
+  "feature_signed_sessions_desc": "Ein einheitlicher Login-Flow für communityverwalteten Serverzugriff.",
   "feature_oauth_login_title": "Social Login",
   "feature_oauth_login_desc": "Mit GitHub, Google oder Microsoft verbinden – sofortiger Zugriff.",
   "feature_passkeys_title": "Passkeys",
@@ -17,7 +17,7 @@
   "why_beaconauth_title": "Warum BeaconAuth?",
   "why_beaconauth_desc": "Entwickelt, um alle zusammenzubringen. Sichere, moderne und inklusive Authentifizierung für deine Community.",
   "card_multi_auth_title": "Hybride Flexibilität",
-  "card_multi_auth_desc": "Unterstützt Offline-Mode-Spieler sicher und lässt Premium-Spieler den Login-Bildschirm überspringen.",
+  "card_multi_auth_desc": "Serverbetreiber können BeaconAuth für Mod-Clients verlangen und konfigurierte, bereits verifizierte Vanilla-Verbindungen zulassen.",
   "card_enterprise_security_title": "Spielerschutz",
   "card_enterprise_security_desc": "Deine Kontosicherheit hat Priorität. Branchenübliche Verschlüsselung schützt deine Daten.",
   "card_seamless_integration_title": "Null Reibung",
@@ -141,7 +141,6 @@
   "aria_change_language": "Sprache ändern",
   "alert_confirm_unlink": "Möchtest du diese Login-Methode wirklich trennen?",
   "alert_confirm_delete_passkey": "Möchtest du den Passkey „{name}“ wirklich löschen?",
-
   "oauth_complete_processing_authentication": "Authentifizierung wird verarbeitet…",
   "oauth_complete_auth_success_profile": "Authentifizierung erfolgreich! Weiterleitung zu deinem Profil…",
   "oauth_complete_auth_success_minecraft": "Authentifizierung erfolgreich! Weiterleitung zu Minecraft…",
@@ -154,14 +153,12 @@
   "oauth_complete_subtitle_error": "Bitte versuche es erneut.",
   "oauth_complete_button_try_again": "Erneut versuchen",
   "oauth_complete_button_back_home": "Zur Startseite",
-
   "login_validation_username_required": "Benutzername ist erforderlich",
   "login_validation_password_required": "Passwort ist erforderlich",
   "login_error_failed_connect_server": "Verbindung zum Server fehlgeschlagen",
   "login_passkey_cancelled": "Passkey-Authentifizierung wurde abgebrochen",
   "login_passkey_error": "Passkey-Fehler: {message}",
   "login_passkey_unknown_error": "Ein unbekannter Fehler ist aufgetreten",
-
   "settings_validation_current_password_required": "Aktuelles Passwort ist erforderlich",
   "settings_validation_password_min_length": "Passwort muss mindestens {min} Zeichen lang sein",
   "settings_validation_confirm_password_required": "Bitte bestätige dein Passwort",
@@ -207,33 +204,25 @@
   "error_page_invalid_request_desc_line1": "Diese Seite benötigt gültige Parameter challenge und redirect_port.",
   "error_page_invalid_request_desc_line2": "Bitte rufe diese Seite über den Minecraft-Mod auf.",
   "error_page_missing_required_params": "Erforderliche Parameter in der URL fehlen",
-
   "nav_menu": "Menü",
-
   "sidebar_title": "Seitenleiste",
   "sidebar_description": "Zeigt die mobile Seitenleiste an.",
   "sidebar_toggle": "Seitenleiste umschalten",
-
   "pagination_aria_label": "Seitennavigation",
   "pagination_go_previous_page": "Zur vorherigen Seite",
   "pagination_go_next_page": "Zur nächsten Seite",
   "pagination_previous": "Zurück",
   "pagination_next": "Weiter",
   "pagination_more_pages": "Weitere Seiten",
-
   "breadcrumb_aria_label": "Breadcrumb",
   "breadcrumb_more": "Mehr",
-
   "common_close": "Schließen",
-
   "carousel_previous_slide": "Vorherige Folie",
   "carousel_next_slide": "Nächste Folie",
-
   "theme_toggle": "Theme umschalten",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
   "theme_system": "System",
-
   "command_palette_title": "Befehlspalette",
   "command_palette_description": "Suche nach einem Befehl zum Ausführen…"
 }

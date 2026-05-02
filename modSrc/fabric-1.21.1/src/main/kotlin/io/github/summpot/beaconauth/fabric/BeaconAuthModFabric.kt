@@ -135,7 +135,7 @@ private object BeaconAuthServerConfig {
         bypassIfOnlineModeVerified = builder
             .comment(
                 "Bypass BeaconAuth for players verified by Mojang online-mode",
-                "If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode",
+                "If true: Players with verified Mojang sessions may continue without the BeaconAuth web flow when the server is in online-mode",
                 "If false: All players must authenticate with BeaconAuth, even in online-mode",
                 "Recommended: true"
             )

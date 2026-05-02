@@ -21,13 +21,12 @@ docker run -d --name beaconauth \
 
 ## 使用预编译二进制
 
-从 GitHub Releases 页面下载适合的平台版本。
+从项目官方发布页下载适合操作系统和 CPU 的服务端压缩包，然后在本地解压。
 
-**Linux（amd64）**：
+**Linux / macOS**：
 
 ```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
-tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-<platform>.tar.gz
 chmod +x beacon
 ./beacon serve
 ```
@@ -38,15 +37,6 @@ chmod +x beacon
 # Download and extract the zip file
 # Run in PowerShell:
 .\beacon.exe serve
-```
-
-**macOS（Apple Silicon）**：
-
-```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
-tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
-chmod +x beacon
-./beacon serve
 ```
 
 ## 从源码构建

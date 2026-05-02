@@ -35,6 +35,6 @@
   "disconnect.beaconauth.server_error": "BeaconAuth 서버 오류입니다. 잠시 후 다시 시도해 주세요",
   "disconnect.beaconauth.invalid_verify": "잘못된 BeaconAuth 검증 페이로드",
   "disconnect.beaconauth.failure": "BeaconAuth 검증 실패: %s",
-  "disconnect.beaconauth.premium_name_conflict": "이름 '%s'은(는) 이 서버의 프리미엄 Minecraft 플레이어가 이미 사용 중입니다. BeaconAuth 사용자 이름을 변경한 뒤 다시 시도해 주세요.",
+  "disconnect.beaconauth.official_name_conflict": "이름 '%s'은(는) 이 서버의 공식 Minecraft 플레이어가 이미 사용 중입니다. BeaconAuth 사용자 이름을 변경한 뒤 다시 시도해 주세요.",
   "disconnect.beaconauth.cancelled": "인증 취소됨: %s"
 }

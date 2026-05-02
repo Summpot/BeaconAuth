@@ -5,8 +5,9 @@ description: BeaconAuth Minecraft MOD のインストールと設定。
 
 ## サーバーへの導入
 
-1. GitHub Releases から最新の MOD jar をダウンロードします。
-   - 最新リリース: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. BeaconAuth を見つけた配布プラットフォームのファイルページから、対応する MOD jar をダウンロードします。
+   - CurseForge: Files タブで Minecraft バージョンとローダーに合う jar を選択します。
+   - Modrinth: Versions タブで Minecraft バージョンとローダーに合う jar を選択します。
    - Fabric: `beaconauth-fabric-*.jar`
    - Forge: `beaconauth-forge-*.jar`
    - NeoForge: `beaconauth-neoforge-*.jar`
@@ -15,8 +16,7 @@ description: BeaconAuth Minecraft MOD のインストールと設定。
 
 ## クライアントへの導入
 
-1. サーバーと同じ MOD jar をダウンロードします。
-   - 最新リリース: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. サーバーと同じ MOD jar を同じ配布プラットフォームからダウンロードします。
 2. クライアントの `mods/` ディレクトリに配置します。
 3. ゲームを起動し、求められたら認証します。
 
@@ -57,7 +57,7 @@ audience = "minecraft-client"
 allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
 
 [behavior]
-# If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode
+# If true: Players with verified Mojang sessions may continue without the BeaconAuth web flow when server is in online-mode
 bypass_if_online_mode_verified = true
 # If true: Modded clients MUST authenticate when server is offline-mode
 force_auth_if_offline_mode = true

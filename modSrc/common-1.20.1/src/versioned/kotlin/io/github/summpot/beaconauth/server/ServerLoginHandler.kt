@@ -27,7 +27,7 @@ class ServerLoginHandler @JvmOverloads constructor(
     private val disconnectCallback: (Component) -> Unit,
     private val finishCallback: () -> Unit,
     /**
-     * True if BeaconAuth intercepted HELLO on an online-mode server and skipped Mojang auth.
+     * True if BeaconAuth intercepted HELLO on an online-mode server and routed login to BeaconAuth negotiation.
      * In that case, the profile UUID is only a placeholder and MUST NOT be treated as Mojang-verified.
      */
     private val helloWasIntercepted: Boolean = false,
@@ -105,10 +105,10 @@ class ServerLoginHandler @JvmOverloads constructor(
             return
         }
 
-        // Determine if we should bypass BeaconAuth
+        // Determine if we should allow the existing session
         // Note: When BeaconAuth intercepts handleHello on online-mode servers,
-        // the gameProfile.id will be null because Mojang authentication was skipped.
-        // A non-null UUID indicates the player passed through Mojang verification
+        // the gameProfile.id is only a temporary negotiation UUID.
+        // A non-null UUID without interception indicates the player passed through Mojang verification
         // (either because BeaconAuth didn't intercept, or on offline-mode servers).
         val hasMojangVerifiedUUID = !helloWasIntercepted && gameProfile?.id != null
         
@@ -116,11 +116,11 @@ class ServerLoginHandler @JvmOverloads constructor(
         val bypassOfflineMode = !onlineMode && !BeaconAuthConfig.shouldForceAuthIfOfflineMode()
         val bypass = bypassOnlineMode || bypassOfflineMode
         
-        logger.info("Bypass check: bypassOnlineMode=$bypassOnlineMode, bypassOfflineMode=$bypassOfflineMode, finalBypass=$bypass, hasMojangUUID=$hasMojangVerifiedUUID")
+        logger.info("Existing session check: allowOnlineModeSession=$bypassOnlineMode, allowOfflineModeSession=$bypassOfflineMode, finalAllow=$bypass, hasMojangUUID=$hasMojangVerifiedUUID")
         logger.info("Config values: bypass_if_online_mode_verified=${BeaconAuthConfig.shouldBypassIfOnlineModeVerified()}, force_auth_if_offline_mode=${BeaconAuthConfig.shouldForceAuthIfOfflineMode()}")
         
         if (bypass) {
-            logger.info("Bypass triggered; finishing negotiation without BeaconAuth")
+            logger.info("Existing session allowed; finishing negotiation")
             finish()
         } else {
             logger.info("Starting BeaconAuth flow")
@@ -185,15 +185,15 @@ class ServerLoginHandler @JvmOverloads constructor(
                 if (result.success) {
                     val effectiveName = sanitizeMinecraftUsername(result.username) ?: profile.name
                     val stableUuid = result.stableUuid
-                    val conflictingProfile = PremiumNameGuard.findConflict(server, effectiveName, stableUuid)
+                    val conflictingProfile = OfficialNameGuard.findConflict(server, effectiveName, stableUuid)
                     if (conflictingProfile != null) {
                         logger.warn(
-                            "Rejecting BeaconAuth user ${profile.name}: name '$effectiveName' conflicts with existing premium profile ${conflictingProfile.id}"
+                            "Rejecting BeaconAuth user ${profile.name}: name '$effectiveName' conflicts with existing official Minecraft profile ${conflictingProfile.id}"
                         )
                         if (stableUuid != null) {
                             AuthServer.removeAuthenticatedPlayer(stableUuid)
                         }
-                        fail(Component.translatable("disconnect.beaconauth.premium_name_conflict", effectiveName))
+                        fail(Component.translatable("disconnect.beaconauth.official_name_conflict", effectiveName))
                         return
                     }
                     if (stableUuid != null) {

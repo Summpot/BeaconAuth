@@ -21,13 +21,12 @@ Le serveur sera disponible sur `http://localhost:8080`.
 
 ## Utiliser les binaires précompilés
 
-Téléchargez la dernière release pour votre plateforme depuis la page GitHub Releases.
+Téléchargez l’archive serveur adaptée à votre système d’exploitation et à votre CPU depuis la page officielle des releases du projet, puis extrayez-la localement.
 
-**Linux (amd64)**:
+**Linux / macOS**:
 
 ```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-linux-amd64-musl-v1.0.0.tar.gz
-tar -xzf beaconauth-linux-amd64-musl-v1.0.0.tar.gz
+tar -xzf beaconauth-<platform>.tar.gz
 chmod +x beacon
 ./beacon serve
 ```
@@ -38,15 +37,6 @@ chmod +x beacon
 # Téléchargez et extrayez le zip
 # Lancez dans PowerShell :
 .\beacon.exe serve
-```
-
-**macOS (Apple Silicon)**:
-
-```bash
-wget https://github.com/Summpot/beacon_auth/releases/latest/download/beaconauth-macos-arm64-v1.0.0.tar.gz
-tar -xzf beaconauth-macos-arm64-v1.0.0.tar.gz
-chmod +x beacon
-./beacon serve
 ```
 
 ## Compiler depuis les sources

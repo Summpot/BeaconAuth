@@ -5,8 +5,9 @@ description: BeaconAuth Minecraft 모드를 설치하고 구성합니다.
 
 ## 서버 설치
 
-1. GitHub Releases에서 최신 모드 jar를 다운로드합니다.
-   - 최신 릴리스: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. BeaconAuth를 찾은 배포 플랫폼의 파일 페이지에서 알맞은 모드 jar를 다운로드합니다.
+   - CurseForge: Files 탭에서 Minecraft 버전과 로더에 맞는 jar를 선택합니다.
+   - Modrinth: Versions 탭에서 Minecraft 버전과 로더에 맞는 jar를 선택합니다.
    - Fabric: `beaconauth-fabric-*.jar`
    - Forge: `beaconauth-forge-*.jar`
    - NeoForge: `beaconauth-neoforge-*.jar`
@@ -15,8 +16,7 @@ description: BeaconAuth Minecraft 모드를 설치하고 구성합니다.
 
 ## 클라이언트 설치
 
-1. 서버에 설치한 것과 동일한 모드 jar를 다운로드합니다.
-   - 최신 릴리스: [GitHub Releases (latest)](https://github.com/Summpot/BeaconAuth/releases/latest)
+1. 서버와 동일한 모드 jar를 같은 배포 플랫폼에서 다운로드합니다.
 2. 클라이언트의 `mods/` 디렉터리에 넣습니다.
 3. 게임을 실행하고, 프롬프트가 뜨면 인증합니다.
 
@@ -57,7 +57,7 @@ audience = "minecraft-client"
 allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
 
 [behavior]
-# If true: Players with valid Mojang accounts skip BeaconAuth when server is in online-mode
+# If true: Players with verified Mojang sessions may continue without the BeaconAuth web flow when server is in online-mode
 bypass_if_online_mode_verified = true
 # If true: Modded clients MUST authenticate when server is offline-mode
 force_auth_if_offline_mode = true

@@ -1,0 +1,41 @@
+---
+title: Network and privacy
+description: What BeaconAuth connects to and what data is exchanged.
+---
+
+BeaconAuth is a self-hosted authentication layer for Minecraft communities. Server owners
+choose the BeaconAuth server URL in the mod configuration.
+
+## Network connections
+
+- The Minecraft client opens the configured BeaconAuth web page in the user's browser during login.
+- The Minecraft client runs a temporary local callback listener only for completing the browser login flow.
+- The Minecraft server fetches JWKS keys from the configured BeaconAuth server to verify JWT signatures.
+- The Minecraft mod does not include third-party analytics, advertising, telemetry, or external file downloads.
+
+## Data exchanged by the mod
+
+During the login flow, the mod exchanges:
+
+- A PKCE challenge and verifier used to bind the browser login to the Minecraft login attempt.
+- A signed JWT issued by the configured BeaconAuth server.
+- The Minecraft profile name and a stable account identifier needed for server-side verification.
+
+The mod does not collect payment information, browser history, chat content, or arbitrary files.
+
+## Data stored by the BeaconAuth server
+
+The self-hosted server stores account data needed for authentication, such as usernames,
+password hashes when password login is enabled, passkey credentials, linked OAuth identities,
+refresh tokens, and optional profile fields configured by the user.
+
+Server owners are responsible for their own deployment, logs, retention policy, OAuth provider
+configuration, and privacy notice for their community.
+If a deployment enables external observability or error reporting for the web/server application,
+that service should be disclosed in the server owner's community privacy notice.
+
+## Security notes
+
+- Use HTTPS for public BeaconAuth deployments.
+- Keep JWKS and `jku` host allowlists restricted to domains you control.
+- Download mod jars from the platform file page where the project is published.
