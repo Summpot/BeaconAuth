@@ -24,13 +24,13 @@ import appCss from '../styles.css?url';
 
 const { provider } = defineI18nUI(i18n, {
   translations: {
-    'zh-CN': {
+    'zh-Hans': {
       displayName: '简体中文',
       search: '搜索',
       toc: '本页目录',
       chooseLanguage: '选择语言',
     },
-    'zh-TW': {
+    'zh-Hant': {
       displayName: '繁體中文',
       search: '搜尋',
       toc: '本頁目錄',

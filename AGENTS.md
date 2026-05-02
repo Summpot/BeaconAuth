@@ -97,7 +97,7 @@ This repository is multi-language. When you touch one part, ensure the relevant 
 * When backend API shape changes, update frontend calls/types in the same pass.
 * Formatting/linting uses Biome (`biome.json`). Do not introduce a second formatter.
 * All user-facing text MUST be localized via Paraglide (`@/paraglide/messages`). Do not hardcode UI copy in TSX/JS.
-* When adding a new message key, update every locale file under `messages/` (at minimum: `en`, `de`, `fr`, `ja`, `ko`, `zh-CN`, `zh-TW`).
+* When adding a new message key, update every locale file under `messages/` (at minimum: `en`, `de`, `fr`, `ja`, `ko`, `zh-Hans`, `zh-Hant`).
 * This includes button labels, headings, helper text, validation errors, toast/status messages, tooltips, and `aria-*` labels.
 
 ### Gradle/Kotlin (Mod source)

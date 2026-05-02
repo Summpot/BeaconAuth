@@ -34,10 +34,10 @@ export function LanguageToggle() {
         <DropdownMenuItem onClick={() => setLocale('ko')}>
           한국어
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocale('zh-CN')}>
+        <DropdownMenuItem onClick={() => setLocale('zh-Hans')}>
           中文 (简体)
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocale('zh-TW')}>
+        <DropdownMenuItem onClick={() => setLocale('zh-Hant')}>
           中文 (繁體)
         </DropdownMenuItem>
       </DropdownMenuContent>
