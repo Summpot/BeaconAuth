@@ -147,7 +147,10 @@ jobs:
             const artifactName = '${{ matrix.artifact_name }}';
             const artifactExt = '${{ matrix.artifact_ext }}';
             const includeDocs = '${{ inputs.include-docs }}' === 'true';
-            const basePath = `target/${target}/release`;
+            const basePaths = [
+              `target/${target}/release`,
+              'target/release',
+            ];
             
             // Create artifacts directory
             fs.mkdirSync('artifacts', { recursive: true });
@@ -155,10 +158,12 @@ jobs:
             // Copy binaries
             const isWindows = target.includes('windows');
             const binaryName = isWindows ? 'beacon.exe' : 'beacon';
-            const srcBinary = path.join(basePath, binaryName);
+            const srcBinary = basePaths
+              .map((basePath) => path.join(basePath, binaryName))
+              .find((candidate) => fs.existsSync(candidate));
             const destBinary = path.join('artifacts', binaryName);
             
-            if (fs.existsSync(srcBinary)) {
+            if (srcBinary) {
               fs.copyFileSync(srcBinary, destBinary);
               console.log(`Copied ${srcBinary} to ${destBinary}`);
               
@@ -167,7 +172,13 @@ jobs:
                 fs.chmodSync(destBinary, 0o755);
               }
             } else {
-              console.log(`Warning: ${srcBinary} not found`);
+              console.error(`Expected ${binaryName} was not found. Checked: ${basePaths.join(', ')}`);
+              for (const basePath of basePaths) {
+                if (fs.existsSync(basePath)) {
+                  console.error(`${basePath} contains: ${fs.readdirSync(basePath).join(', ') || '(empty)'}`);
+                }
+              }
+              throw new Error(`${binaryName} was not produced by cargo build`);
             }
             
             // Copy documentation if requested
@@ -183,6 +194,10 @@ jobs:
             // Create archive
             const archiveName = `${artifactPrefix}${artifactName}.${artifactExt}`;
             process.chdir('artifacts');
+            const artifactEntries = fs.readdirSync('.');
+            if (artifactEntries.length === 0) {
+              throw new Error('No files were staged for the release archive');
+            }
             
             if (isWindows) {
               // Use PowerShell's Compress-Archive on Windows
