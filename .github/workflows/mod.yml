@@ -354,18 +354,37 @@ jobs:
             }
 
             const versions = await getJson("/game/versions?cache=true");
+            // CurseForge can return duplicate version names; 77784 is the Minecraft 1.21.x version type.
+            const minecraftVersionTypeIdOverrides = new Map([
+              ["1.21.1", 77784],
+            ]);
 
-            function findRequiredVersion(name) {
+            function gameVersionTypeId(entry) {
+              return entry.gameVersionTypeID ?? entry.gameVersionTypeId;
+            }
+
+            function describeVersion(entry) {
+              return `${entry.name}#${entry.id}/type:${gameVersionTypeId(entry) ?? "unknown"}`;
+            }
+
+            function findRequiredVersion(name, label, versionTypeId) {
               const normalizedName = normalize(name);
-              const version = versions.find((entry) => normalize(entry.name) === normalizedName);
+              const candidates = versions.filter((entry) => normalize(entry.name) === normalizedName);
+              const version = versionTypeId
+                ? candidates.find((entry) => gameVersionTypeId(entry) === versionTypeId)
+                : candidates[0];
               if (!version) {
-                throw new Error(`Unable to resolve CurseForge game version ID for "${name}".`);
+                throw new Error(`Unable to resolve CurseForge game version ID for "${name}" in ${label}${versionTypeId ? ` (type ${versionTypeId})` : ""}. Matching names: ${candidates.map(describeVersion).join(", ") || "(none)"}`);
+              }
+              if (!versionTypeId && candidates.length > 1) {
+                console.warn(`Multiple CurseForge game versions matched "${name}"; using ${describeVersion(version)}.`);
               }
               return version;
             }
 
-            const minecraftVersion = findRequiredVersion(process.env.MINECRAFT_VERSION);
-            const loaderVersion = findRequiredVersion(process.env.CURSEFORGE_LOADER);
+            const minecraftVersionTypeId = minecraftVersionTypeIdOverrides.get(process.env.MINECRAFT_VERSION);
+            const minecraftVersion = findRequiredVersion(process.env.MINECRAFT_VERSION, "Minecraft versions", minecraftVersionTypeId);
+            const loaderVersion = findRequiredVersion(process.env.CURSEFORGE_LOADER, `${process.env.CURSEFORGE_LOADER} loader versions`);
             const javaVersion = versions.find((entry) => normalize(entry.name) === "java21");
 
             const gameVersions = [minecraftVersion.id, loaderVersion.id];
@@ -384,6 +403,7 @@ jobs:
             };
 
             fs.writeFileSync("curseforge-metadata.json", JSON.stringify(metadata));
+            console.log(`Resolved CurseForge game versions: Minecraft ${describeVersion(minecraftVersion)}, loader ${describeVersion(loaderVersion)}${javaVersion ? `, Java ${describeVersion(javaVersion)}` : ""}`);
             console.log(`Resolved CurseForge game version IDs: ${metadata.gameVersions.join(", ")}`);
           }
 
