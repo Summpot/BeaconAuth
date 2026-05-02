@@ -72,9 +72,9 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         with:
           version: 10
@@ -90,11 +90,11 @@ jobs:
 
       - name: Use Wild linker (Linux)
         if: runner.os == 'Linux' && matrix.container == ''
-        uses: davidlattimore/wild-action@0.7.0
+        uses: davidlattimore/wild-action@0.8.0
 
       - name: Install OpenSSL
         if: always() && !matrix.vcpkg_triplet == ''
-        uses: johnwason/vcpkg-action@v7
+        uses: johnwason/vcpkg-action@v7.0.1
         with:
           pkgs: openssl
           triplet: ${{ matrix.vcpkg_triplet }}
@@ -113,7 +113,7 @@ jobs:
           disable_annotations: true
 
       - name: Setup Rust cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/bin/
@@ -135,7 +135,7 @@ jobs:
           sccache --show-stats
 
       - name: Prepare artifacts
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -195,7 +195,7 @@ jobs:
             console.log(`Created archive: ${archiveName}`);
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-prefix }}${{ matrix.artifact_name }}
           path: ${{ inputs.artifact-prefix }}${{ matrix.artifact_name }}.${{ matrix.artifact_ext }}

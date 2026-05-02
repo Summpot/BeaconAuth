@@ -3,13 +3,14 @@
   "id": "beaconauth",
   "version": "${version}",
   "name": "Beacon Auth",
-  "description": "This is an example description! Tell everyone what your mod is about!",
-  "authors": ["Me!"],
+  "description": "Secure web, OAuth, and passkey authentication for Minecraft servers using a BeaconAuth auth server.",
+  "authors": ["Summpot"],
   "contact": {
-    "homepage": "https://fabricmc.net/",
-    "sources": "https://github.com/FabricMC/fabric-example-mod"
+    "homepage": "https://github.com/Summpot/BeaconAuth",
+    "sources": "https://github.com/Summpot/BeaconAuth",
+    "issues": "https://github.com/Summpot/BeaconAuth/issues"
   },
-  "license": "CC0-1.0",
+  "license": "MIT",
   "icon": "assets/beaconauth/icon.png",
   "environment": "*",
   "entrypoints": {
@@ -30,12 +31,9 @@
   "depends": {
     "fabricloader": ">=0.16.14",
     "minecraft": "~1.21.8",
-    "java": ">=17",
+    "java": ">=21",
     "architectury": ">=17.0.8",
     "fabric-api": "*",
     "fabric-language-kotlin": ">=1.13.7+kotlin.2.2.21"
-  },
-  "suggests": {
-    "another-mod": "*"
   }
 }

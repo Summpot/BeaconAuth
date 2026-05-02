@@ -87,7 +87,7 @@ jobs:
 
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact.name }}
           path: ./
@@ -115,7 +115,7 @@ jobs:
 
     steps:
       - name: Download mod artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: beaconauth-mod-release
           path: ./mod-release
@@ -165,10 +165,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         
       - name: Download release asset
-        uses: robinraju/release-downloader@v1
+        uses: robinraju/release-downloader@v1.13
         with:
           tag: ${{ needs.create-release.outputs.version }}
           fileName: beaconauth-linux-amd64-musl-${{ needs.create-release.outputs.version }}.tar.gz
@@ -180,10 +180,10 @@ jobs:
           ls -la binaries
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -191,7 +191,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -199,7 +199,7 @@ jobs:
             type=raw,value=latest-amd64
 
       - name: Build and push Docker image (linux/amd64)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -221,10 +221,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         
       - name: Download release asset
-        uses: robinraju/release-downloader@v1
+        uses: robinraju/release-downloader@v1.13
         with:
           tag: ${{ needs.create-release.outputs.version }}
           fileName: beaconauth-linux-arm64-musl-${{ needs.create-release.outputs.version }}.tar.gz
@@ -236,10 +236,10 @@ jobs:
           ls -la binaries
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -247,7 +247,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -255,7 +255,7 @@ jobs:
             type=raw,value=latest-arm64
 
       - name: Build and push Docker image (linux/arm64)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -277,7 +277,7 @@ jobs:
 
     steps:
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -354,7 +354,7 @@ jobs:
           EOF
 
       - name: Update release with Docker info
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

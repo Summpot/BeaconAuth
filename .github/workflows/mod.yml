@@ -34,16 +34,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '21'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
 
@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload mod artifacts
         if: github.event_name != 'workflow_call'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: beaconauth-mod
           path: mod-artifacts/*.jar
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload mod artifacts (workflow_call)
         if: github.event_name == 'workflow_call'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: mod-artifacts/*.jar

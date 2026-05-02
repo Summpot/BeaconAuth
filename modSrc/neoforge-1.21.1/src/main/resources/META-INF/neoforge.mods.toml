@@ -1,14 +1,17 @@
 modLoader = "javafml"
 loaderVersion = "[1,)"
-license = "All Rights Reserved"
+issueTrackerURL = "https://github.com/Summpot/BeaconAuth/issues"
+license = "MIT"
 
 [[mods]]
 modId = "beaconauth"
 version = "${version}"
 displayName = "Beacon Auth"
+displayURL = "https://github.com/Summpot/BeaconAuth"
+logoFile = "icon.png"
 authors = "Summpot"
 description = '''
-BeaconAuth integrates a BeaconAuth auth server into the Minecraft login flow.
+Secure web, OAuth, and passkey authentication for Minecraft servers using a BeaconAuth auth server.
 '''
 
 [[mixins]]

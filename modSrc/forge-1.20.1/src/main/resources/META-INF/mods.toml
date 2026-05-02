@@ -1,17 +1,18 @@
 modLoader = "kotlinforforge"
 loaderVersion = "[4,)"
-#issueTrackerURL = ""
-license = "Insert License Here"
+issueTrackerURL = "https://github.com/Summpot/BeaconAuth/issues"
+license = "MIT"
 
 [[mods]]
 modId = "beaconauth"
 version = "${version}"
 displayName = "Beacon Auth"
-authors = "Me!"
+displayURL = "https://github.com/Summpot/BeaconAuth"
+logoFile = "icon.png"
+authors = "Summpot"
 description = '''
-This is an example description! Tell everyone what your mod is about!
+Secure web, OAuth, and passkey authentication for Minecraft servers using a BeaconAuth auth server.
 '''
-#logoFile = ""
 
 [[dependencies.beaconauth]]
 modId = "forge"
@@ -23,7 +24,7 @@ side = "BOTH"
 [[dependencies.beaconauth]]
 modId = "minecraft"
 mandatory = true
-versionRange = "[1.20.1,)"
+versionRange = "[1.20.1,1.21)"
 ordering = "NONE"
 side = "BOTH"
 
