@@ -191,6 +191,17 @@ class ServerLoginHandler @JvmOverloads constructor(
                 if (result.success) {
                     val effectiveName = sanitizeMinecraftUsername(result.username) ?: profile.name
                     val stableUuid = result.stableUuid
+                    val conflictingProfile = PremiumNameGuard.findConflict(server, effectiveName, stableUuid)
+                    if (conflictingProfile != null) {
+                        logger.warn(
+                            "Rejecting BeaconAuth user ${profile.name}: name '$effectiveName' conflicts with existing premium profile ${conflictingProfile.id}"
+                        )
+                        if (stableUuid != null) {
+                            AuthServer.removeAuthenticatedPlayer(stableUuid)
+                        }
+                        fail(Component.translatable("disconnect.beaconauth.premium_name_conflict", effectiveName))
+                        return
+                    }
                     if (stableUuid != null) {
                         // Replace the login profile UUID with a stable per-account UUID.
                         // This prevents account takeover on offline-mode servers via username changes.

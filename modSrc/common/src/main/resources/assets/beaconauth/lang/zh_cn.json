@@ -35,5 +35,6 @@
   "disconnect.beaconauth.server_error": "BeaconAuth 服务器错误，请稍后重试",
   "disconnect.beaconauth.invalid_verify": "BeaconAuth 验证数据无效",
   "disconnect.beaconauth.failure": "BeaconAuth 验证失败: %s",
+  "disconnect.beaconauth.premium_name_conflict": "用户名 '%s' 已被该服务器中的正版 Minecraft 玩家使用。请修改您的 BeaconAuth 用户名后重试。",
   "disconnect.beaconauth.cancelled": "认证已取消: %s"
 }

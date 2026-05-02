@@ -62,6 +62,9 @@ jobs:
     with:
       artifact-name: beaconauth-mod-release
       retention-days: 90
+      publish-mod: true
+      release-tag: ${{ needs.create-release.outputs.version }}
+    secrets: inherit
 
   # Upload auth server release assets
   upload-server-assets:

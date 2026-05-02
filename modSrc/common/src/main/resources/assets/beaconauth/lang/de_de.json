@@ -35,5 +35,6 @@
   "disconnect.beaconauth.server_error": "BeaconAuth-Serverfehler. Bitte später erneut versuchen",
   "disconnect.beaconauth.invalid_verify": "Ungültige BeaconAuth-Verifizierungsdaten",
   "disconnect.beaconauth.failure": "BeaconAuth-Verifizierung fehlgeschlagen: %s",
+  "disconnect.beaconauth.premium_name_conflict": "Der Name '%s' wird auf diesem Server bereits von einem Premium-Minecraft-Spieler verwendet. Bitte ändere deinen BeaconAuth-Benutzernamen und versuche es erneut.",
   "disconnect.beaconauth.cancelled": "Authentifizierung abgebrochen: %s"
 }
