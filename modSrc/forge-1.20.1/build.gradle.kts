@@ -66,6 +66,7 @@ dependencies {
     shadowBundle(project(path = ":common-1.20.1", configuration = "transformProductionForge"))
 
     implementation("com.nimbusds:nimbus-jose-jwt:$nimbusJwtVersion")
+    shadowBundle("com.nimbusds:nimbus-jose-jwt:$nimbusJwtVersion")
 
     forgeRuntimeLibrary("com.nimbusds:nimbus-jose-jwt:$nimbusJwtVersion")
 }
