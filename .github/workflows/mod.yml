@@ -82,6 +82,8 @@ jobs:
           mkdir -p mod-artifacts
 
           projects=(
+            fabric-1.19.2
+            forge-1.19.2
             fabric-1.20.1
             forge-1.20.1
             fabric-1.21.1
@@ -131,35 +133,53 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - artifact-id: fabric-1.19.2
+            loader: fabric
+            loader-label: Fabric
+            minecraft-version: '1.19.2'
+            java-version: '17'
+            version-suffix: f1192
+          - artifact-id: forge-1.19.2
+            loader: forge
+            loader-label: Forge
+            minecraft-version: '1.19.2'
+            java-version: '17'
+            version-suffix: fg1192
           - artifact-id: fabric-1.20.1
             loader: fabric
             loader-label: Fabric
             minecraft-version: '1.20.1'
+            java-version: '21'
             version-suffix: f1201
           - artifact-id: forge-1.20.1
             loader: forge
             loader-label: Forge
             minecraft-version: '1.20.1'
+            java-version: '21'
             version-suffix: fg1201
           - artifact-id: fabric-1.21.1
             loader: fabric
             loader-label: Fabric
             minecraft-version: '1.21.1'
+            java-version: '21'
             version-suffix: f1211
           - artifact-id: neoforge-1.21.1
             loader: neoforge
             loader-label: NeoForge
             minecraft-version: '1.21.1'
+            java-version: '21'
             version-suffix: nf1211
           - artifact-id: fabric-1.21.8
             loader: fabric
             loader-label: Fabric
             minecraft-version: '1.21.8'
+            java-version: '21'
             version-suffix: f1218
           - artifact-id: neoforge-1.21.8
             loader: neoforge
             loader-label: NeoForge
             minecraft-version: '1.21.8'
+            java-version: '21'
             version-suffix: nf1218
 
     steps:
@@ -329,6 +349,7 @@ jobs:
           PUBLISH_CHANGELOG: ${{ steps.publish.outputs.changelog }}
           CURSEFORGE_LOADER: ${{ matrix.loader-label }}
           MINECRAFT_VERSION: ${{ matrix.minecraft-version }}
+          JAVA_VERSION: ${{ matrix.java-version }}
         run: |
           set -euo pipefail
 
@@ -385,13 +406,14 @@ jobs:
             const minecraftVersionTypeId = minecraftVersionTypeIdOverrides.get(process.env.MINECRAFT_VERSION);
             const minecraftVersion = findRequiredVersion(process.env.MINECRAFT_VERSION, "Minecraft versions", minecraftVersionTypeId);
             const loaderVersion = findRequiredVersion(process.env.CURSEFORGE_LOADER, `${process.env.CURSEFORGE_LOADER} loader versions`);
-            const javaVersion = versions.find((entry) => normalize(entry.name) === "java21");
+            const javaVersionName = `java${process.env.JAVA_VERSION || "21"}`;
+            const javaVersion = versions.find((entry) => normalize(entry.name) === javaVersionName);
 
             const gameVersions = [minecraftVersion.id, loaderVersion.id];
             if (javaVersion) {
               gameVersions.push(javaVersion.id);
             } else {
-              console.warn("Unable to resolve CurseForge game version ID for Java 21; uploading without a Java version tag.");
+              console.warn(`Unable to resolve CurseForge game version ID for Java ${process.env.JAVA_VERSION || "21"}; uploading without a Java version tag.`);
             }
 
             const metadata = {
