@@ -14,6 +14,10 @@ include("common-1.20.1")
 include("fabric-1.20.1")
 include("forge-1.20.1")
 
+include("common-1.19.2")
+include("fabric-1.19.2")
+include("forge-1.19.2")
+
 include("common-1.21.1")
 include("fabric-1.21.1")
 include("neoforge-1.21.1")

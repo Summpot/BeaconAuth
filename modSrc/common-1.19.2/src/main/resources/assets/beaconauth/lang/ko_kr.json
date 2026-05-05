@@ -1,0 +1,39 @@
+{
+  "chat.beaconauth.welcome": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.welcome_title": "§6✦ §e서버에 오신 것을 환영합니다!",
+  "chat.beaconauth.login_prompt": "§a[BeaconAuth] 여기를 클릭하여 로그인하세요.",
+  "chat.beaconauth.divider": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.authenticated": "§a✓ 이미 인증되었습니다. 다시 오신 것을 환영합니다!",
+  "chat.beaconauth.login_click": "§a[클릭하여 로그인]",
+  "chat.beaconauth.login_url": "§7또는 링크를 복사하세요: %s",
+  "chat.beaconauth.success": "§a✓ 인증 성공: %s",
+  "chat.beaconauth.failed": "§c✗ 인증 실패: %s",
+  "chat.beaconauth.server_not_ready": "§c인증 서버가 시작되지 않아 로그인할 수 없습니다",
+  "chat.beaconauth.generating_url": "§7로그인 URL을 생성하는 중...",
+  "chat.beaconauth.auto_login": "§7자동 로그인을 시작했습니다...",
+  "chat.beaconauth.login_cancelled": "§c인증이 취소되었습니다",
+
+  "command.beaconauth.must_be_player": "이 명령은 플레이어만 실행할 수 있습니다",
+  "command.beaconauth.login_failed": "로그인을 시작하지 못했습니다: %s",
+  "command.beaconauth.login_request_sent": "§7클라이언트로 로그인 요청을 보냈습니다",
+
+  "html.beaconauth.success.title": "로그인 성공",
+  "html.beaconauth.success.heading": "로그인 성공!",
+  "html.beaconauth.success.message": "이 페이지를 닫고 게임으로 돌아가세요",
+  "html.beaconauth.error.title": "로그인 오류",
+  "html.beaconauth.error.heading": "로그인 오류",
+
+  "server.beaconauth.player_joined": "플레이어 %s가 서버에 접속했습니다",
+  "server.beaconauth.not_authenticated": "플레이어 %s는 인증되지 않았습니다",
+  "server.beaconauth.already_authenticated": "플레이어 %s는 이미 인증되었습니다",
+  "server.beaconauth.auth_successful": "✓ %s 인증 성공 (사용자: %s, ID: %s)",
+  "server.beaconauth.auth_failed": "✗ %s 인증 실패: %s",
+
+  "disconnect.beaconauth.timeout": "BeaconAuth를 기다리는 동안 로그인 시간이 초과되었습니다",
+  "disconnect.beaconauth.mod_required": "이 서버는 오프라인 모드에서 BeaconAuth 모드가 필요합니다",
+  "disconnect.beaconauth.invalid_init": "잘못된 BeaconAuth 로그인 초기화 데이터",
+  "disconnect.beaconauth.server_error": "BeaconAuth 서버 오류입니다. 잠시 후 다시 시도해 주세요",
+  "disconnect.beaconauth.invalid_verify": "잘못된 BeaconAuth 검증 페이로드",
+  "disconnect.beaconauth.failure": "BeaconAuth 검증 실패: %s",
+  "disconnect.beaconauth.cancelled": "인증 취소됨: %s"
+}

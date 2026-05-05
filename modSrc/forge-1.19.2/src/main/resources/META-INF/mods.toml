@@ -1,0 +1,36 @@
+modLoader = "kotlinforforge"
+loaderVersion = "[3,)"
+issueTrackerURL = "https://github.com/Summpot/BeaconAuth/issues"
+license = "MIT"
+
+[[mods]]
+modId = "beaconauth"
+version = "${version}"
+displayName = "Beacon Auth"
+displayURL = "https://github.com/Summpot/BeaconAuth"
+logoFile = "icon.png"
+authors = "Summpot"
+description = '''
+Secure web, OAuth, and passkey authentication for Minecraft servers using a BeaconAuth auth server.
+'''
+
+[[dependencies.beaconauth]]
+modId = "forge"
+mandatory = true
+versionRange = "[43,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.beaconauth]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.19.2,1.20)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.beaconauth]]
+modId = "architectury"
+mandatory = true
+versionRange = "[6.6.92,)"
+ordering = "AFTER"
+side = "BOTH"
