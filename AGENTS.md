@@ -24,20 +24,7 @@
 * Add new guides as `.mdx` files in `content/docs` and keep README short with links to docs.
 * When migrating or updating docs, move long-form content out of README into Fumadocs.
 
-## 3) Research First (MANDATORY: DeepWiki MCP when unsure)
-
-When you are not sure about usage, conventions, or existing patterns in this repo, you MUST consult DeepWiki MCP BEFORE implementing.
-
-* Mandatory tool: `mcp_cognitionai_d_ask_question` (DeepWiki MCP)
-* Scope: APIs, auth flows, crypto/JWKS/JWT handling, DB patterns, error conventions, configuration/env usage, and any new dependency.
-* Ask targeted questions that reference the exact crate/module/file and desired behavior.
-
-If DeepWiki does not contain enough information:
-
-* Record what is missing and proceed with the best available evidence (code search, existing modules), keeping changes minimal and consistent.
-* Do NOT use `cargo doc --open`.
-
-## 4) Correctness Bar (No stubs / no shortcuts)
+## 3) Correctness Bar (No stubs / no shortcuts)
 
 Never ship simplified, stubbed, placeholder, or “temporary” implementations.
 
@@ -54,7 +41,7 @@ Requirements:
 * No TODO stubs, no placeholder returns, no “just for now” workarounds.
 * Handle errors fully and consistently; include actionable English error messages.
 
-## 5) Verification (Build/Check)
+## 4) Verification (Build/Check)
 
 Do not consider a change complete until it is verified.
 
@@ -63,12 +50,12 @@ Do not consider a change complete until it is verified.
 * Avoid local `--release` builds.
 * Use debug-mode builds only when needed for additional validation (e.g., `cargo build --all-targets`).
 
-## 6) Testing Strategy
+## 5) Testing Strategy
 
 * Avoid running the full test suite locally unless you changed tests or the change has broad blast radius.
 * Prefer fast validation first (e.g., `cargo check --workspace`) and then run only the relevant tests/modules when needed.
 
-## 7) Dependency Management
+## 6) Dependency Management
 
 * Rust: `cargo add -p <crate-name>`
 * Node.js: prefer `pnpm add` in this repo (avoid introducing additional package managers).
@@ -79,7 +66,7 @@ Before adding any new dependency/crate/package:
 * MUST consult DeepWiki MCP for existing patterns/approved libraries.
 * Justify why it is needed and why existing dependencies are insufficient.
 
-## 8) Multi-language Workspace Rules (Rust + TypeScript/React + Gradle/Kotlin)
+## 7) Multi-language Workspace Rules (Rust + TypeScript/React + Gradle/Kotlin)
 
 This repository is multi-language. When you touch one part, ensure the relevant toolchain still builds.
 
