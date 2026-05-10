@@ -95,11 +95,13 @@ class ServerLoginHandler @JvmOverloads constructor(
         logger.info("Server online-mode: $onlineMode")
         
         if (!modded) {
-            if (onlineMode || BeaconAuthConfig.shouldAllowVanillaOfflineClients()) {
+            val allowVerifiedVanillaOnline = onlineMode && !helloWasIntercepted
+            val allowVanillaOffline = !onlineMode && BeaconAuthConfig.shouldAllowVanillaOfflineClients()
+            if (allowVerifiedVanillaOnline || allowVanillaOffline) {
                 logger.info("Vanilla client allowed; finishing negotiation")
                 finish()
             } else {
-                logger.warn("Vanilla client rejected (offline mode, mod required)")
+                logger.warn("Vanilla client rejected (BeaconAuth mod required)")
                 fail(Component.translatable("disconnect.beaconauth.mod_required"))
             }
             return

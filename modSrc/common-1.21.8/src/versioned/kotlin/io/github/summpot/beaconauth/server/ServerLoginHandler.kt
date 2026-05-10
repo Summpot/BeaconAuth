@@ -104,9 +104,9 @@ class ServerLoginHandler @JvmOverloads constructor(
         
         if (!modded) {
             // On online-mode servers: only allow vanilla clients if they already passed Mojang verification.
-            // If we intercepted handleHello (UUID is null), allowing vanilla would effectively downgrade
+            // If we intercepted handleHello, allowing vanilla would effectively downgrade
             // online-mode to offline-mode, which is unsafe.
-            val hasMojangVerifiedUUID = gameProfile?.id != null
+            val hasMojangVerifiedUUID = !helloWasIntercepted && gameProfile?.id != null
             val allowVanilla = if (onlineMode) {
                 hasMojangVerifiedUUID
             } else {

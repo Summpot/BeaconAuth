@@ -1,3 +1,5 @@
+import org.gradle.api.file.DuplicatesStrategy
+
 val minecraftVersion = "1.20.1"
 val architecturyVersion = "9.2.14"
 val fabricLoaderVersion = "0.18.0"
@@ -37,10 +39,15 @@ sourceSets {
         )
         resources.setSrcDirs(
             listOf(
+                project.file("src/main/resources"),
                 rootProject.file("common/src/main/resources")
             )
         )
     }
+}
+
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 kotlin {
