@@ -9,6 +9,10 @@ architectury {
     common(listOf("fabric", "forge"))
 }
 
+loom {
+    accessWidenerPath.set(file("src/main/resources/beaconauth.accesswidener"))
+}
+
 dependencies {
     "minecraft"("net.minecraft:minecraft:$minecraftVersion")
     "mappings"(project.extensions.getByType<net.fabricmc.loom.api.LoomGradleExtensionAPI>().officialMojangMappings())

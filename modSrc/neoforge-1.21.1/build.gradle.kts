@@ -8,6 +8,8 @@ val architecturyVersion = "13.0.8"
 val nimbusJwtVersion = "10.6"
 
 configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
+    accessWidenerPath.set(project(":common-1.21.1").file("src/main/resources/beaconauth.accesswidener"))
+
     runs {
         named("server") {
             property("online-mode", "false")

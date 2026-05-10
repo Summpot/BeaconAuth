@@ -16,6 +16,8 @@ architectury {
 }
 
 loom {
+    accessWidenerPath.set(project(":common-1.21.1").file("src/main/resources/beaconauth.accesswidener"))
+
     runs {
         named("server") {
             property("online-mode", "false")
@@ -68,6 +70,8 @@ dependencies {
 
 tasks.processResources {
     inputs.property("version", project.version)
+
+    from(project(":common-1.21.1").file("src/main/resources/beaconauth.accesswidener"))
 
     filesMatching("fabric.mod.json") {
         expand("version" to project.version)

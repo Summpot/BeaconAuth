@@ -8,6 +8,8 @@ val architecturyVersion = "9.2.14"
 val nimbusJwtVersion = "10.6"
 
 configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
+    accessWidenerPath.set(project(":common-1.20.1").file("src/main/resources/beaconauth.accesswidener"))
+
     forge {
         mixinConfig("beaconauth.mixins.json")
     }

@@ -28,6 +28,7 @@
     ]
   },
   "mixins": ["beaconauth.mixins.json"],
+  "accessWidener": "beaconauth.accesswidener",
   "depends": {
     "fabricloader": ">=0.18.0",
     "minecraft": "~1.19.2",

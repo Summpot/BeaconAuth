@@ -45,6 +45,11 @@ public abstract class ServerLoginPacketListenerImplMixin {
     @Unique private boolean beaconAuth$interceptedHello = false;
     @Unique @Nullable private GameProfile beaconAuth$loginProfile;
 
+    @Unique
+    private ServerLoginPacketListenerImplAccessor beaconAuth$accessor() {
+        return (ServerLoginPacketListenerImplAccessor) (Object) this;
+    }
+
     /**
      * Intercept handleHello to decide whether to use BeaconAuth or Mojang authentication.
      * 
@@ -156,14 +161,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
 
     @Unique
     private boolean beaconAuth$isInState(String expectedState) {
-        try {
-            java.lang.reflect.Field stateField = ServerLoginPacketListenerImpl.class.getDeclaredField("state");
-            stateField.setAccessible(true);
-            Object stateValue = stateField.get(this);
-            return stateValue.toString().equals(expectedState);
-        } catch (Exception e) {
-            return false;
-        }
+        return beaconAuth$accessor().beaconAuth$getState().toString().equals(expectedState);
     }
 
     @Unique
@@ -213,32 +211,18 @@ public abstract class ServerLoginPacketListenerImplMixin {
 
     @Unique
     private void beaconAuth$setState(String stateName) {
-        try {
-            java.lang.reflect.Field stateField = ServerLoginPacketListenerImpl.class.getDeclaredField("state");
-            stateField.setAccessible(true);
-            Class<?> stateClass = Class.forName("net.minecraft.server.network.ServerLoginPacketListenerImpl$State");
-            Object stateValue = java.util.Arrays.stream(stateClass.getEnumConstants())
-                .filter(e -> e.toString().equals(stateName))
-                .findFirst()
-                .orElse(null);
-            if (stateValue != null) {
-                stateField.set(this, stateValue);
+        for (ServerLoginPacketListenerImpl.State state : ServerLoginPacketListenerImpl.State.values()) {
+            if (state.toString().equals(stateName)) {
+                beaconAuth$accessor().beaconAuth$setState(state);
+                return;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
     @Unique
     @Nullable
     private GameProfile beaconAuth$getAuthenticatedProfile() {
-        // Vanilla 1.21.x uses "authenticatedProfile".
-        // Some loaders may patch in "gameProfile".
-        GameProfile profile = (GameProfile) beaconAuth$getFieldIfPresent("authenticatedProfile");
-        if (profile != null) {
-            return profile;
-        }
-        return (GameProfile) beaconAuth$getFieldIfPresent("gameProfile");
+        return beaconAuth$accessor().beaconAuth$getAuthenticatedProfile();
     }
 
     @Unique
@@ -246,38 +230,13 @@ public abstract class ServerLoginPacketListenerImplMixin {
         if (profile == null) {
             return;
         }
-        if (beaconAuth$setFieldIfPresent("authenticatedProfile", profile)) {
-            return;
-        }
-        beaconAuth$setFieldIfPresent("gameProfile", profile);
+        beaconAuth$accessor().beaconAuth$setAuthenticatedProfile(profile);
     }
 
     @Unique
     private void beaconAuth$setStringFieldIfPresent(String fieldName, String value) {
-        beaconAuth$setFieldIfPresent(fieldName, value);
-    }
-
-    @Unique
-    @Nullable
-    private Object beaconAuth$getFieldIfPresent(String fieldName) {
-        try {
-            java.lang.reflect.Field f = ServerLoginPacketListenerImpl.class.getDeclaredField(fieldName);
-            f.setAccessible(true);
-            return f.get(this);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    @Unique
-    private boolean beaconAuth$setFieldIfPresent(String fieldName, Object value) {
-        try {
-            java.lang.reflect.Field f = ServerLoginPacketListenerImpl.class.getDeclaredField(fieldName);
-            f.setAccessible(true);
-            f.set(this, value);
-            return true;
-        } catch (Throwable ignored) {
-            return false;
+        if ("requestedUsername".equals(fieldName)) {
+            beaconAuth$accessor().beaconAuth$setRequestedUsername(value);
         }
     }
 }

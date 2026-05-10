@@ -48,6 +48,11 @@ public abstract class ServerLoginPacketListenerImplMixin {
     @Unique private boolean beaconAuth$negotiationStarted = false;
     @Unique private boolean beaconAuth$shouldUseBeaconAuth = false;
 
+    @Unique
+    private ServerLoginPacketListenerImplAccessor beaconAuth$accessor() {
+        return (ServerLoginPacketListenerImplAccessor) (Object) this;
+    }
+
     /**
      * Intercept handleHello to decide whether to use BeaconAuth or Mojang authentication.
      * 
@@ -188,26 +193,12 @@ public abstract class ServerLoginPacketListenerImplMixin {
 
     @Unique
     private boolean beaconAuth$isReadyToAccept() {
-        try {
-            java.lang.reflect.Field stateField = ServerLoginPacketListenerImpl.class.getDeclaredField("state");
-            stateField.setAccessible(true);
-            Object stateValue = stateField.get(this);
-            return stateValue.toString().equals("READY_TO_ACCEPT") && gameProfile != null;
-        } catch (Exception e) {
-            return false;
-        }
+        return beaconAuth$isInState("READY_TO_ACCEPT") && gameProfile != null;
     }
 
     @Unique
     private boolean beaconAuth$isInState(String expectedState) {
-        try {
-            java.lang.reflect.Field stateField = ServerLoginPacketListenerImpl.class.getDeclaredField("state");
-            stateField.setAccessible(true);
-            Object stateValue = stateField.get(this);
-            return stateValue.toString().equals(expectedState);
-        } catch (Exception e) {
-            return false;
-        }
+        return beaconAuth$accessor().beaconAuth$getState().toString().equals(expectedState);
     }
 
     @Unique
@@ -270,19 +261,11 @@ public abstract class ServerLoginPacketListenerImplMixin {
 
     @Unique
     private void beaconAuth$setState(String stateName) {
-        try {
-            java.lang.reflect.Field stateField = ServerLoginPacketListenerImpl.class.getDeclaredField("state");
-            stateField.setAccessible(true);
-            Class<?> stateClass = Class.forName("net.minecraft.server.network.ServerLoginPacketListenerImpl$State");
-            Object stateValue = java.util.Arrays.stream(stateClass.getEnumConstants())
-                .filter(e -> e.toString().equals(stateName))
-                .findFirst()
-                .orElse(null);
-            if (stateValue != null) {
-                stateField.set(this, stateValue);
+        for (ServerLoginPacketListenerImpl.State state : ServerLoginPacketListenerImpl.State.values()) {
+            if (state.toString().equals(stateName)) {
+                beaconAuth$accessor().beaconAuth$setState(state);
+                return;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 }

@@ -1,0 +1,6 @@
+accessWidener v2 named
+
+accessible class net/minecraft/server/network/ServerLoginPacketListenerImpl$State
+accessible field net/minecraft/server/network/ServerLoginPacketListenerImpl state Lnet/minecraft/server/network/ServerLoginPacketListenerImpl$State;
+accessible field net/minecraft/server/network/ServerLoginPacketListenerImpl authenticatedProfile Lcom/mojang/authlib/GameProfile;
+accessible field net/minecraft/server/network/ServerLoginPacketListenerImpl requestedUsername Ljava/lang/String;

@@ -9,6 +9,7 @@
     "ServerboundChatCommandSignedPacketMixin"
   ],
   "mixins": [
+    "ServerLoginPacketListenerImplAccessor",
     "DedicatedServerMixin",
     "ServerGamePacketListenerImplMixin",
     "ServerLoginPacketListenerImplMixin"
