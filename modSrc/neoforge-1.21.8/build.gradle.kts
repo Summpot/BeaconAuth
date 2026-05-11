@@ -81,6 +81,11 @@ tasks.processResources {
 tasks.shadowJar {
     configurations = listOf(shadowBundle)
     archiveClassifier.set("dev-shadow")
+
+    // Keep bundled Kotlin private so ModLauncher's module resolver does not
+    // see BeaconAuth exporting kotlin.* alongside the real kotlin.stdlib module.
+    relocate("kotlin", "io.github.summpot.beaconauth.shadow.kotlin")
+    relocate("org.jetbrains.annotations", "io.github.summpot.beaconauth.shadow.org.jetbrains.annotations")
 }
 
 tasks.remapJar {
