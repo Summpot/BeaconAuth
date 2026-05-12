@@ -24,7 +24,6 @@ object ClientLoginHandler {
 
     @JvmStatic
     fun respondProbe(connection: Connection, transactionId: Int) {
-        BeaconAuthClientSession.noteHandshake(connection)
         val buf = FriendlyByteBuf(Unpooled.buffer())
         buf.writeBoolean(true)
         buf.writeUtf("beaconauth", 64)

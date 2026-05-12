@@ -1,6 +1,7 @@
 package io.github.summpot.beaconauth.mixin;
 
 import com.mojang.authlib.GameProfile;
+import io.github.summpot.beaconauth.config.BeaconAuthConfig;
 import io.github.summpot.beaconauth.server.ServerLoginHandler;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
@@ -26,9 +27,8 @@ import java.util.UUID;
  * All logic delegated to ServerLoginHandler (Kotlin).
  * 
  * This Mixin works on both Fabric and Forge:
- * - Intercepts handleHello to route login to BeaconAuth negotiation when BeaconAuth should be used
- * - On Forge: Intercepts NetworkHooks.tickNegotiation() via @Redirect to prevent NPE
- * - On Fabric & Forge: Uses @Inject to handle BeaconAuth flow at READY_TO_ACCEPT state
+ * - Intercepts handleHello only when configuration requires BeaconAuth instead of Mojang auth
+ * - Uses @Inject to handle BeaconAuth flow after vanilla profile verification
  */
 @Mixin(value = ServerLoginPacketListenerImpl.class, priority = 1100)
 public abstract class ServerLoginPacketListenerImplMixin {
@@ -44,7 +44,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
 
     @Unique private ServerLoginHandler beaconAuth$handler;
     @Unique private boolean beaconAuth$negotiationStarted = false;
-    @Unique private boolean beaconAuth$interceptedHello = false;
+    @Unique private boolean beaconAuth$helloWasIntercepted = false;
     @Unique @Nullable private GameProfile beaconAuth$loginProfile;
 
     @Unique
@@ -52,75 +52,40 @@ public abstract class ServerLoginPacketListenerImplMixin {
         return (ServerLoginPacketListenerImplAccessor) (Object) this;
     }
 
-    /**
-     * Intercept handleHello to decide whether to use BeaconAuth or Mojang authentication.
-     * 
-     * BeaconAuth is designed to work on online-mode=true servers, allowing offline-mode
-     * players (using community-managed accounts) to authenticate via the custom BeaconAuth system.
-     * 
-     * This intercept routes the login to BeaconAuth negotiation and goes directly to NEGOTIATING state,
-     * where BeaconAuth will probe the client and decide whether to:
-     * - Use BeaconAuth authentication (for modded clients that need community-managed server access)
-     * - Allow the existing session (for clients that already passed Mojang auth)
-     * - Reject the connection (for vanilla clients when configured to require the mod)
-     */
     @Inject(method = "handleHello", at = @At("HEAD"), cancellable = true)
     private void beaconAuth$onHandleHello(ServerboundHelloPacket packet, CallbackInfo ci) {
-        // Only intercept if we're in the expected HELLO state
         if (!beaconAuth$isInState("HELLO")) {
-            BEACON_LOGGER.debug("Not in HELLO state, skipping interception");
             return;
         }
 
-        // Get singleplayer profile if exists
         GameProfile singleplayerProfile = server.getSingleplayerProfile();
         if (singleplayerProfile != null && packet.name().equalsIgnoreCase(singleplayerProfile.getName())) {
-            BEACON_LOGGER.debug("Singleplayer profile detected, allowing vanilla flow");
             return;
         }
 
-        // Check if server is in online-mode
         boolean serverOnlineMode = server.usesAuthentication();
-        boolean isMemoryConnection = connection.isMemoryConnection();
-
-        BEACON_LOGGER.info("Player {} attempting to connect: online-mode={}, memory={}", 
-            packet.name(), serverOnlineMode, isMemoryConnection);
-
-        // If server is NOT in online-mode or it's a memory connection, let vanilla handle it.
-        // (For offline-mode servers, we'll start negotiation later during VERIFYING in tick().)
-        if (!serverOnlineMode || isMemoryConnection) {
-            BEACON_LOGGER.info("Allowing vanilla authentication flow");
+        if (!serverOnlineMode || connection.isMemoryConnection()) {
             return;
         }
 
-        // Server is in online-mode. BeaconAuth is designed for this scenario.
-        // Route the login to BeaconAuth negotiation and let BeaconAuth handle authentication instead.
-        BEACON_LOGGER.info("Intercepting handleHello for {} - starting BeaconAuth flow", packet.name());
+        if (BeaconAuthConfig.INSTANCE.shouldBypassIfOnlineModeVerified()) {
+            BEACON_LOGGER.debug("Allowing Mojang online-mode verification for {}", packet.name());
+            return;
+        }
 
-        beaconAuth$interceptedHello = true;
-
-        // Mirror vanilla bookkeeping so log messages include the username.
+        BEACON_LOGGER.info("BeaconAuth is forced for online-mode login {}; starting BeaconAuth flow", packet.name());
+        beaconAuth$helloWasIntercepted = true;
         requestedUsername = packet.name();
-
-        // IMPORTANT: Some vanilla/loader codepaths require a non-null profile ID.
-        // Use the standard offline UUID as a placeholder until BeaconAuth verification
-        // installs the stable per-account UUID.
-        // Track that this profile ID is only a temporary negotiation UUID.
         GameProfile loginProfile = new GameProfile(beaconAuth$offlineUuid(packet.name()), packet.name());
         beaconAuth$loginProfile = loginProfile;
         beaconAuth$setAuthenticatedProfile(loginProfile);
-
-        // Enter NEGOTIATING and start BeaconAuth cookie negotiation.
         beaconAuth$setState("NEGOTIATING");
         beaconAuth$startNegotiation(loginProfile);
-
-        // Cancel the original handleHello execution.
         ci.cancel();
     }
 
     @Unique
     private static UUID beaconAuth$offlineUuid(String username) {
-        // Matches vanilla offline-mode UUID computation.
         return UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(StandardCharsets.UTF_8));
     }
 
@@ -208,7 +173,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
                 beaconAuth$setState("VERIFYING");
                 return kotlin.Unit.INSTANCE;
             },
-            beaconAuth$interceptedHello
+            beaconAuth$helloWasIntercepted
         );
         beaconAuth$handler.start();
     }

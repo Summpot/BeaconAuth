@@ -24,18 +24,18 @@ object ClientLoginHandler {
 
     @JvmStatic
     fun handleCookieRequest(connection: Connection, key: ResourceLocation): Boolean {
-        BeaconAuthClientSession.noteHandshake(connection)
-
         return when (key) {
             LoginQueryType.PROBE.id() -> {
                 respondProbe(connection)
                 true
             }
             LoginQueryType.INIT.id() -> {
+                BeaconAuthClientSession.noteHandshake(connection)
                 respondInit(connection)
                 true
             }
             LoginQueryType.VERIFY.id() -> {
+                BeaconAuthClientSession.noteHandshake(connection)
                 handleVerifyRequest(connection)
                 true
             }
