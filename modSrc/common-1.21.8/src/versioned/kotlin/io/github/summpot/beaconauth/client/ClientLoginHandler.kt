@@ -74,6 +74,7 @@ object ClientLoginHandler {
             sendVerifyResponse(connection, LoginVerificationStatus.CANCELLED, null, null, cancelReason)
             cancelledBeforeVerify = false
             cancelReason = ""
+            BeaconAuthClientSession.clearHandshake()
             logger.info("User cancelled before verify; sent CANCELLED status")
             return
         }
@@ -89,6 +90,7 @@ object ClientLoginHandler {
             }
 
             override fun onAuthError(message: String) {
+                BeaconAuthClientSession.clearHandshake()
                 sendVerifyResponse(connection, LoginVerificationStatus.ERROR, null, null, message)
                 logger.error("OAuth flow failed: $message")
             }
@@ -137,6 +139,9 @@ object ClientLoginHandler {
                     buf.writeUtf(message ?: "", 256)
                 }
             }
+        }
+        if (status != LoginVerificationStatus.SUCCESS) {
+            BeaconAuthClientSession.clearHandshake()
         }
         verifyRequested = false
         cancelledBeforeVerify = false

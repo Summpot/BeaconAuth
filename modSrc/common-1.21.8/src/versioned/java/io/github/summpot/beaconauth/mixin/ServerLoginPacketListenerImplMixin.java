@@ -37,6 +37,8 @@ public abstract class ServerLoginPacketListenerImplMixin {
     @Shadow @Final private MinecraftServer server;
     @Shadow @Final Connection connection;
     @Shadow private int tick;
+    @Shadow @Nullable private GameProfile authenticatedProfile;
+    @Shadow @Nullable private String requestedUsername;
 
     @Shadow public abstract void disconnect(Component reason);
 
@@ -98,7 +100,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
         beaconAuth$interceptedHello = true;
 
         // Mirror vanilla bookkeeping so log messages include the username.
-        beaconAuth$setStringFieldIfPresent("requestedUsername", packet.name());
+        requestedUsername = packet.name();
 
         // IMPORTANT: Some vanilla/loader codepaths require a non-null profile ID.
         // Use the standard offline UUID as a placeholder until BeaconAuth verification
@@ -224,7 +226,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
     @Unique
     @Nullable
     private GameProfile beaconAuth$getAuthenticatedProfile() {
-        return beaconAuth$accessor().beaconAuth$getAuthenticatedProfile();
+        return authenticatedProfile;
     }
 
     @Unique
@@ -232,13 +234,6 @@ public abstract class ServerLoginPacketListenerImplMixin {
         if (profile == null) {
             return;
         }
-        beaconAuth$accessor().beaconAuth$setAuthenticatedProfile(profile);
-    }
-
-    @Unique
-    private void beaconAuth$setStringFieldIfPresent(String fieldName, String value) {
-        if ("requestedUsername".equals(fieldName)) {
-            beaconAuth$accessor().beaconAuth$setRequestedUsername(value);
-        }
+        authenticatedProfile = profile;
     }
 }

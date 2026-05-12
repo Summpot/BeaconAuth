@@ -14,18 +14,39 @@ import java.lang.ref.WeakReference
  */
 object BeaconAuthClientSession {
 	@Volatile private var currentConnectionRef: WeakReference<Connection>? = null
+	@Volatile private var handshakeInProgress: Boolean = false
 	@Volatile private var beaconAuthAuthenticated: Boolean = false
 
 	@JvmStatic
 	fun noteHandshake(connection: Connection) {
 		currentConnectionRef = WeakReference(connection)
+		handshakeInProgress = true
 		beaconAuthAuthenticated = false
 	}
 
 	@JvmStatic
 	fun markAuthenticated(connection: Connection) {
 		currentConnectionRef = WeakReference(connection)
+		handshakeInProgress = false
 		beaconAuthAuthenticated = true
+	}
+
+	@JvmStatic
+	fun clearHandshake() {
+		handshakeInProgress = false
+	}
+
+	@JvmStatic
+	fun isBeaconAuthLoginActive(): Boolean {
+		if (handshakeInProgress) {
+			val conn = currentConnectionRef?.get() ?: return false
+			return try {
+				conn.isConnected
+			} catch (_: Throwable) {
+				false
+			}
+		}
+		return isBeaconAuthAuthenticatedConnection()
 	}
 
 	@JvmStatic
