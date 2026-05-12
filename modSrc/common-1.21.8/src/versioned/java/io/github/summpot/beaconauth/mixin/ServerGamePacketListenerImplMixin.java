@@ -9,7 +9,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.jetbrains.annotations.Nullable;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -27,7 +26,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerGamePacketListenerImplMixin {
-	@Shadow @Final private MinecraftServer server;
 	@Shadow public ServerPlayer player;
 
 	@Redirect(
@@ -69,7 +67,11 @@ public abstract class ServerGamePacketListenerImplMixin {
 
 	private boolean beaconAuth$shouldAllowUnsigned() {
 		try {
-			if (!this.server.enforceSecureProfile()) {
+			MinecraftServer server = this.player.getServer();
+			if (server == null) {
+				return false;
+			}
+			if (!server.enforceSecureProfile()) {
 				return true;
 			}
 			return AuthServer.INSTANCE.isPlayerAuthenticated(this.player.getUUID());
