@@ -68,6 +68,8 @@ public abstract class ServerLoginPacketListenerImplMixin {
             return;
         }
 
+        // Business invariant: premium online-mode users must keep the vanilla Mojang path
+        // unless the server explicitly disables this bypass.
         if (BeaconAuthConfig.INSTANCE.shouldBypassIfOnlineModeVerified()) {
             BEACON_LOGGER.debug("Allowing Mojang online-mode verification for {}", packet.name());
             return;

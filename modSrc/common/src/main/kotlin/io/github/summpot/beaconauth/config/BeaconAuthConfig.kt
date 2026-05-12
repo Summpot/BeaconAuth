@@ -59,6 +59,13 @@ object BeaconAuthConfig {
 	fun getExpectedIssuer(): String = authBaseUrl
 	fun getExpectedAudience(): String = expectedAudience
 	fun getJkuAllowedHostPatterns(): Set<String> = jkuAllowedHostPatterns
+	/**
+	 * When true, Mojang online-mode verification is the source of truth for premium players.
+	 *
+	 * Login mixins must not short-circuit handleHello for online-mode players in this mode:
+	 * vanilla premium clients should join without BeaconAuth, and modded premium clients should
+	 * keep their Mojang GameProfile/UUID.
+	 */
 	fun shouldBypassIfOnlineModeVerified(): Boolean = bypassIfOnlineModeVerified
 	fun shouldForceAuthIfOfflineMode(): Boolean = forceAuthIfOfflineMode
 	fun shouldAllowVanillaOfflineClients(): Boolean = allowVanillaOfflineClients

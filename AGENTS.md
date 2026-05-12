@@ -93,6 +93,16 @@ This repository is multi-language. When you touch one part, ensure the relevant 
 * Keep server-side protocol/auth changes compatible with the mod’s expectations (JWKS, redirect URLs, cookie/auth flow).
 * Never hardcode secrets in Gradle files.
 
+#### Minecraft login-flow invariants
+
+These are business-logic constraints, not implementation details:
+
+* `bypass_if_online_mode_verified = true` means Mojang online-mode verification wins. Do not intercept or short-circuit `handleHello` for online-mode players in a way that prevents vanilla/Mojang profile verification from completing.
+* Vanilla premium clients without BeaconAuth must be able to join online-mode servers when Mojang verification succeeds and `bypass_if_online_mode_verified` is true.
+* Modded premium clients must keep their Mojang-verified `GameProfile`/UUID when the same bypass is enabled; do not replace it with an offline placeholder or BeaconAuth stable UUID.
+* Reflection/accessor/mixin compatibility fixes must be scoped to field/method access. They must not alter the authentication decision tree unless the user explicitly asks for a behavior change.
+* Only force online-mode players into BeaconAuth when `bypass_if_online_mode_verified` is false. If this invariant appears to conflict with a null-profile or loader NPE fix, stop and ask before changing login behavior.
+
 ## 9) Cross-cutting Operational Rules
 
 * Prefer configuration via environment variables or CLI flags.
