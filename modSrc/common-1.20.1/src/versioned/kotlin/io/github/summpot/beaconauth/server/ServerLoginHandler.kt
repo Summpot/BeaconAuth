@@ -95,11 +95,20 @@ class ServerLoginHandler @JvmOverloads constructor(
         logger.info("Server online-mode: $onlineMode")
         
         if (!modded) {
-            if (onlineMode || BeaconAuthConfig.shouldAllowVanillaOfflineClients()) {
+            // On online-mode servers, only allow vanilla clients if they already passed Mojang verification.
+            // If we intercepted handleHello, the UUID is only a placeholder.
+            val hasMojangVerifiedUUID = !helloWasIntercepted && gameProfile?.id != null
+            val allowVanilla = if (onlineMode) {
+                hasMojangVerifiedUUID
+            } else {
+                BeaconAuthConfig.shouldAllowVanillaOfflineClients()
+            }
+
+            if (allowVanilla) {
                 logger.info("Vanilla client allowed; finishing negotiation")
                 finish()
             } else {
-                logger.warn("Vanilla client rejected (offline mode, mod required)")
+                logger.warn("Vanilla client rejected (mod required)")
                 fail(Component.translatable("disconnect.beaconauth.mod_required"))
             }
             return

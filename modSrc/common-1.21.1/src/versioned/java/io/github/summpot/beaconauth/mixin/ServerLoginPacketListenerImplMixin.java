@@ -106,6 +106,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
         // Track that this profile ID is only a temporary negotiation UUID.
         GameProfile loginProfile = new GameProfile(beaconAuth$offlineUuid(packet.name()), packet.name());
         beaconAuth$loginProfile = loginProfile;
+        beaconAuth$setAuthenticatedProfile(loginProfile);
 
         // Enter NEGOTIATING and start BeaconAuth cookie negotiation.
         beaconAuth$setState("NEGOTIATING");
@@ -179,6 +180,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
             profile,
             (Component reason) -> {
                 BEACON_LOGGER.info("BeaconAuth negotiation failed for {}: {}", profile.getName(), reason.getString());
+                beaconAuth$setAuthenticatedProfile(beaconAuth$loginProfile != null ? beaconAuth$loginProfile : profile);
                 disconnect(reason);
                 beaconAuth$handler = null;
                 // Mark terminal state to avoid additional processing after disconnect.

@@ -48,6 +48,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
     @Unique private ServerLoginHandler beaconAuth$handler;
     @Unique private boolean beaconAuth$negotiationStarted = false;
     @Unique private boolean beaconAuth$shouldUseBeaconAuth = false;
+    @Unique @Nullable private GameProfile beaconAuth$loginProfile;
 
     @Unique
     private ServerLoginPacketListenerImplAccessor beaconAuth$accessor() {
@@ -104,6 +105,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
         // Use the standard offline UUID as a placeholder until BeaconAuth verification
         // installs the stable per-account UUID.
         this.gameProfile = new GameProfile(beaconAuth$offlineUuid(packet.name()), packet.name());
+        beaconAuth$loginProfile = this.gameProfile;
         
         // Transition directly to NEGOTIATING state, routing login to BeaconAuth negotiation
         beaconAuth$setState("NEGOTIATING");
@@ -209,21 +211,27 @@ public abstract class ServerLoginPacketListenerImplMixin {
             return;
         }
         
-        BEACON_LOGGER.info("Starting BeaconAuth negotiation for {}", gameProfile.getName());
+        GameProfile negotiationProfile = gameProfile;
+        beaconAuth$loginProfile = negotiationProfile;
+
+        BEACON_LOGGER.info("Starting BeaconAuth negotiation for {}", negotiationProfile.getName());
         beaconAuth$negotiationStarted = true;
         beaconAuth$handler = new ServerLoginHandler(
             server,
             connection,
-            gameProfile,
+            negotiationProfile,
             (Component reason) -> {
-                BEACON_LOGGER.info("BeaconAuth negotiation failed for {}: {}", gameProfile.getName(), reason.getString());
+                BEACON_LOGGER.info("BeaconAuth negotiation failed for {}: {}", negotiationProfile.getName(), reason.getString());
+                if (gameProfile == null) {
+                    gameProfile = beaconAuth$loginProfile != null ? beaconAuth$loginProfile : negotiationProfile;
+                }
                 disconnect(reason);
                 beaconAuth$handler = null;
                 beaconAuth$setState("ACCEPTED");
                 return kotlin.Unit.INSTANCE;
             },
             () -> {
-                BEACON_LOGGER.info("BeaconAuth negotiation finished successfully for {}", gameProfile.getName());
+                BEACON_LOGGER.info("BeaconAuth negotiation finished successfully for {}", negotiationProfile.getName());
 
                 // IMPORTANT: ServerLoginHandler may update the GameProfile UUID after BeaconAuth verification.
                 // Copy it back so the server uses a stable per-account UUID (not username-derived).
@@ -231,6 +239,7 @@ public abstract class ServerLoginPacketListenerImplMixin {
                     GameProfile updated = beaconAuth$handler.getCurrentGameProfile();
                     if (updated != null) {
                         this.gameProfile = updated;
+                        beaconAuth$loginProfile = updated;
                     }
                 }
 
