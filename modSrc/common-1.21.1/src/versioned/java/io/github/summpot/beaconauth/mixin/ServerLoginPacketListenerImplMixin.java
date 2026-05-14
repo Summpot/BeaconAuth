@@ -28,7 +28,7 @@ import java.util.UUID;
  * 
  * This Mixin works on both Fabric and Forge:
  * - Intercepts handleHello only when configuration requires BeaconAuth instead of Mojang auth
- * - Uses @Inject to handle BeaconAuth flow after vanilla profile verification
+ * - Uses @Inject to handle BeaconAuth flow at READY_TO_ACCEPT state
  */
 @Mixin(value = ServerLoginPacketListenerImpl.class, priority = 1100)
 public abstract class ServerLoginPacketListenerImplMixin {
@@ -104,17 +104,11 @@ public abstract class ServerLoginPacketListenerImplMixin {
             return;
         }
 
-        // Start negotiation for flows where we did NOT intercept handleHello:
-        // - offline-mode servers (game profile already assigned)
-        // - online-mode players already verified by Mojang (UUID present)
-        if (!beaconAuth$negotiationStarted && beaconAuth$isInState("VERIFYING")) {
+        if (!beaconAuth$negotiationStarted && beaconAuth$isReadyToAccept()) {
             GameProfile profile = beaconAuth$getAuthenticatedProfile();
-            if (profile != null) {
-                BEACON_LOGGER.info("Starting BeaconAuth negotiation at VERIFYING state");
-                beaconAuth$loginProfile = profile;
-                beaconAuth$setState("NEGOTIATING");
-                beaconAuth$startNegotiation(profile);
-            }
+            BEACON_LOGGER.info("Starting BeaconAuth negotiation at READY_TO_ACCEPT state");
+            beaconAuth$loginProfile = profile;
+            beaconAuth$startNegotiation(profile);
         }
     }
 
@@ -127,6 +121,11 @@ public abstract class ServerLoginPacketListenerImplMixin {
         if (handled) {
             ci.cancel();
         }
+    }
+
+    @Unique
+    private boolean beaconAuth$isReadyToAccept() {
+        return beaconAuth$isInState("READY_TO_ACCEPT") && beaconAuth$getAuthenticatedProfile() != null;
     }
 
     @Unique
@@ -171,12 +170,12 @@ public abstract class ServerLoginPacketListenerImplMixin {
                 }
 
                 beaconAuth$handler = null;
-                // Continue vanilla flow: tick() will verify and finish login.
-                beaconAuth$setState("VERIFYING");
+                beaconAuth$setState("READY_TO_ACCEPT");
                 return kotlin.Unit.INSTANCE;
             },
             beaconAuth$helloWasIntercepted
         );
+        beaconAuth$setState("NEGOTIATING");
         beaconAuth$handler.start();
     }
 
