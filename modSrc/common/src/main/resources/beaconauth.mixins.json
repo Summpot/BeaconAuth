@@ -8,7 +8,9 @@
     "ClientCommonPacketListenerImplMixin",
     "ServerboundChatPacketMixin",
     "ServerboundChatCommandSignedPacketMixin",
-    "NeoAuthSessionUtilsMixin"
+    "FTBWorldsButtonMixin",
+    "NeoAuthSessionUtilsMixin",
+    "RocketClientModMixin"
   ],
   "mixins": [
     "ServerLoginPacketListenerImplAccessor",
