@@ -123,25 +123,32 @@ class ServerLoginHandler @JvmOverloads constructor(
             return
         }
 
-        // Determine if we should allow the existing session
-        // Note: When BeaconAuth intercepts handleHello on online-mode servers,
-        // the gameProfile.id is only a temporary negotiation UUID.
-        // A non-null UUID without interception indicates the player passed through Mojang verification
-        // (either because BeaconAuth didn't intercept, or on offline-mode servers).
+        // Post-PROBE allow-through:
+        // - Online-mode dual-path: Mojang already succeeded (helloWasIntercepted=false) →
+        //   allow-through keeps Mojang UUID (vanilla or modded+bypass).
+        // - Online-mode fallback / force path: helloWasIntercepted=true (placeholder UUID) →
+        //   must complete BeaconAuth web flow.
+        // - Offline-mode: allow existing session only when force_auth_if_offline_mode is false.
         val hasMojangVerifiedUUID = !helloWasIntercepted && gameProfile?.id != null
-        
+
         val bypassOnlineMode = onlineMode && BeaconAuthConfig.shouldBypassIfOnlineModeVerified() && hasMojangVerifiedUUID
         val bypassOfflineMode = !onlineMode && !BeaconAuthConfig.shouldForceAuthIfOfflineMode()
         val bypass = bypassOnlineMode || bypassOfflineMode
-        
-        logger.info("Existing session check: allowOnlineModeSession=$bypassOnlineMode, allowOfflineModeSession=$bypassOfflineMode, finalAllow=$bypass, hasMojangUUID=$hasMojangVerifiedUUID")
-        logger.info("Config values: bypass_if_online_mode_verified=${BeaconAuthConfig.shouldBypassIfOnlineModeVerified()}, force_auth_if_offline_mode=${BeaconAuthConfig.shouldForceAuthIfOfflineMode()}")
-        
+
+        logger.info(
+            "Existing session check: allowOnlineModeSession=$bypassOnlineMode, allowOfflineModeSession=$bypassOfflineMode, " +
+                "finalAllow=$bypass, hasMojangUUID=$hasMojangVerifiedUUID, helloWasIntercepted=$helloWasIntercepted"
+        )
+        logger.info(
+            "Config values: bypass_if_online_mode_verified=${BeaconAuthConfig.shouldBypassIfOnlineModeVerified()}, " +
+                "force_auth_if_offline_mode=${BeaconAuthConfig.shouldForceAuthIfOfflineMode()}"
+        )
+
         if (bypass) {
-            logger.info("Existing session allowed; finishing negotiation")
+            logger.info("Existing session allowed (post-PROBE allow-through); finishing negotiation")
             finish()
         } else {
-            logger.info("Starting BeaconAuth flow")
+            logger.info("Starting BeaconAuth web flow")
             startBeaconFlow()
         }
     }

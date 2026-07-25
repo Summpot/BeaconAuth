@@ -97,11 +97,14 @@ This repository is multi-language. When you touch one part, ensure the relevant 
 
 These are business-logic constraints, not implementation details:
 
-* `bypass_if_online_mode_verified = true` means Mojang online-mode verification wins. Do not intercept or short-circuit `handleHello` for online-mode players in a way that prevents vanilla/Mojang profile verification from completing.
-* Vanilla premium clients without BeaconAuth must be able to join online-mode servers when Mojang verification succeeds and `bypass_if_online_mode_verified` is true.
-* Modded premium clients must keep their Mojang-verified `GameProfile`/UUID when the same bypass is enabled; do not replace it with an offline placeholder or BeaconAuth stable UUID.
+* Default dual-path (`bypass_if_online_mode_verified = true`) on **online-mode** servers:
+  1. Do **not** consume/cancel `handleHello` — let vanilla encryption + Mojang `hasJoinedServer` run.
+  2. Mojang **success** → start BeaconAuth PROBE; vanilla (no mod handshake) and modded+bypass **allow-through** and **keep the Mojang UUID**.
+  3. Mojang **failure** (`unverified_username` / `authservers_down`) → cancel that disconnect and fall back to BeaconAuth with a placeholder offline UUID (`helloWasIntercepted = true`). Modded clients complete the web flow; unmodded clients get `mod_required`.
+* `bypass_if_online_mode_verified = false` may force-consume HELLO and require BeaconAuth for everyone (including rejecting vanilla).
+* Placeholder / fallback offline UUIDs must **not** be treated as Mojang-verified.
+* Offline-mode servers never consume HELLO for Mojang; start negotiation after vanilla assigns a profile (VERIFYING on 1.21.x, READY_TO_ACCEPT on 1.19/1.20).
 * Reflection/accessor/mixin compatibility fixes must be scoped to field/method access. They must not alter the authentication decision tree unless the user explicitly asks for a behavior change.
-* Only force online-mode players into BeaconAuth when `bypass_if_online_mode_verified` is false. If this invariant appears to conflict with a null-profile or loader NPE fix, stop and ask before changing login behavior.
 
 ## 9) Cross-cutting Operational Rules
 

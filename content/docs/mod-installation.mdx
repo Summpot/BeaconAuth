@@ -57,7 +57,11 @@ audience = "minecraft-client"
 allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
 
 [behavior]
-# If true: Players with verified Mojang sessions may continue without the BeaconAuth web flow when server is in online-mode
+# Dual-path online-mode (recommended true):
+# - Leave HELLO to Mojang first (do not consume it).
+# - Mojang success → vanilla / verified clients allow-through (keep Mojang UUID).
+# - Mojang failure → fall back to BeaconAuth for modded offline/community clients.
+# If false: force-consume HELLO; everyone must use BeaconAuth.
 bypass_if_online_mode_verified = true
 # If true: Modded clients MUST authenticate when server is offline-mode
 force_auth_if_offline_mode = true
@@ -72,3 +76,4 @@ allow_vanilla_offline_clients = false
 - `jku.allowed_host_patterns` is a comma/space separated allowlist. Supported patterns:
   - `example.com`, `*.example.com`
   - Not supported: bare `*` or mid-string wildcards like `auth*.example.com`
+- Online-mode dual-path: premium clients (with or without the mod) keep Mojang UUIDs; offline clients with the mod fall back to the BeaconAuth web flow after Mojang rejects the session.

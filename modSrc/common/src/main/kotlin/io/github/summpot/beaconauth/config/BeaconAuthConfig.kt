@@ -60,11 +60,16 @@ object BeaconAuthConfig {
 	fun getExpectedAudience(): String = expectedAudience
 	fun getJkuAllowedHostPatterns(): Set<String> = jkuAllowedHostPatterns
 	/**
-	 * When true, Mojang online-mode verification is the source of truth for premium players.
+	 * Dual-path switch for online-mode servers.
 	 *
-	 * Login mixins must not short-circuit handleHello for online-mode players in this mode:
-	 * vanilla premium clients should join without BeaconAuth, and modded premium clients should
-	 * keep their Mojang GameProfile/UUID.
+	 * When true (default):
+	 * - Do not consume `handleHello`; let Mojang verification run.
+	 * - Mojang success → post-PROBE allow-through for vanilla and for modded clients
+	 *   (keep Mojang UUID; no BeaconAuth web login required).
+	 * - Mojang failure → fall back to BeaconAuth for modded offline/community clients.
+	 *
+	 * When false:
+	 * - Force-consume HELLO and require BeaconAuth for all online-mode logins.
 	 */
 	fun shouldBypassIfOnlineModeVerified(): Boolean = bypassIfOnlineModeVerified
 	fun shouldForceAuthIfOfflineMode(): Boolean = forceAuthIfOfflineMode

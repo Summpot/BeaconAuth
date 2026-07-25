@@ -138,7 +138,9 @@ private object BeaconAuthServerConfig {
 
         bypassIfOnlineModeVerified = builder
             .comment(
-                "Bypass BeaconAuth for players verified by Mojang online-mode",
+                "Dual-path online-mode: leave HELLO to Mojang first (recommended true)",
+                "If true: Mojang success -> allow-through (keep Mojang UUID); Mojang failure -> BeaconAuth fallback",
+                "If false: force-consume HELLO; everyone must use BeaconAuth",
                 "Recommended: true"
             )
             .define("bypass_if_online_mode_verified", true)

@@ -57,7 +57,11 @@ audience = "minecraft-client"
 allowed_host_patterns = "beaconauth.pages.dev, *.beaconauth.pages.dev"
 
 [behavior]
-# 若为 true：服务器 online-mode 且玩家已有 Mojang 验证会话时，可不进入 BeaconAuth 网页流程
+# online-mode 双路径（推荐 true）：
+# - 不 consume HELLO，先走 Mojang
+# - Mojang 成功 → 正版（含无 mod）放行，保留 Mojang UUID
+# - Mojang 失败 → 有 mod 的离线/社区客户端回落 BeaconAuth 网页登录
+# 若为 false：强制 consume HELLO，所有人必须走 BeaconAuth
 bypass_if_online_mode_verified = true
 # 若为 true：服务器 offline-mode 时强制模组客户端认证
 force_auth_if_offline_mode = true
@@ -72,3 +76,4 @@ allow_vanilla_offline_clients = false
 - `jku.allowed_host_patterns` 为逗号/空格分隔的白名单。支持：
   - `example.com`、`*.example.com`
   - 不支持：裸 `*` 或 `auth*.example.com` 这类中间通配符
+- online-mode 双路径：正版（有/无 mod）保留 Mojang UUID；离线+mod 在 Mojang 拒会话后回落 BeaconAuth。

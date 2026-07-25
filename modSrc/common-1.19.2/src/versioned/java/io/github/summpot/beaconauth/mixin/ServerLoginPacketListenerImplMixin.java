@@ -5,6 +5,7 @@ import io.github.summpot.beaconauth.config.BeaconAuthConfig;
 import io.github.summpot.beaconauth.server.ServerLoginHandler;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.login.ServerboundCustomQueryPacket;
 import net.minecraft.network.protocol.login.ServerboundHelloPacket;
 import net.minecraft.server.MinecraftServer;
@@ -26,17 +27,18 @@ import java.util.UUID;
 
 /**
  * Mixin entry point for BeaconAuth login-phase negotiation on server.
- * All logic delegated to ServerLoginHandler (Kotlin).
- * 
- * This Mixin works on both Fabric and Forge:
- * - Intercepts handleHello only when configuration requires BeaconAuth instead of Mojang auth
- * - On Forge: Intercepts NetworkHooks.tickNegotiation() via @Redirect to prevent NPE
- * - On Fabric & Forge: Uses @Inject to handle BeaconAuth flow at READY_TO_ACCEPT state
+ *
+ * Dual-path online-mode (default when bypass_if_online_mode_verified=true):
+ * 1. Do NOT consume HELLO — Mojang encryption + hasJoinedServer still run.
+ * 2. Mojang success → negotiate at READY_TO_ACCEPT; vanilla / verified modded allow-through.
+ * 3. Mojang failure → cancel disconnect, fall back to BeaconAuth (mod required if unmodded).
+ *
+ * When bypass=false: force-consume HELLO and require BeaconAuth for all.
  */
 @Mixin(value = ServerLoginPacketListenerImpl.class, priority = 1100)
 public abstract class ServerLoginPacketListenerImplMixin {
     @Unique private static final org.slf4j.Logger BEACON_LOGGER = LoggerFactory.getLogger("BeaconAuth/Mixin");
-    
+
     @Shadow @Final private MinecraftServer server;
     @Shadow @Final Connection connection;
     @Shadow private int tick;
@@ -48,7 +50,10 @@ public abstract class ServerLoginPacketListenerImplMixin {
     @Unique private ServerLoginHandler beaconAuth$handler;
     @Unique private boolean beaconAuth$negotiationStarted = false;
     @Unique private boolean beaconAuth$helloWasIntercepted = false;
+    @Unique private boolean beaconAuth$mojangFallbackScheduled = false;
     @Unique @Nullable private GameProfile beaconAuth$loginProfile;
+    /** Preserved across Mojang failure (vanilla nulls gameProfile before disconnect). */
+    @Unique @Nullable private String beaconAuth$pendingUsername;
 
     @Unique
     private ServerLoginPacketListenerImplAccessor beaconAuth$accessor() {
@@ -71,14 +76,17 @@ public abstract class ServerLoginPacketListenerImplMixin {
             return;
         }
 
-        // Business invariant: premium online-mode users must keep the vanilla Mojang path
-        // unless the server explicitly disables this bypass.
+        beaconAuth$pendingUsername = packet.name();
+
         if (BeaconAuthConfig.INSTANCE.shouldBypassIfOnlineModeVerified()) {
-            BEACON_LOGGER.debug("Allowing Mojang online-mode verification for {}", packet.name());
+            BEACON_LOGGER.debug(
+                "Dual-path online-mode for {}: leaving HELLO to Mojang; BeaconAuth negotiates after success or on failure fallback",
+                packet.name()
+            );
             return;
         }
 
-        BEACON_LOGGER.info("BeaconAuth is forced for online-mode login {}; starting BeaconAuth flow", packet.name());
+        BEACON_LOGGER.info("Force BeaconAuth for online-mode login {}; consuming HELLO", packet.name());
         beaconAuth$helloWasIntercepted = true;
         this.gameProfile = new GameProfile(beaconAuth$offlineUuid(packet.name()), packet.name());
         beaconAuth$loginProfile = this.gameProfile;
@@ -87,16 +95,93 @@ public abstract class ServerLoginPacketListenerImplMixin {
         ci.cancel();
     }
 
+    @Inject(method = "disconnect", at = @At("HEAD"), cancellable = true)
+    private void beaconAuth$onDisconnect(Component reason, CallbackInfo ci) {
+        if (!beaconAuth$tryScheduleMojangFailureFallback(reason)) {
+            return;
+        }
+        ci.cancel();
+    }
+
+    @Unique
+    private boolean beaconAuth$tryScheduleMojangFailureFallback(Component reason) {
+        if (beaconAuth$negotiationStarted || beaconAuth$handler != null || beaconAuth$mojangFallbackScheduled) {
+            return false;
+        }
+        if (!BeaconAuthConfig.INSTANCE.shouldBypassIfOnlineModeVerified()) {
+            return false;
+        }
+        if (!server.usesAuthentication() || connection.isMemoryConnection()) {
+            return false;
+        }
+        if (!beaconAuth$isMojangSessionFailure(reason)) {
+            return false;
+        }
+
+        final String username = beaconAuth$resolveUsername();
+        if (username == null || username.isEmpty()) {
+            return false;
+        }
+
+        beaconAuth$mojangFallbackScheduled = true;
+        BEACON_LOGGER.info(
+            "Mojang verification failed for {} ({}); falling back to BeaconAuth",
+            username,
+            beaconAuth$translationKey(reason)
+        );
+
+        server.execute(() -> {
+            if (beaconAuth$negotiationStarted || beaconAuth$handler != null) {
+                return;
+            }
+            if (!connection.isConnected()) {
+                BEACON_LOGGER.warn("Cannot fall back to BeaconAuth for {}: connection already closed", username);
+                return;
+            }
+
+            beaconAuth$helloWasIntercepted = true;
+            this.gameProfile = new GameProfile(beaconAuth$offlineUuid(username), username);
+            beaconAuth$loginProfile = this.gameProfile;
+            beaconAuth$setState("NEGOTIATING");
+            tick = 0;
+            beaconAuth$startNegotiation();
+        });
+        return true;
+    }
+
+    @Unique
+    @Nullable
+    private String beaconAuth$resolveUsername() {
+        if (beaconAuth$pendingUsername != null && !beaconAuth$pendingUsername.isEmpty()) {
+            return beaconAuth$pendingUsername;
+        }
+        if (gameProfile != null && gameProfile.getName() != null && !gameProfile.getName().isEmpty()) {
+            return gameProfile.getName();
+        }
+        return null;
+    }
+
+    @Unique
+    private static boolean beaconAuth$isMojangSessionFailure(Component reason) {
+        String key = beaconAuth$translationKey(reason);
+        return "multiplayer.disconnect.unverified_username".equals(key)
+            || "multiplayer.disconnect.authservers_down".equals(key);
+    }
+
+    @Unique
+    @Nullable
+    private static String beaconAuth$translationKey(Component reason) {
+        if (reason.getContents() instanceof TranslatableContents translatable) {
+            return translatable.getKey();
+        }
+        return null;
+    }
+
     @Unique
     private static UUID beaconAuth$offlineUuid(String username) {
         return UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Redirect Forge's NetworkHooks.tickNegotiation() call to prevent NPE.
-     * When we're handling BeaconAuth, we return false to keep vanilla in NEGOTIATING state.
-     * Otherwise, we call the original Forge method.
-     */
     @Redirect(
         method = "tick",
         at = @At(
@@ -111,12 +196,10 @@ public abstract class ServerLoginPacketListenerImplMixin {
         Connection connection,
         ServerPlayer delayedPlayer
     ) {
-        // If we're handling BeaconAuth, prevent Forge from proceeding
         if (beaconAuth$handler != null) {
-            return false; // Keep vanilla in NEGOTIATING state
+            return false;
         }
 
-        // Otherwise, let Forge handle it normally
         try {
             Class<?> networkHooks = Class.forName("net.minecraftforge.network.NetworkHooks");
             java.lang.reflect.Method method = networkHooks.getMethod(
@@ -127,19 +210,14 @@ public abstract class ServerLoginPacketListenerImplMixin {
             );
             return (boolean) method.invoke(null, listener, connection, delayedPlayer);
         } catch (Exception e) {
-            return true; // Fallback: assume negotiation is complete
+            return true;
         }
     }
 
-    /**
-     * Main injection point that works on both Fabric and Forge.
-     * Checks if we should start BeaconAuth negotiation when state becomes READY_TO_ACCEPT.
-     */
     @Inject(method = "tick", at = @At("HEAD"))
     private void beaconAuth$onTick(CallbackInfo ci) {
-        // If we've already started or finished, handle ongoing negotiation
         if (beaconAuth$handler != null) {
-            tick = 0; // prevent vanilla slow-login disconnect
+            tick = 0;
             beaconAuth$handler.tick();
             return;
         }
@@ -177,31 +255,43 @@ public abstract class ServerLoginPacketListenerImplMixin {
             BEACON_LOGGER.warn("Cannot start negotiation: gameProfile is null");
             return;
         }
-        
+        if (beaconAuth$negotiationStarted) {
+            return;
+        }
+
         GameProfile negotiationProfile = gameProfile;
         beaconAuth$loginProfile = negotiationProfile;
 
-        BEACON_LOGGER.info("Starting BeaconAuth negotiation for {}", negotiationProfile.getName());
+        BEACON_LOGGER.info(
+            "Starting BeaconAuth negotiation for {} (mojangVerified={})",
+            negotiationProfile.getName(),
+            !beaconAuth$helloWasIntercepted
+        );
         beaconAuth$negotiationStarted = true;
         beaconAuth$handler = new ServerLoginHandler(
             server,
             connection,
             negotiationProfile,
-            (Component reason) -> {
-                BEACON_LOGGER.info("BeaconAuth negotiation failed for {}: {}", negotiationProfile.getName(), reason.getString());
+            (Component failReason) -> {
+                BEACON_LOGGER.info(
+                    "BeaconAuth negotiation failed for {}: {}",
+                    negotiationProfile.getName(),
+                    failReason.getString()
+                );
                 if (gameProfile == null) {
                     gameProfile = beaconAuth$loginProfile != null ? beaconAuth$loginProfile : negotiationProfile;
                 }
-                disconnect(reason);
+                disconnect(failReason);
                 beaconAuth$handler = null;
                 beaconAuth$setState("ACCEPTED");
                 return kotlin.Unit.INSTANCE;
             },
             () -> {
-                BEACON_LOGGER.info("BeaconAuth negotiation finished successfully for {}", negotiationProfile.getName());
+                BEACON_LOGGER.info(
+                    "BeaconAuth negotiation finished successfully for {}",
+                    negotiationProfile.getName()
+                );
 
-                // IMPORTANT: ServerLoginHandler may update the GameProfile UUID after BeaconAuth verification.
-                // Copy it back so the server uses a stable per-account UUID (not username-derived).
                 if (beaconAuth$handler != null) {
                     GameProfile updated = beaconAuth$handler.getCurrentGameProfile();
                     if (updated != null) {
@@ -228,5 +318,6 @@ public abstract class ServerLoginPacketListenerImplMixin {
                 return;
             }
         }
+        BEACON_LOGGER.error("Unknown login state name: {}", stateName);
     }
 }
