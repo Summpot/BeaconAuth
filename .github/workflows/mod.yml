@@ -375,6 +375,7 @@ jobs:
             }
 
             const versions = await getJson("/game/versions?cache=true");
+            const versionTypes = await getJson("/game/version-types?cache=true");
             // CurseForge can return duplicate version names; 77784 is the Minecraft 1.21.x version type.
             const minecraftVersionTypeIdOverrides = new Map([
               ["1.21.1", 77784],
@@ -386,6 +387,16 @@ jobs:
 
             function describeVersion(entry) {
               return `${entry.name}#${entry.id}/type:${gameVersionTypeId(entry) ?? "unknown"}`;
+            }
+
+            function findVersionTypeId(...names) {
+              const wanted = new Set(names.map(normalize));
+              const match = versionTypes.find((entry) => {
+                const name = normalize(entry.name);
+                const slug = normalize(entry.slug);
+                return wanted.has(name) || wanted.has(slug);
+              });
+              return match?.id ?? null;
             }
 
             function findRequiredVersion(name, label, versionTypeId) {
@@ -403,17 +414,49 @@ jobs:
               return version;
             }
 
+            // CurseForge requires at least one Environment group version (error 1021).
+            // BeaconAuth is both client and server, so tag both when available.
+            function findEnvironmentVersions() {
+              const environmentTypeId = findVersionTypeId("environment", "environments");
+              const pool = environmentTypeId != null
+                ? versions.filter((entry) => gameVersionTypeId(entry) === environmentTypeId)
+                : versions;
+
+              const byName = (name) => pool.find((entry) => normalize(entry.name) === normalize(name));
+              const client = byName("Client");
+              const server = byName("Server");
+              const both = byName("Client and Server") || byName("Client & Server");
+
+              const selected = [];
+              if (client) selected.push(client);
+              if (server) selected.push(server);
+              if (selected.length === 0 && both) selected.push(both);
+
+              if (selected.length === 0) {
+                const sample = pool.slice(0, 20).map(describeVersion).join(", ") || "(none)";
+                throw new Error(
+                  `Unable to resolve CurseForge environment versions (need Client and/or Server). ` +
+                  `environmentTypeId=${environmentTypeId ?? "unknown"}. Sample: ${sample}`
+                );
+              }
+              return selected;
+            }
+
             const minecraftVersionTypeId = minecraftVersionTypeIdOverrides.get(process.env.MINECRAFT_VERSION);
             const minecraftVersion = findRequiredVersion(process.env.MINECRAFT_VERSION, "Minecraft versions", minecraftVersionTypeId);
             const loaderVersion = findRequiredVersion(process.env.CURSEFORGE_LOADER, `${process.env.CURSEFORGE_LOADER} loader versions`);
             const javaVersionName = `java${process.env.JAVA_VERSION || "21"}`;
             const javaVersion = versions.find((entry) => normalize(entry.name) === javaVersionName);
+            const environmentVersions = findEnvironmentVersions();
 
             const gameVersions = [minecraftVersion.id, loaderVersion.id];
             if (javaVersion) {
               gameVersions.push(javaVersion.id);
             } else {
               console.warn(`Unable to resolve CurseForge game version ID for Java ${process.env.JAVA_VERSION || "21"}; uploading without a Java version tag.`);
+            }
+            for (const environmentVersion of environmentVersions) {
+              gameVersions.push(environmentVersion.id);
             }
 
             const metadata = {
@@ -425,7 +468,12 @@ jobs:
             };
 
             fs.writeFileSync("curseforge-metadata.json", JSON.stringify(metadata));
-            console.log(`Resolved CurseForge game versions: Minecraft ${describeVersion(minecraftVersion)}, loader ${describeVersion(loaderVersion)}${javaVersion ? `, Java ${describeVersion(javaVersion)}` : ""}`);
+            console.log(
+              `Resolved CurseForge game versions: Minecraft ${describeVersion(minecraftVersion)}, ` +
+              `loader ${describeVersion(loaderVersion)}` +
+              `${javaVersion ? `, Java ${describeVersion(javaVersion)}` : ""}, ` +
+              `environment ${environmentVersions.map(describeVersion).join(" + ")}`
+            );
             console.log(`Resolved CurseForge game version IDs: ${metadata.gameVersions.join(", ")}`);
           }
 
