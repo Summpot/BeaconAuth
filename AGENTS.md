@@ -95,16 +95,17 @@ This repository is multi-language. When you touch one part, ensure the relevant 
 
 #### Minecraft login-flow invariants
 
-These are business-logic constraints, not implementation details:
+Observable behavior that must hold (user-facing docs describe the same outcomes without protocol details):
 
-* Default dual-path (`bypass_if_online_mode_verified = true`) on **online-mode** servers:
-  1. Do **not** consume/cancel `handleHello` — let vanilla encryption + Mojang `hasJoinedServer` run.
-  2. Mojang **success** → start BeaconAuth PROBE; vanilla (no mod handshake) and modded+bypass **allow-through** and **keep the Mojang UUID**.
-  3. Mojang **failure** (`unverified_username` / `authservers_down`) → cancel that disconnect and fall back to BeaconAuth with a placeholder offline UUID (`helloWasIntercepted = true`). Modded clients complete the web flow; unmodded clients get `mod_required`.
-* `bypass_if_online_mode_verified = false` may force-consume HELLO and require BeaconAuth for everyone (including rejecting vanilla).
-* Placeholder / fallback offline UUIDs must **not** be treated as Mojang-verified.
-* Offline-mode servers never consume HELLO for Mojang; start negotiation after vanilla assigns a profile (VERIFYING on 1.21.x, READY_TO_ACCEPT on 1.19/1.20).
+* `bypass_if_online_mode_verified = true` (default) on online-mode servers:
+  * Premium players join without BeaconAuth web login and keep their Mojang UUID, including vanilla clients without this mod.
+  * Offline/community players with this mod can still join via BeaconAuth web login when they have no valid Mojang session.
+  * Offline/community players without this mod must not be accepted as if they were premium.
+* `bypass_if_online_mode_verified = false`: every online-mode player must use BeaconAuth; vanilla clients without the mod are rejected.
+* BeaconAuth-issued identities use a stable per-account UUID; do not treat placeholder offline UUIDs used only during negotiation as Mojang-verified.
 * Reflection/accessor/mixin compatibility fixes must be scoped to field/method access. They must not alter the authentication decision tree unless the user explicitly asks for a behavior change.
+
+Implementation notes for agents (not for end-user docs): default path leaves vanilla `handleHello` / Mojang session checks intact; on Mojang session failure, fall back to BeaconAuth instead of disconnecting; only force-short-circuit HELLO when bypass is false.
 
 ## 9) Cross-cutting Operational Rules
 
