@@ -3,6 +3,11 @@ package io.github.summpot.beaconauth.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.User;
 
+/**
+ * Detects offline / non-Mojang client sessions used by community launchers.
+ * Used so dual-path online-mode servers can still complete encryption and fall
+ * back to BeaconAuth instead of the vanilla "Invalid session" disconnect.
+ */
 public final class MinecraftSessionSupport {
     private static final String NEOAUTH_OFFLINE_TOKEN = "invalidtoken";
 
@@ -28,10 +33,19 @@ public final class MinecraftSessionSupport {
                 return true;
             }
         } catch (Throwable ignored) {
-            return false;
+            // User.Type may differ across loaders; fall through to token checks.
         }
 
         String accessToken = user.getAccessToken();
-        return accessToken == null || accessToken.isBlank() || NEOAUTH_OFFLINE_TOKEN.equals(accessToken);
+        if (accessToken == null || accessToken.isBlank()) {
+            return true;
+        }
+
+        // Common offline / cracked launcher placeholders.
+        String trimmed = accessToken.trim();
+        return NEOAUTH_OFFLINE_TOKEN.equalsIgnoreCase(trimmed)
+            || "0".equals(trimmed)
+            || "null".equalsIgnoreCase(trimmed)
+            || "offline".equalsIgnoreCase(trimmed);
     }
 }
