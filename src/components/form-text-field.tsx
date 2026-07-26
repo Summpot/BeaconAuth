@@ -1,29 +1,33 @@
 import type { AnyFieldApi } from '@tanstack/react-form';
 import type { ComponentProps, ReactNode } from 'react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { TextField } from '@/components/ui/text-field';
 import { getFieldErrorMessage } from '@/lib/errors';
-import { cn } from '@/lib/utils';
 
 type FormTextFieldProps = {
   field: AnyFieldApi;
   label: string;
-  srOnlyLabel?: boolean;
-  /** Rendered inline next to the label (e.g. an info tooltip trigger). */
+  /** Rendered as the field's trailing icon (e.g. an info tooltip trigger). */
   labelAdornment?: ReactNode;
 } & Omit<
-  ComponentProps<typeof Input>,
-  'id' | 'name' | 'value' | 'onBlur' | 'onChange' | 'aria-invalid'
+  ComponentProps<typeof TextField>,
+  | 'id'
+  | 'name'
+  | 'value'
+  | 'onBlur'
+  | 'onChange'
+  | 'aria-invalid'
+  | 'label'
+  | 'errorText'
+  | 'trailing'
 >;
 
 /**
- * Standard Label + Input + validation-error block for TanStack Form fields.
+ * Material Design 3 text field bound to a TanStack Form field.
  * The input id/name mirror the field name so autofill and labels keep working.
  */
 export function FormTextField({
   field,
   label,
-  srOnlyLabel,
   labelAdornment,
   ...inputProps
 }: FormTextFieldProps) {
@@ -31,29 +35,16 @@ export function FormTextField({
   const errorMessage = getFieldErrorMessage(field.state.meta.errors);
 
   return (
-    <div className="space-y-2">
-      {labelAdornment ? (
-        <div className="flex items-center gap-2">
-          <Label htmlFor={field.name}>{label}</Label>
-          {labelAdornment}
-        </div>
-      ) : (
-        <Label htmlFor={field.name} className={cn(srOnlyLabel && 'sr-only')}>
-          {label}
-        </Label>
-      )}
-      <Input
-        id={field.name}
-        name={field.name}
-        value={field.state.value}
-        onBlur={field.handleBlur}
-        onChange={(event) => field.handleChange(event.target.value)}
-        aria-invalid={isInvalid}
-        {...inputProps}
-      />
-      {isInvalid && errorMessage ? (
-        <p className="text-sm text-destructive">{errorMessage}</p>
-      ) : null}
-    </div>
+    <TextField
+      id={field.name}
+      name={field.name}
+      label={label}
+      value={field.state.value}
+      onBlur={field.handleBlur}
+      onChange={(event) => field.handleChange(event.target.value)}
+      errorText={isInvalid && errorMessage ? errorMessage : undefined}
+      trailing={labelAdornment}
+      {...inputProps}
+    />
   );
 }

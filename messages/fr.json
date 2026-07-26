@@ -121,6 +121,7 @@
   "settings_no_passkeys": "Aucune passkey enregistrée",
   "settings_add_passkey_promo": "Ajoutez une passkey pour une authentification plus rapide et plus sûre",
   "settings_created_at": "Créée : {date}",
+  "settings_delete_passkey": "Supprimer la passkey",
   "settings_last_used": "Dernière utilisation : {date}",
   "settings_what_are_passkeys": "Que sont les passkeys ?",
   "settings_passkeys_help_text": "Les passkeys sont une méthode d’authentification sécurisée et sans mot de passe, utilisant l’authentification biométrique (empreinte, reconnaissance faciale) ou un code PIN. Elles sont plus sûres que les mots de passe et plus simples à utiliser.",

@@ -27,16 +27,24 @@ function RadioGroupItem({
     <RadioGroupPrimitive.Item
       data-slot="radio-group-item"
       className={cn(
-        "border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 aspect-square size-4 shrink-0 rounded-full border shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+        // M3 radio button: 20dp target inside a 40dp state-layer hit area.
+        "relative aspect-square size-5 shrink-0 rounded-full border-2 border-on-surface-variant bg-transparent text-primary outline-none transition-colors duration-200 ease-standard",
+        // 40dp state layer, drawn outside the 20dp control per the M3 spec.
+        "before:absolute before:-inset-2.5 before:rounded-full before:bg-current before:opacity-0 before:transition-opacity before:duration-200 before:content-['']",
+        "hover:before:opacity-8 focus-visible:before:opacity-10 active:before:opacity-10",
+        "data-[state=checked]:border-primary",
+        "aria-invalid:border-error aria-invalid:text-error",
+        "focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-primary",
+        "disabled:cursor-not-allowed disabled:border-on-surface/38 disabled:text-on-surface/38",
         className
       )}
       {...props}
     >
       <RadioGroupPrimitive.Indicator
         data-slot="radio-group-indicator"
-        className="relative flex items-center justify-center"
+        className="relative flex size-full items-center justify-center"
       >
-        <CircleIcon className="fill-primary absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2" />
+        <CircleIcon className="absolute top-1/2 left-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 fill-current stroke-none" />
       </RadioGroupPrimitive.Indicator>
     </RadioGroupPrimitive.Item>
   )

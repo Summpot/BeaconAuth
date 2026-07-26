@@ -42,10 +42,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageLoader } from '@/components/ui/page-loader';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { TextField } from '@/components/ui/text-field';
 import {
   Tooltip,
   TooltipContent,
@@ -477,17 +477,17 @@ function SettingsPage() {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-full p-4 bg-background">
+      <div className="flex min-h-full items-center justify-center bg-surface p-4">
         <div className="w-full max-w-md">
-          <Card className="text-center shadow-sm border-border/70">
-            <CardContent className="pt-8 pb-8">
-              <div className="inline-block mb-6 text-muted-foreground opacity-50">
-                <BeaconIcon className="w-16 h-16" />
+          <Card className="rounded-xl text-center">
+            <CardContent className="py-10">
+              <div className="mb-6 inline-flex size-20 items-center justify-center rounded-full bg-surface-container-high">
+                <BeaconIcon className="size-12" />
               </div>
-              <CardTitle className="text-2xl font-semibold mb-4">
+              <CardTitle className="mb-3 text-headline-sm">
                 {m.settings_not_authenticated()}
               </CardTitle>
-              <CardDescription className="mb-8">
+              <CardDescription className="mb-8 text-body-lg">
                 {m.settings_login_required()}
               </CardDescription>
               <Button asChild size="lg">
@@ -501,55 +501,47 @@ function SettingsPage() {
   }
 
   return (
-    <div className="min-h-full bg-background pb-20">
-      <div className="container max-w-5xl mx-auto px-4 md:px-6 pt-12">
+    <div className="min-h-full bg-surface pb-20">
+      <div className="mx-auto max-w-5xl px-4 pt-12 md:px-6">
         <div className="mb-10">
-          <h1 className="text-3xl font-semibold tracking-tight mb-2">
+          <h1 className="mb-2 text-headline-lg text-on-surface">
             {m.settings_title()}
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-body-lg text-on-surface-variant">
             {m.settings_subtitle({ username: user.username })}
           </p>
         </div>
 
         {message && (
           <Alert
-            variant={message.type === 'success' ? 'default' : 'destructive'}
-            className={
-              message.type === 'success'
-                ? 'mb-8 border-border/70 bg-card/90'
-                : 'mb-8'
-            }
+            variant={message.type === 'success' ? 'success' : 'destructive'}
+            className="mb-8"
           >
-            {message.type === 'success' ? (
-              <CheckCircle2 className="text-chart-1" />
-            ) : (
-              <XCircle />
-            )}
-            <AlertDescription className="flex items-center justify-between gap-4">
-              <p className="font-medium text-foreground">{message.text}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => setMessage(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+            {message.type === 'success' ? <CheckCircle2 /> : <XCircle />}
+            <AlertDescription className="w-full">
+              <div className="flex w-full items-center justify-between gap-4">
+                <p className="text-title-sm">{message.text}</p>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="-my-1 shrink-0 text-current"
+                  aria-label={m.common_close()}
+                  onClick={() => setMessage(null)}
+                >
+                  <X />
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}
 
-        <div className="grid gap-8">
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary/20 rounded-full" />
-              <h2 className="text-xl font-bold">
-                {m.settings_profile_title()}
-              </h2>
-            </div>
+        <div className="grid gap-10">
+          <section className="space-y-3">
+            <h2 className="px-1 text-title-md text-primary">
+              {m.settings_profile_title()}
+            </h2>
 
-            <Card className="border border-border/60 shadow-xs">
+            <Card>
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -564,35 +556,35 @@ function SettingsPage() {
                 >
                   {([isSubmitting, email]) => (
                     <>
-                      <CardContent className="p-6 space-y-6">
-                        <p className="text-muted-foreground text-sm">
+                      <CardContent className="space-y-6 p-6">
+                        <p className="text-body-md text-on-surface-variant">
                           {m.settings_profile_desc()}
                         </p>
 
-                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                        <div className="flex flex-col items-start gap-6 sm:flex-row">
                           <div className="flex items-center gap-4">
-                            <Avatar className="h-16 w-16 border border-border">
+                            <Avatar className="size-16">
                               {user.avatar_url ? (
                                 <AvatarImage
                                   src={user.avatar_url}
                                   alt={user.username}
                                 />
                               ) : null}
-                              <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                              <AvatarFallback className="text-headline-sm">
                                 {user.username.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <div className="font-semibold">
+                              <div className="text-title-md text-on-surface">
                                 {user.username}
                               </div>
-                              <div className="text-xs text-muted-foreground font-mono">
+                              <div className="font-mono text-body-sm text-on-surface-variant">
                                 {user.id}
                               </div>
                             </div>
                           </div>
 
-                          <div className="flex-1 space-y-5">
+                          <div className="flex-1 space-y-6">
                             <profileForm.Field name="email">
                               {(field) => (
                                 <FormTextField
@@ -605,10 +597,9 @@ function SettingsPage() {
                                           type="button"
                                           variant="ghost"
                                           size="icon"
-                                          className="h-7 w-7"
                                           aria-label={m.aria_email_info()}
                                         >
-                                          <Lightbulb className="h-4 w-4 text-muted-foreground" />
+                                          <Lightbulb />
                                         </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
@@ -624,8 +615,8 @@ function SettingsPage() {
 
                             <profileForm.Field name="avatar_source">
                               {(field) => (
-                                <div className="space-y-3">
-                                  <Label>
+                                <div className="space-y-2">
+                                  <Label className="px-1">
                                     {m.settings_avatar_source_label()}
                                   </Label>
                                   <RadioGroup
@@ -635,17 +626,17 @@ function SettingsPage() {
                                         value as ProfileData['avatar_source'],
                                       )
                                     }
-                                    className="grid gap-3"
+                                    className="grid gap-0 overflow-hidden rounded-md bg-surface-container"
                                   >
-                                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                                      <div className="flex items-center gap-3">
+                                    <div className="flex min-h-14 items-center justify-between gap-4 px-4 py-3">
+                                      <div className="flex items-center gap-4">
                                         <RadioGroupItem
                                           value=""
                                           id="avatar_auto"
                                         />
                                         <Label
                                           htmlFor="avatar_auto"
-                                          className="cursor-pointer"
+                                          className="cursor-pointer text-body-lg text-on-surface"
                                         >
                                           {m.settings_avatar_source_auto()}
                                         </Label>
@@ -655,9 +646,9 @@ function SettingsPage() {
                                     {enabledProviders.map((p) => (
                                       <div
                                         key={p}
-                                        className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80"
+                                        className="flex min-h-14 items-center justify-between gap-4 border-t border-outline-variant px-4 py-3"
                                       >
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-4">
                                           <RadioGroupItem
                                             value={p}
                                             id={`avatar_${p}`}
@@ -665,11 +656,11 @@ function SettingsPage() {
                                           />
                                           <Label
                                             htmlFor={`avatar_${p}`}
-                                            className="cursor-pointer flex items-center gap-2"
+                                            className="flex cursor-pointer items-center gap-2 text-body-lg text-on-surface"
                                           >
                                             <ProviderIcon
                                               provider={p}
-                                              className="h-4 w-4"
+                                              className="size-5"
                                             />
                                             {AVATAR_SOURCE_LABELS[p]()}
                                           </Label>
@@ -682,8 +673,8 @@ function SettingsPage() {
                                       </div>
                                     ))}
 
-                                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                                      <div className="flex items-center gap-3">
+                                    <div className="flex min-h-14 items-center justify-between gap-4 border-t border-outline-variant px-4 py-3">
+                                      <div className="flex items-center gap-4">
                                         <RadioGroupItem
                                           value="gravatar"
                                           id="avatar_gravatar"
@@ -691,7 +682,7 @@ function SettingsPage() {
                                         />
                                         <Label
                                           htmlFor="avatar_gravatar"
-                                          className="cursor-pointer"
+                                          className="cursor-pointer text-body-lg text-on-surface"
                                         >
                                           {m.settings_avatar_source_gravatar()}
                                         </Label>
@@ -710,14 +701,14 @@ function SettingsPage() {
                         </div>
                       </CardContent>
 
-                      <CardFooter className="border-t justify-end px-6 pb-6">
+                      <CardFooter className="justify-end px-6 pb-6">
                         <Button
                           type="submit"
                           disabled={isSubmitting}
                           className="w-full sm:w-auto"
                         >
                           {isSubmitting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="animate-spin" />
                           ) : (
                             m.settings_update_profile()
                           )}
@@ -730,14 +721,11 @@ function SettingsPage() {
             </Card>
           </section>
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary/20 rounded-full" />
-              <h2 className="text-xl font-bold">
-                {m.settings_change_username_title()}
-              </h2>
-            </div>
-            <Card className="border border-border/60 shadow-xs">
+          <section className="space-y-3">
+            <h2 className="px-1 text-title-md text-primary">
+              {m.settings_change_username_title()}
+            </h2>
+            <Card>
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -751,7 +739,7 @@ function SettingsPage() {
                   {([isSubmitting]) => (
                     <>
                       <CardContent className="p-6">
-                        <p className="text-muted-foreground mb-6 text-sm">
+                        <p className="mb-6 text-body-md text-on-surface-variant">
                           {m.settings_change_username_desc()}
                         </p>
 
@@ -760,23 +748,21 @@ function SettingsPage() {
                             <FormTextField
                               field={field}
                               label={m.settings_username_label()}
-                              srOnlyLabel
                               placeholder={m.settings_username_placeholder()}
                               disabled={isSubmitting}
-                              className="h-10"
                             />
                           )}
                         </changeUsernameForm.Field>
                       </CardContent>
 
-                      <CardFooter className="border-t justify-end px-6 pb-6">
+                      <CardFooter className="justify-end px-6 pb-6">
                         <Button
                           type="submit"
                           disabled={isSubmitting}
                           className="w-full sm:w-auto"
                         >
                           {isSubmitting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="animate-spin" />
                           ) : (
                             m.settings_update_username()
                           )}
@@ -789,142 +775,127 @@ function SettingsPage() {
             </Card>
           </section>
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary/20 rounded-full" />
-              <h2 className="text-xl font-bold">
-                {m.settings_login_methods_title()}
-              </h2>
-            </div>
+          <section className="space-y-3">
+            <h2 className="px-1 text-title-md text-primary">
+              {m.settings_login_methods_title()}
+            </h2>
 
-            <Card className="border border-border/60 shadow-xs">
+            <Card>
               <CardContent className="p-0">
-                <div className="p-6 pb-0">
-                  <p className="text-muted-foreground mb-6 text-sm">
+                <div className="px-6 pt-6">
+                  <p className="mb-6 text-body-md text-on-surface-variant">
                     {m.settings_login_methods_desc()}
                   </p>
                 </div>
-                <div className="divide-y divide-border">
-                  {/* Password Method */}
-                  <div className="flex items-center justify-between p-6 bg-chart-1/10">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-card/80 flex items-center justify-center shadow-xs text-primary">
-                        <Key className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">
-                          {m.settings_password_method()}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          {hasPassword
-                            ? m.settings_password_secure_set()
-                            : m.settings_password_not_set()}
-                        </p>
-                      </div>
+
+                {/* Password method */}
+                <div className="flex items-center justify-between gap-4 px-6 py-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex size-10 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
+                      <Key className="size-5" />
                     </div>
-                    <Badge
-                      variant="outline"
-                      className={
-                        hasPassword
-                          ? 'text-chart-1 border-chart-1/30 bg-chart-1/10'
-                          : ''
-                      }
-                    >
-                      {hasPassword
-                        ? m.settings_enabled()
-                        : m.settings_not_set()}
-                    </Badge>
+                    <div>
+                      <h3 className="text-title-md text-on-surface">
+                        {m.settings_password_method()}
+                      </h3>
+                      <p className="text-body-sm text-on-surface-variant">
+                        {hasPassword
+                          ? m.settings_password_secure_set()
+                          : m.settings_password_not_set()}
+                      </p>
+                    </div>
                   </div>
+                  <Badge variant={hasPassword ? 'primary' : 'outline'}>
+                    {hasPassword ? m.settings_enabled() : m.settings_not_set()}
+                  </Badge>
+                </div>
 
-                  {/* OAuth Methods */}
-                  <div className="p-6 space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      {m.settings_linked_oauth()}
-                    </h3>
+                {/* Linked OAuth identities */}
+                <div className="space-y-4 border-t border-outline-variant p-6">
+                  <h3 className="text-title-sm text-on-surface-variant uppercase">
+                    {m.settings_linked_oauth()}
+                  </h3>
 
-                    {(identities?.identities || []).filter(
-                      (i) => i.provider !== 'password',
-                    ).length === 0 ? (
-                      <div className="text-center p-8 border-2 border-dashed rounded-xl text-muted-foreground bg-secondary/30">
-                        {m.settings_no_oauth()}
-                      </div>
-                    ) : (
-                      <div className="grid gap-3">
-                        {(identities?.identities || [])
-                          .filter((i) => i.provider !== 'password')
-                          .map((i) => (
-                            <div
-                              key={i.id}
-                              className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card/80"
-                            >
-                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-secondary-foreground">
-                                  <ProviderIcon
-                                    provider={i.provider}
-                                    className="h-5 w-5"
-                                  />
-                                </div>
-                                <div>
-                                  <h3 className="font-semibold capitalize">
-                                    {providerLabel(i.provider)}
-                                  </h3>
-                                  <p className="text-xs text-muted-foreground break-all">
-                                    {i.provider_user_id}
-                                  </p>
-                                </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => handleUnlinkIdentity(i.id)}
-                                title={m.settings_unlink()}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                      </div>
-                    )}
-
-                    {/* Link Buttons Row */}
-                    {linkableProviders.length > 0 ? (
-                      <div className="flex flex-wrap gap-3 pt-2">
-                        {linkableProviders.map((p) => (
-                          <Button
-                            key={p}
-                            variant="outline"
-                            onClick={() => handleOAuthLink(p)}
-                            className="gap-2"
+                  {(identities?.identities || []).filter(
+                    (i) => i.provider !== 'password',
+                  ).length === 0 ? (
+                    <div className="rounded-md border border-outline-variant p-8 text-center text-body-md text-on-surface-variant">
+                      {m.settings_no_oauth()}
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-md bg-surface-container">
+                      {(identities?.identities || [])
+                        .filter((i) => i.provider !== 'password')
+                        .map((i, index) => (
+                          <div
+                            key={i.id}
+                            className={`flex items-center justify-between gap-4 p-4 ${
+                              index > 0 ? 'border-t border-outline-variant' : ''
+                            }`}
                           >
-                            <ProviderIcon provider={p} className="h-4 w-4" />
-                            {LINK_PROVIDER_LABELS[p]()}
-                          </Button>
+                            <div className="flex min-w-0 items-center gap-4">
+                              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
+                                <ProviderIcon
+                                  provider={i.provider}
+                                  className="size-5"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="text-title-md text-on-surface capitalize">
+                                  {providerLabel(i.provider)}
+                                </h3>
+                                <p className="break-all text-body-sm text-on-surface-variant">
+                                  {i.provider_user_id}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="destructive-text"
+                              size="icon"
+                              onClick={() => handleUnlinkIdentity(i.id)}
+                              title={m.settings_unlink()}
+                              aria-label={m.settings_unlink()}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
                         ))}
-                      </div>
-                    ) : (
-                      enabledProviders.length === 0 && (
-                        <p className="text-sm text-muted-foreground italic pt-2">
-                          {m.settings_no_providers()}
-                        </p>
-                      )
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {linkableProviders.length > 0 ? (
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      {linkableProviders.map((p) => (
+                        <Button
+                          key={p}
+                          variant="outlined"
+                          onClick={() => handleOAuthLink(p)}
+                          className="text-on-surface"
+                        >
+                          <ProviderIcon provider={p} className="size-5" />
+                          {LINK_PROVIDER_LABELS[p]()}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : (
+                    enabledProviders.length === 0 && (
+                      <p className="pt-2 text-body-md text-on-surface-variant">
+                        {m.settings_no_providers()}
+                      </p>
+                    )
+                  )}
                 </div>
               </CardContent>
             </Card>
           </section>
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-1 bg-primary/20 rounded-full" />
-              <h2 className="text-xl font-bold">
-                {hasPassword
-                  ? m.settings_change_password()
-                  : m.settings_set_password()}
-              </h2>
-            </div>
-            <Card className="border border-border/60 shadow-xs">
+          <section className="space-y-3">
+            <h2 className="px-1 text-title-md text-primary">
+              {hasPassword
+                ? m.settings_change_password()
+                : m.settings_set_password()}
+            </h2>
+            <Card>
               <CardContent className="p-6">
                 {hasPassword ? (
                   <form
@@ -939,7 +910,7 @@ function SettingsPage() {
                       selector={(state) => [state.isSubmitting]}
                     >
                       {([isSubmitting]) => (
-                        <div className="grid md:grid-cols-2 gap-4">
+                        <div className="grid gap-6 md:grid-cols-2">
                           <changePasswordForm.Field name="currentPassword">
                             {(field) => (
                               <FormTextField
@@ -981,7 +952,7 @@ function SettingsPage() {
                             >
                               {isSubmitting ? (
                                 <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className="animate-spin" />
                                   {m.settings_changing_password()}
                                 </>
                               ) : (
@@ -1000,14 +971,14 @@ function SettingsPage() {
                       event.stopPropagation();
                       void setPasswordForm.handleSubmit();
                     }}
-                    className="space-y-4 max-w-md"
+                    className="max-w-md space-y-6"
                   >
                     <setPasswordForm.Subscribe
                       selector={(state) => [state.isSubmitting]}
                     >
                       {([isSubmitting]) => (
                         <>
-                          <Alert className="mb-4 bg-card/90 border-border/70">
+                          <Alert variant="info">
                             <AlertDescription>
                               {m.settings_alert_set_password_info()}
                             </AlertDescription>
@@ -1038,7 +1009,7 @@ function SettingsPage() {
                             <Button type="submit" disabled={isSubmitting}>
                               {isSubmitting ? (
                                 <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className="animate-spin" />
                                   {m.settings_setting_password()}
                                 </>
                               ) : (
@@ -1055,48 +1026,49 @@ function SettingsPage() {
             </Card>
           </section>
 
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="h-8 w-1 bg-primary/20 rounded-full" />
-                <h2 className="text-xl font-bold">
-                  {m.settings_passkeys_title()}
-                </h2>
-              </div>
-              <Button onClick={() => setShowPasskeyModal(true)} size="sm">
-                <Plus className="h-4 w-4 mr-2" />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="px-1 text-title-md text-primary">
+                {m.settings_passkeys_title()}
+              </h2>
+              <Button onClick={() => setShowPasskeyModal(true)} variant="tonal">
+                <Plus />
                 {m.settings_add_passkey()}
               </Button>
             </div>
 
-            <Card className="border border-border/60 shadow-xs">
+            <Card>
               <CardContent className="p-6">
                 {passkeys.length === 0 ? (
-                  <div className="text-center py-12 border-2 border-dashed border-border rounded-xl bg-secondary/30">
-                    <div className="w-16 h-16 mx-auto bg-secondary/60 rounded-full flex items-center justify-center mb-4 text-muted-foreground">
-                      <Key className="h-8 w-8" />
+                  <div className="rounded-md border border-outline-variant py-12 text-center">
+                    <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">
+                      <Key className="size-8" />
                     </div>
-                    <p className="text-muted-foreground font-medium mb-1">
+                    <p className="mb-1 text-title-md text-on-surface">
                       {m.settings_no_passkeys()}
                     </p>
-                    <p className="text-sm text-muted-foreground/80">
+                    <p className="text-body-md text-on-surface-variant">
                       {m.settings_add_passkey_promo()}
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {passkeys.map((passkey) => (
+                  <div className="overflow-hidden rounded-md bg-surface-container">
+                    {passkeys.map((passkey, index) => (
                       <div
                         key={passkey.id}
-                        className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card/80"
+                        className={`flex items-center justify-between gap-4 p-4 ${
+                          index > 0 ? 'border-t border-outline-variant' : ''
+                        }`}
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                            <Key className="h-5 w-5" />
+                        <div className="flex min-w-0 items-center gap-4">
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
+                            <Key className="size-5" />
                           </div>
-                          <div>
-                            <h3 className="font-semibold">{passkey.name}</h3>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-title-md text-on-surface">
+                              {passkey.name}
+                            </h3>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-4 text-body-sm text-on-surface-variant">
                               <span>
                                 {m.settings_created_at({
                                   date: new Date(
@@ -1117,27 +1089,28 @@ function SettingsPage() {
                           </div>
                         </div>
                         <Button
-                          variant="ghost"
+                          variant="destructive-text"
                           size="icon"
-                          className="text-destructive hover:bg-destructive/10"
+                          title={m.settings_delete_passkey()}
+                          aria-label={m.settings_delete_passkey()}
                           onClick={() =>
                             handleDeletePasskey(passkey.id, passkey.name)
                           }
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 />
                         </Button>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <Alert className="mt-8 bg-card/90 border-border/70">
-                  <Lightbulb className="h-4 w-4 text-chart-2" />
-                  <AlertDescription className="text-muted-foreground">
-                    <h3 className="font-semibold mb-1">
+                <Alert variant="warning" className="mt-8">
+                  <Lightbulb />
+                  <AlertDescription>
+                    <h3 className="text-title-sm">
                       {m.settings_what_are_passkeys()}
                     </h3>
-                    <p className="text-sm opacity-90">
+                    <p className="text-body-md opacity-90">
                       {m.settings_passkeys_help_text()}
                     </p>
                   </AlertDescription>
@@ -1148,7 +1121,7 @@ function SettingsPage() {
         </div>
 
         <Dialog open={showPasskeyModal} onOpenChange={setShowPasskeyModal}>
-          <DialogContent className="bg-card/95">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{m.settings_add_new_passkey_title()}</DialogTitle>
               <DialogDescription>
@@ -1156,24 +1129,19 @@ function SettingsPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handlePasskeyModalSubmit}>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="passkeyName">
-                    {m.settings_passkey_name_label()}
-                  </Label>
-                  <Input
-                    id="passkeyName"
-                    type="text"
-                    value={passkeyName}
-                    onChange={(e) => setPasskeyName(e.target.value)}
-                    placeholder={m.settings_passkey_name_placeholder()}
-                  />
-                </div>
-                <div className="flex gap-3">
+              <div className="space-y-6">
+                <TextField
+                  id="passkeyName"
+                  type="text"
+                  label={m.settings_passkey_name_label()}
+                  value={passkeyName}
+                  onChange={(e) => setPasskeyName(e.target.value)}
+                  placeholder={m.settings_passkey_name_placeholder()}
+                />
+                <div className="flex justify-end gap-2">
                   <Button
                     type="button"
-                    variant="secondary"
-                    className="flex-1"
+                    variant="text"
                     onClick={() => {
                       setShowPasskeyModal(false);
                       setPasskeyName('');
@@ -1181,9 +1149,7 @@ function SettingsPage() {
                   >
                     {m.settings_cancel()}
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    {m.settings_continue()}
-                  </Button>
+                  <Button type="submit">{m.settings_continue()}</Button>
                 </div>
               </div>
             </form>

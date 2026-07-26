@@ -89,24 +89,22 @@ function ProfilePage() {
 
   if (error && error.status !== 401) {
     return (
-      <div className="flex items-center justify-center min-h-full p-6 bg-background">
+      <div className="flex min-h-full items-center justify-center bg-surface p-6">
         <div className="w-full max-w-md">
-          <Card className="text-center shadow-sm border-border/70">
-            <CardContent className="pt-10 pb-10">
-              <div className="inline-block mb-6 p-4 rounded-full bg-destructive/10 text-destructive">
-                <BeaconIcon className="w-12 h-12" />
+          <Card className="rounded-xl text-center">
+            <CardContent className="py-10">
+              <div className="mb-6 inline-flex size-20 items-center justify-center rounded-full bg-error-container text-on-error-container">
+                <BeaconIcon className="size-12" />
               </div>
-              <CardTitle className="text-2xl font-semibold mb-4">
+              <CardTitle className="mb-3 text-headline-sm">
                 {m.profile_error_title()}
               </CardTitle>
-              <CardDescription className="mb-8">
+              <CardDescription className="mb-8 text-body-lg">
                 {error.message}
               </CardDescription>
-              <div className="flex flex-col gap-3">
-                <Button asChild size="lg">
-                  <Link to="/">{m.profile_back_home()}</Link>
-                </Button>
-              </div>
+              <Button asChild size="lg">
+                <Link to="/">{m.profile_back_home()}</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -119,63 +117,57 @@ function ProfilePage() {
   }
 
   return (
-    <div className="min-h-full bg-background pb-20">
-      <div className="container max-w-5xl mx-auto px-4 md:px-6 pt-12">
+    <div className="min-h-full bg-surface pb-20">
+      <div className="mx-auto max-w-5xl px-4 pt-12 md:px-6">
         {statusMessage && (
           <Alert
             variant={
-              statusMessage.type === 'success' ? 'default' : 'destructive'
+              statusMessage.type === 'success' ? 'success' : 'destructive'
             }
-            className={
-              statusMessage.type === 'success'
-                ? 'mb-8 border-border/70 bg-card/90'
-                : 'mb-8'
-            }
+            className="mb-8"
           >
-            {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="text-chart-1" />
-            ) : (
-              <XCircle />
-            )}
+            {statusMessage.type === 'success' ? <CheckCircle2 /> : <XCircle />}
             <AlertDescription>
-              <p className="font-medium text-foreground">
-                {statusMessage.text}
-              </p>
+              <p className="text-title-sm">{statusMessage.text}</p>
             </AlertDescription>
           </Alert>
         )}
 
-        <div className="flex flex-col md:flex-row gap-8 mb-12 items-center md:items-start text-center md:text-left">
-          <div className="relative group">
-            <Avatar className="h-32 w-32 border border-border/70 shadow-sm">
+        <div className="mb-12 flex flex-col items-center gap-8 text-center md:flex-row md:items-start md:text-left">
+          <div className="group relative">
+            <Avatar className="size-32 shadow-level1">
               {user.avatar_url ? (
                 <AvatarImage src={user.avatar_url} alt={user.username} />
               ) : null}
-              <AvatarFallback className="bg-primary text-5xl text-primary-foreground font-bold">
+              <AvatarFallback className="text-display-sm">
                 {user.username.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div
-              className="absolute bottom-2 right-2 w-8 h-8 bg-chart-1 rounded-full border-2 border-background flex items-center justify-center shadow-xs"
+              className="absolute right-1 bottom-1 flex size-9 items-center justify-center rounded-full border-4 border-surface bg-primary text-on-primary"
               title={m.profile_status_authenticated()}
             >
-              <CheckCircle className="h-4 w-4 text-white" />
+              <CheckCircle className="size-4" />
             </div>
           </div>
-          <div className="flex-1 pt-4">
-            <h1 className="text-3xl font-semibold tracking-tight mb-2 text-foreground">
+
+          <div className="flex-1 pt-2">
+            <h1 className="mb-1 text-headline-lg text-on-surface">
               {user.username}
             </h1>
             {user.email ? (
-              <p className="text-muted-foreground">{user.email}</p>
+              <p className="mb-3 text-body-lg text-on-surface-variant">
+                {user.email}
+              </p>
             ) : null}
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-muted-foreground">
-              <span className="flex items-center gap-2 text-sm font-mono bg-muted/40 px-3 py-1 rounded-full">
+            <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+              <span className="rounded-sm bg-surface-container-high px-3 py-1.5 font-mono text-label-md text-on-surface-variant">
                 {m.profile_account_id()}: {user.id}
               </span>
             </div>
           </div>
-          <Button asChild size="lg" className="px-6">
+
+          <Button asChild size="lg">
             <Link to="/settings">{m.button_manage_settings()}</Link>
           </Button>
         </div>

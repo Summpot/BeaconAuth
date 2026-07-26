@@ -270,18 +270,20 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-full flex flex-col bg-background">
-      <div className="flex-1 flex items-center justify-center p-6">
+    <div className="flex min-h-full flex-col bg-surface">
+      <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <Card className="shadow-sm">
-            <CardHeader className="text-center pb-4">
-              <div className="flex justify-center mb-4">
-                <BeaconIcon className="w-16 h-16" />
+          <Card className="rounded-xl">
+            <CardHeader className="pb-2 text-center">
+              <div className="mb-4 flex justify-center">
+                <div className="flex size-20 items-center justify-center rounded-full bg-primary-container">
+                  <BeaconIcon className="size-12" />
+                </div>
               </div>
-              <CardTitle className="text-2xl font-semibold">
+              <CardTitle className="text-headline-sm">
                 {m.login_welcome_title()}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-body-lg">
                 {m.login_welcome_desc({ app_name: m.app_name() })}
               </CardDescription>
             </CardHeader>
@@ -299,7 +301,7 @@ function LoginPage() {
                     void form.handleSubmit();
                   }}
                   method="post"
-                  className="space-y-4"
+                  className="space-y-5"
                 >
                   <form.Subscribe selector={(state) => [state.isSubmitting]}>
                     {([isSubmitting]) => (
@@ -338,12 +340,13 @@ function LoginPage() {
                         )}
                         <Button
                           type="submit"
+                          size="lg"
                           disabled={isSubmitting}
                           className="w-full"
                         >
                           {isSubmitting ? (
                             <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              <Loader2 className="animate-spin" />
                               {m.login_button_authenticating()}
                             </>
                           ) : (
@@ -358,12 +361,12 @@ function LoginPage() {
 
               <div>
                 {config?.database_auth && (
-                  <div className="relative my-4">
+                  <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
                       <Separator className="w-full" />
                     </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">
+                    <div className="relative flex justify-center">
+                      <span className="bg-surface-container-low px-3 text-label-md text-on-surface-variant uppercase">
                         {m.login_or_use()}
                       </span>
                     </div>
@@ -371,31 +374,32 @@ function LoginPage() {
                 )}
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="tonal"
+                  size="lg"
                   onClick={handlePasskeyLogin}
                   disabled={passkeyLoading}
                   className="w-full"
                 >
-                  <KeyRound className="mr-2 h-4 w-4" />
+                  <KeyRound />
                   {passkeyLoading
                     ? m.login_button_authenticating()
                     : m.login_passkey_btn()}
                 </Button>
                 {passkeyError && (
-                  <Alert variant="destructive" className="mt-3">
+                  <Alert variant="destructive" className="mt-4">
                     <AlertDescription>{passkeyError}</AlertDescription>
                   </Alert>
                 )}
               </div>
 
               {oauthProviderCount > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center">
                       <Separator className="w-full" />
                     </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">
+                    <div className="relative flex justify-center">
+                      <span className="bg-surface-container-low px-3 text-label-md text-on-surface-variant uppercase">
                         {m.login_or_continue()}
                       </span>
                     </div>
@@ -405,14 +409,11 @@ function LoginPage() {
                       <Button
                         key={provider}
                         type="button"
-                        variant="outline"
+                        variant="outlined"
                         onClick={() => handleOAuthLogin(provider)}
-                        className="bg-card/80 hover:bg-card text-foreground border-border/70"
+                        className="text-on-surface"
                       >
-                        <ProviderIcon
-                          provider={provider}
-                          className="w-4 h-4 mr-2"
-                        />
+                        <ProviderIcon provider={provider} className="size-5" />
                         {providerLabel(provider)}
                       </Button>
                     ))}
@@ -422,7 +423,7 @@ function LoginPage() {
 
               {config?.database_auth && (
                 <div className="text-center">
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-body-md text-on-surface-variant">
                     {m.login_no_account()}{' '}
                     <Link
                       to="/register"
@@ -430,7 +431,7 @@ function LoginPage() {
                         challenge: searchParams.challenge,
                         redirect_port: searchParams.redirect_port,
                       }}
-                      className="text-primary hover:text-primary/80 font-medium transition-colors"
+                      className="rounded-xs text-label-lg text-primary transition-colors duration-200 ease-standard hover:underline"
                     >
                       {m.login_create_one()}
                     </Link>

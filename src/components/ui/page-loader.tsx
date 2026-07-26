@@ -45,31 +45,29 @@ function PageLoader({
       aria-busy="true"
       aria-live="polite"
       className={cn(
-        "min-h-full flex items-center justify-center p-4 bg-background",
+        "min-h-full flex items-center justify-center p-4 bg-surface",
         className
       )}
     >
-      <Card className="border border-border/70 shadow-sm bg-card/90">
+      <Card className="rounded-xl">
         <CardContent className={cn("p-8", contentClassName)}>
           <div className="flex items-start gap-4">
             <div className="relative">
-              <div className="relative size-12 rounded-xl border border-border/60 bg-secondary/70 shadow-xs flex items-center justify-center">
-                {icon ?? <Spinner className="size-5 text-primary" />}
+              <div className="relative size-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
+                {icon ?? <Spinner className="size-6" />}
               </div>
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="text-base font-semibold tracking-tight">
-                {title}
-              </div>
+              <div className="text-title-md text-on-surface">{title}</div>
               {description ? (
-                <div className="mt-1 text-sm text-muted-foreground">
+                <div className="mt-1 text-body-md text-on-surface-variant">
                   {description}
                 </div>
               ) : null}
 
               <div className={cn("mt-4", compact && "mt-3")}>
-                <Progress value={progress} className="h-1.5" />
+                <Progress value={progress} />
               </div>
 
               {compact ? null : (
