@@ -1,5 +1,5 @@
 val minecraftVersion = "1.21.1"
-val architecturyVersion = "13.0.8"
+val architecturyVersion = "13.0.11"
 val fabricLoaderVersion = "0.15.11"
 val forgeConfigApiPortVersion = "21.1.6"
 val nimbusJwtVersion = "10.6"

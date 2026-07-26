@@ -34,6 +34,6 @@ side = "BOTH"
 [[dependencies.beaconauth]]
 modId = "architectury"
 mandatory = true
-versionRange = "[13.0.8,)"
+versionRange = "[13.0.11,)"
 ordering = "AFTER"
 side = "BOTH"

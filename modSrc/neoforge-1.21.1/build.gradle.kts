@@ -4,7 +4,7 @@ plugins {
 
 val minecraftVersion = "1.21.1"
 val neoForgeVersion = "21.1.217"
-val architecturyVersion = "13.0.8"
+val architecturyVersion = "13.0.11"
 val nimbusJwtVersion = "10.6"
 
 configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {

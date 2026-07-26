@@ -3,7 +3,7 @@ plugins {
 }
 
 val minecraftVersion = "1.21.1"
-val architecturyVersion = "13.0.8"
+val architecturyVersion = "13.0.11"
 val fabricLoaderVersion = "0.15.11"
 val fabricApiVersion = "0.116.7+1.21.1"
 val forgeConfigApiPortVersion = "21.1.6"
