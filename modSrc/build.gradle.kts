@@ -1,5 +1,7 @@
 import org.gradle.jvm.JvmLibrary
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import org.gradle.language.base.artifact.SourcesArtifact
 import org.gradle.api.file.DuplicatesStrategy
 
@@ -10,9 +12,41 @@ plugins {
     kotlin("jvm") version "2.2.21" apply false
 }
 
+/**
+ * Architectury's TransformingTask writes transformer settings (including
+ * architectury.srg.mappings) into JVM system properties for the duration of the task.
+ * In a multi-Minecraft-version workspace those tasks must not run concurrently, or one
+ * version can observe another version's mapping path (e.g. common-1.19.2 reading 1.21.1
+ * mappings-srg.tiny and failing with NoSuchFileException).
+ *
+ * Two layers of serialization:
+ * 1) BuildService maxParallelUsages=1 (resource lock while a transform runs)
+ * 2) mustRunAfter chain after project evaluation (stable total order in the task graph)
+ */
+abstract class ArchitecturyTransformMutex : BuildService<BuildServiceParameters.None>
+
+val architecturyTransformMutex = gradle.sharedServices.registerIfAbsent(
+    "architecturyTransformMutex",
+    ArchitecturyTransformMutex::class.java,
+) {
+    maxParallelUsages.set(1)
+}
+
 allprojects {
     group = project.property("maven_group").toString()
     version = project.property("mod_version").toString()
+}
+
+gradle.projectsEvaluated {
+    val transformTasks = subprojects
+        .flatMap { subproject ->
+            subproject.tasks.matching { it.name.startsWith("transformProduction") }
+        }
+        .sortedBy { it.path }
+
+    for (index in 1 until transformTasks.size) {
+        transformTasks[index].mustRunAfter(transformTasks[index - 1])
+    }
 }
 
 subprojects {
@@ -20,6 +54,13 @@ subprojects {
     apply(plugin = "architectury-plugin")
     apply(plugin = "maven-publish")
     apply(plugin = "org.jetbrains.kotlin.jvm")
+
+    // Serialize Architectury production transforms across all versioned subprojects.
+    tasks.configureEach {
+        if (name.startsWith("transformProduction")) {
+            usesService(architecturyTransformMutex)
+        }
+    }
 
     extensions.configure<BasePluginExtension> {
         archivesName.set("${rootProject.property("archives_name")}-${project.name}")
