@@ -3,40 +3,16 @@ import { Gamepad2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import * as m from '@/paraglide/messages';
 
-export interface MinecraftFlowAlertProps {
-  title: string;
-  challenge: string;
-  redirectPort: number;
-}
-
-export function MinecraftFlowAlert({
-  title,
-  challenge,
-  redirectPort,
-}: MinecraftFlowAlertProps) {
-  const short =
-    challenge.length > 16 ? `${challenge.substring(0, 16)}...` : challenge;
-
+export function MinecraftFlowAlert({ title }: { title: string }) {
   return (
     <Alert>
       <Gamepad2 className="h-4 w-4" />
       <AlertDescription>
         <div className="space-y-2">
           <span className="text-primary font-medium">{title}</span>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                {m.minecraft_flow_label_challenge()}
-              </span>
-              <span className="text-foreground font-mono text-xs">{short}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                {m.minecraft_flow_label_port()}
-              </span>
-              <span className="text-foreground">{redirectPort}</span>
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            {m.minecraft_flow_desc()}
+          </p>
         </div>
       </AlertDescription>
     </Alert>

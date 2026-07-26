@@ -1,18 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import {
-  CheckCircle,
-  CheckCircle2,
-  Gamepad2,
-  Shield,
-  XCircle,
-} from 'lucide-react';
+import { CheckCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,20 +15,17 @@ import {
 } from '@/components/ui/card';
 import { PageLoader } from '@/components/ui/page-loader';
 import * as m from '@/paraglide/messages';
-import { type ApiError, apiClient, queryKeys } from '../utils/api';
+import {
+  type ApiError,
+  apiClient,
+  queryKeys,
+  type UserInfo,
+} from '../utils/api';
 
 const searchParamsSchema = z.object({
   status: z.enum(['success', 'error']).optional(),
   message: z.string().optional(),
 });
-
-interface UserInfo {
-  id: string;
-  username: string;
-  email: string | null;
-  avatar_source: string | null;
-  avatar_url: string | null;
-}
 
 async function fetchUserInfo(): Promise<UserInfo> {
   return apiClient<UserInfo>('/api/v1/user/me');
@@ -176,13 +166,10 @@ function ProfilePage() {
             <h1 className="text-3xl font-semibold tracking-tight mb-2 text-foreground">
               {user.username}
             </h1>
+            {user.email ? (
+              <p className="text-muted-foreground">{user.email}</p>
+            ) : null}
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-muted-foreground">
-              <Badge
-                variant="secondary"
-                className="px-3 py-1 text-sm font-medium rounded-full"
-              >
-                {m.profile_user_role()}
-              </Badge>
               <span className="flex items-center gap-2 text-sm font-mono bg-muted/40 px-3 py-1 rounded-full">
                 {m.profile_account_id()}: {user.id}
               </span>
@@ -192,64 +179,6 @@ function ProfilePage() {
             <Link to="/settings">{m.button_manage_settings()}</Link>
           </Button>
         </div>
-
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card className="border border-border/60 shadow-xs hover:shadow-sm transition-shadow bg-card">
-            <CardContent className="p-8 flex items-start gap-5">
-              <div className="w-12 h-12 rounded-xl bg-chart-1/15 flex items-center justify-center shrink-0 text-chart-1">
-                <CheckCircle className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-1">
-                  {m.profile_status()}
-                </h3>
-                <p className="text-muted-foreground mb-3 leading-relaxed">
-                  {m.profile_status_verified_desc()}
-                </p>
-                <Badge
-                  variant="outline"
-                  className="text-chart-1 border-chart-1/30 bg-chart-1/10"
-                >
-                  {m.profile_status_authenticated()}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-border/60 shadow-xs hover:shadow-sm transition-shadow bg-card">
-            <CardContent className="p-8 flex items-start gap-5">
-              <div className="w-12 h-12 rounded-xl bg-chart-2/15 flex items-center justify-center shrink-0 text-chart-2">
-                <Gamepad2 className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-1">
-                  {m.profile_minecraft()}
-                </h3>
-                <p className="text-muted-foreground mb-3 leading-relaxed">
-                  {m.profile_minecraft_connected_desc()}
-                </p>
-                <Badge
-                  variant="outline"
-                  className="text-chart-2 border-chart-2/30 bg-chart-2/10"
-                >
-                  {m.profile_connected()}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Alert className="bg-card border-border shadow-sm mb-12">
-          <Shield className="h-5 w-5 text-primary" />
-          <AlertDescription className="ml-2">
-            <h3 className="font-semibold text-foreground mb-1">
-              {m.profile_secure_session_title()}
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {m.profile_secure_session_desc()}
-            </p>
-          </AlertDescription>
-        </Alert>
       </div>
     </div>
   );

@@ -131,3 +131,20 @@ export const queryKeys = {
   passkeys: () => ['passkeys'] as const,
   config: () => ['config'] as const,
 };
+
+/** Response shape of GET /api/v1/user/me. */
+export interface UserInfo {
+  id: string;
+  username: string;
+  email: string | null;
+  avatar_source: string | null;
+  avatar_url: string | null;
+}
+
+/** Response shape of GET /api/v1/config. */
+export interface ServerConfig {
+  database_auth: boolean;
+  github_oauth: boolean;
+  google_oauth: boolean;
+  microsoft_oauth: boolean;
+}

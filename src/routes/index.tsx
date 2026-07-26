@@ -5,12 +5,7 @@ import { BeaconIcon } from '@/components/beacon-icon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import * as m from '@/paraglide/messages';
-import { apiClient, queryKeys } from '../utils/api';
-
-interface UserInfo {
-  id: string;
-  username: string;
-}
+import { apiClient, queryKeys, type UserInfo } from '../utils/api';
 
 export function HomePage() {
   const { data: user } = useQuery({

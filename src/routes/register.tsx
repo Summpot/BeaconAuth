@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
+import { FormTextField } from '@/components/form-text-field';
 import { MinecraftFlowAlert } from '@/components/minecraft/minecraft-flow-alert';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -15,17 +16,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { getErrorMessage } from '@/lib/errors';
+import {
+  isMinecraftFlow,
+  minecraftSearchSchema,
+  redirectAfterAuth,
+} from '@/lib/minecraft-flow';
 import * as m from '@/paraglide/messages';
-import { ApiError, apiClient, queryKeys } from '../utils/api';
-
-const searchParamsSchema = z.object({
-  challenge: z.string().min(1).optional(),
-  redirect_port: z.coerce.number().min(1).max(65535).optional(),
-});
-
-type SearchParams = z.infer<typeof searchParamsSchema>;
+import { apiClient, queryKeys } from '../utils/api';
 
 const makeRegisterFormSchema = () =>
   z
@@ -51,28 +49,10 @@ const makeRegisterFormSchema = () =>
       path: ['confirmPassword'],
     });
 
-const getFieldErrorMessage = (errors: Array<unknown> | undefined) => {
-  const error = errors?.[0];
-  if (!error) return '';
-  if (typeof error === 'string') return error;
-  if (typeof error === 'object' && 'message' in error) {
-    return String((error as { message?: string }).message ?? '');
-  }
-  return '';
-};
-
 function RegisterPage() {
   const searchParams = Route.useSearch();
   const queryClient = useQueryClient();
   const [formError, setFormError] = useState<string>('');
-
-  const getErrorMessage = (error: unknown, fallback: string) => {
-    if (error instanceof ApiError) {
-      const data = error.data as { message?: string } | undefined;
-      return data?.message ?? fallback;
-    }
-    return fallback;
-  };
 
   const registerFormSchema = makeRegisterFormSchema();
   const form = useForm({
@@ -105,25 +85,7 @@ function RegisterPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.userMe() });
 
       try {
-        if (searchParams.challenge && searchParams.redirect_port) {
-          const result = await apiClient<{ redirectUrl?: string }>(
-            '/api/v1/minecraft-jwt',
-            {
-              method: 'POST',
-              body: {
-                challenge: searchParams.challenge,
-                redirect_port: searchParams.redirect_port,
-                profile_url: `${window.location.origin}/profile`,
-              },
-            },
-          );
-          if (result.redirectUrl) {
-            window.location.href = result.redirectUrl;
-            return;
-          }
-        }
-        // Use a hard navigation (same behavior as login) to avoid any SPA cache edge cases.
-        window.location.href = '/profile';
+        await redirectAfterAuth(searchParams);
       } catch (error) {
         setFormError(
           getErrorMessage(error, m.register_error_complete_failed()),
@@ -150,12 +112,8 @@ function RegisterPage() {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {searchParams.challenge && searchParams.redirect_port && (
-                <MinecraftFlowAlert
-                  title={m.register_minecraft_title()}
-                  challenge={searchParams.challenge}
-                  redirectPort={searchParams.redirect_port}
-                />
+              {isMinecraftFlow(searchParams) && (
+                <MinecraftFlowAlert title={m.register_minecraft_title()} />
               )}
 
               <form
@@ -171,122 +129,47 @@ function RegisterPage() {
                   {([isSubmitting]) => (
                     <>
                       <form.Field name="username">
-                        {(field) => {
-                          const isInvalid =
-                            field.state.meta.isTouched &&
-                            !field.state.meta.isValid;
-                          const errorMessage = getFieldErrorMessage(
-                            field.state.meta.errors,
-                          );
-
-                          return (
-                            <div className="space-y-2">
-                              <Label htmlFor="username">
-                                {m.login_username_label()}
-                              </Label>
-                              <Input
-                                id="username"
-                                name={field.name}
-                                type="text"
-                                value={field.state.value}
-                                onBlur={field.handleBlur}
-                                onChange={(event) =>
-                                  field.handleChange(event.target.value)
-                                }
-                                autoComplete="username"
-                                autoCapitalize="none"
-                                autoCorrect="off"
-                                spellCheck={false}
-                                placeholder={m.register_username_placeholder()}
-                                disabled={isSubmitting}
-                                aria-invalid={isInvalid}
-                              />
-                              {isInvalid && errorMessage ? (
-                                <p className="text-sm text-destructive">
-                                  {errorMessage}
-                                </p>
-                              ) : null}
-                            </div>
-                          );
-                        }}
+                        {(field) => (
+                          <FormTextField
+                            field={field}
+                            label={m.login_username_label()}
+                            type="text"
+                            autoComplete="username"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            placeholder={m.register_username_placeholder()}
+                            disabled={isSubmitting}
+                          />
+                        )}
                       </form.Field>
 
                       <form.Field name="password">
-                        {(field) => {
-                          const isInvalid =
-                            field.state.meta.isTouched &&
-                            !field.state.meta.isValid;
-                          const errorMessage = getFieldErrorMessage(
-                            field.state.meta.errors,
-                          );
-
-                          return (
-                            <div className="space-y-2">
-                              <Label htmlFor="password">
-                                {m.login_password_label()}
-                              </Label>
-                              <Input
-                                id="password"
-                                name={field.name}
-                                type="password"
-                                value={field.state.value}
-                                onBlur={field.handleBlur}
-                                onChange={(event) =>
-                                  field.handleChange(event.target.value)
-                                }
-                                autoComplete="new-password"
-                                minLength={6}
-                                placeholder={m.settings_create_password_placeholder()}
-                                disabled={isSubmitting}
-                                aria-invalid={isInvalid}
-                              />
-                              {isInvalid && errorMessage ? (
-                                <p className="text-sm text-destructive">
-                                  {errorMessage}
-                                </p>
-                              ) : null}
-                            </div>
-                          );
-                        }}
+                        {(field) => (
+                          <FormTextField
+                            field={field}
+                            label={m.login_password_label()}
+                            type="password"
+                            autoComplete="new-password"
+                            minLength={6}
+                            placeholder={m.settings_create_password_placeholder()}
+                            disabled={isSubmitting}
+                          />
+                        )}
                       </form.Field>
 
                       <form.Field name="confirmPassword">
-                        {(field) => {
-                          const isInvalid =
-                            field.state.meta.isTouched &&
-                            !field.state.meta.isValid;
-                          const errorMessage = getFieldErrorMessage(
-                            field.state.meta.errors,
-                          );
-
-                          return (
-                            <div className="space-y-2">
-                              <Label htmlFor="confirmPassword">
-                                {m.settings_confirm_password_simple()}
-                              </Label>
-                              <Input
-                                id="confirmPassword"
-                                name={field.name}
-                                type="password"
-                                value={field.state.value}
-                                onBlur={field.handleBlur}
-                                onChange={(event) =>
-                                  field.handleChange(event.target.value)
-                                }
-                                autoComplete="new-password"
-                                minLength={6}
-                                placeholder={m.settings_confirm_password_simple_placeholder()}
-                                disabled={isSubmitting}
-                                aria-invalid={isInvalid}
-                              />
-                              {isInvalid && errorMessage ? (
-                                <p className="text-sm text-destructive">
-                                  {errorMessage}
-                                </p>
-                              ) : null}
-                            </div>
-                          );
-                        }}
+                        {(field) => (
+                          <FormTextField
+                            field={field}
+                            label={m.settings_confirm_password_simple()}
+                            type="password"
+                            autoComplete="new-password"
+                            minLength={6}
+                            placeholder={m.settings_confirm_password_simple_placeholder()}
+                            disabled={isSubmitting}
+                          />
+                        )}
                       </form.Field>
 
                       {formError && (
@@ -345,6 +228,6 @@ function RegisterPage() {
 
 export const Route = createFileRoute('/register')({
   component: RegisterPage,
-  validateSearch: (search: Record<string, unknown>): SearchParams =>
-    searchParamsSchema.parse(search),
+  validateSearch: (search: Record<string, unknown>) =>
+    minecraftSearchSchema.parse(search),
 });

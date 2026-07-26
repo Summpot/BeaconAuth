@@ -12,7 +12,14 @@ import { KeyRound, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
+import { FormTextField } from '@/components/form-text-field';
 import { MinecraftFlowAlert } from '@/components/minecraft/minecraft-flow-alert';
+import {
+  OAUTH_PROVIDERS,
+  type OAuthProvider,
+  ProviderIcon,
+  providerLabel,
+} from '@/components/provider-icon';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,50 +29,24 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { PageLoader } from '@/components/ui/page-loader';
 import { Separator } from '@/components/ui/separator';
+import { getErrorMessage } from '@/lib/errors';
+import {
+  isMinecraftFlow,
+  type MinecraftSearchParams,
+  minecraftSearchSchema,
+  redirectAfterAuth,
+  tryCompleteMinecraftFlow,
+} from '@/lib/minecraft-flow';
 import * as m from '@/paraglide/messages';
-import { ApiError, apiClient, queryKeys } from '../utils/api';
-
-const searchParamsSchema = z.object({
-  challenge: z.string().min(1).optional(),
-  redirect_port: z.coerce.number().min(1).max(65535).optional(),
-});
-
-type SearchParams = z.infer<typeof searchParamsSchema>;
+import { apiClient, queryKeys, type ServerConfig } from '../utils/api';
 
 const makeLoginFormSchema = () =>
   z.object({
     username: z.string().min(1, m.login_validation_username_required()),
     password: z.string().min(1, m.login_validation_password_required()),
   });
-
-interface ServerConfig {
-  database_auth: boolean;
-  github_oauth: boolean;
-  google_oauth: boolean;
-  microsoft_oauth: boolean;
-}
-
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof ApiError) {
-    const data = error.data as { message?: string } | undefined;
-    return data?.message ?? fallback;
-  }
-  return fallback;
-};
-
-const getFieldErrorMessage = (errors: Array<unknown> | undefined) => {
-  const error = errors?.[0];
-  if (!error) return '';
-  if (typeof error === 'string') return error;
-  if (typeof error === 'object' && 'message' in error) {
-    return String((error as { message?: string }).message ?? '');
-  }
-  return '';
-};
 
 function LoginPage() {
   const searchParams = Route.useSearch();
@@ -99,22 +80,7 @@ function LoginPage() {
         await queryClient.invalidateQueries({ queryKey: queryKeys.userMe() });
         tryAutoRegisterPasskey().catch(() => {});
 
-        if (searchParams.challenge && searchParams.redirect_port) {
-          const result = await apiClient<{ redirectUrl?: string }>(
-            '/api/v1/minecraft-jwt',
-            {
-              method: 'POST',
-              body: {
-                challenge: searchParams.challenge,
-                redirect_port: searchParams.redirect_port,
-                profile_url: `${window.location.origin}/profile`,
-              },
-            },
-          );
-          if (result.redirectUrl) window.location.href = result.redirectUrl;
-        } else {
-          window.location.href = '/profile';
-        }
+        await redirectAfterAuth(searchParams);
       } catch (error) {
         setFormError(
           getErrorMessage(error, m.login_error_failed_connect_server()),
@@ -134,23 +100,9 @@ function LoginPage() {
         console.error('Failed to load server config:', error);
       }
 
-      if (searchParams.challenge && searchParams.redirect_port) {
+      if (isMinecraftFlow(searchParams)) {
         try {
-          const result = await apiClient<{ redirectUrl?: string }>(
-            '/api/v1/minecraft-jwt',
-            {
-              method: 'POST',
-              body: {
-                challenge: searchParams.challenge,
-                redirect_port: searchParams.redirect_port,
-                profile_url: `${window.location.origin}/profile`,
-              },
-            },
-          );
-          if (result.redirectUrl) {
-            window.location.href = result.redirectUrl;
-            return;
-          }
+          if (await tryCompleteMinecraftFlow(searchParams)) return;
         } catch (error) {
           console.log('Auto-login failed, showing login form', error);
         }
@@ -158,7 +110,7 @@ function LoginPage() {
       setConfigLoading(false);
     };
     initialize();
-  }, [searchParams.challenge, searchParams.redirect_port]);
+  }, [searchParams]);
 
   const completePasskeyAuth = useCallback(
     async (credential: unknown) => {
@@ -170,27 +122,9 @@ function LoginPage() {
 
       await queryClient.invalidateQueries({ queryKey: queryKeys.userMe() });
 
-      if (searchParams.challenge && searchParams.redirect_port) {
-        const result = await apiClient<{ redirectUrl?: string }>(
-          '/api/v1/minecraft-jwt',
-          {
-            method: 'POST',
-            body: {
-              challenge: searchParams.challenge,
-              redirect_port: searchParams.redirect_port,
-              profile_url: `${window.location.origin}/profile`,
-            },
-          },
-        );
-        if (result.redirectUrl) {
-          window.location.href = result.redirectUrl;
-          return;
-        }
-      } else {
-        window.location.href = '/profile';
-      }
+      await redirectAfterAuth(searchParams);
     },
-    [queryClient, searchParams.challenge, searchParams.redirect_port],
+    [queryClient, searchParams],
   );
 
   useEffect(() => {
@@ -278,11 +212,9 @@ function LoginPage() {
     }
   };
 
-  const handleOAuthLogin = async (
-    provider: 'github' | 'google' | 'microsoft',
-  ) => {
+  const handleOAuthLogin = async (provider: OAuthProvider) => {
     try {
-      if (searchParams.challenge && searchParams.redirect_port) {
+      if (isMinecraftFlow(searchParams)) {
         sessionStorage.setItem('minecraft_challenge', searchParams.challenge);
         sessionStorage.setItem(
           'minecraft_redirect_port',
@@ -311,10 +243,15 @@ function LoginPage() {
     }
   };
 
-  const oauthProviderCount =
-    (config?.github_oauth ? 1 : 0) +
-    (config?.google_oauth ? 1 : 0) +
-    (config?.microsoft_oauth ? 1 : 0);
+  const oauthEnabled: Record<OAuthProvider, boolean | undefined> = {
+    github: config?.github_oauth,
+    google: config?.google_oauth,
+    microsoft: config?.microsoft_oauth,
+  };
+  const enabledOAuthProviders = OAUTH_PROVIDERS.filter(
+    (provider) => oauthEnabled[provider],
+  );
+  const oauthProviderCount = enabledOAuthProviders.length;
 
   const oauthGridClass =
     oauthProviderCount <= 1
@@ -350,12 +287,8 @@ function LoginPage() {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {searchParams.challenge && searchParams.redirect_port && (
-                <MinecraftFlowAlert
-                  title={m.login_minecraft_title()}
-                  challenge={searchParams.challenge}
-                  redirectPort={searchParams.redirect_port}
-                />
+              {isMinecraftFlow(searchParams) && (
+                <MinecraftFlowAlert title={m.login_minecraft_title()} />
               )}
 
               {config?.database_auth && (
@@ -372,81 +305,31 @@ function LoginPage() {
                     {([isSubmitting]) => (
                       <>
                         <form.Field name="username">
-                          {(field) => {
-                            const isInvalid =
-                              field.state.meta.isTouched &&
-                              !field.state.meta.isValid;
-                            const errorMessage = getFieldErrorMessage(
-                              field.state.meta.errors,
-                            );
-
-                            return (
-                              <div className="space-y-2">
-                                <Label htmlFor="username">
-                                  {m.login_username_label()}
-                                </Label>
-                                <Input
-                                  id="username"
-                                  name={field.name}
-                                  type="text"
-                                  value={field.state.value}
-                                  onBlur={field.handleBlur}
-                                  onChange={(event) =>
-                                    field.handleChange(event.target.value)
-                                  }
-                                  placeholder={m.login_username_placeholder()}
-                                  disabled={isSubmitting}
-                                  autoComplete="username webauthn"
-                                  autoCapitalize="none"
-                                  autoCorrect="off"
-                                  spellCheck={false}
-                                  aria-invalid={isInvalid}
-                                />
-                                {isInvalid && errorMessage ? (
-                                  <p className="text-sm text-destructive">
-                                    {errorMessage}
-                                  </p>
-                                ) : null}
-                              </div>
-                            );
-                          }}
+                          {(field) => (
+                            <FormTextField
+                              field={field}
+                              label={m.login_username_label()}
+                              type="text"
+                              placeholder={m.login_username_placeholder()}
+                              disabled={isSubmitting}
+                              autoComplete="username webauthn"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                            />
+                          )}
                         </form.Field>
                         <form.Field name="password">
-                          {(field) => {
-                            const isInvalid =
-                              field.state.meta.isTouched &&
-                              !field.state.meta.isValid;
-                            const errorMessage = getFieldErrorMessage(
-                              field.state.meta.errors,
-                            );
-
-                            return (
-                              <div className="space-y-2">
-                                <Label htmlFor="password">
-                                  {m.login_password_label()}
-                                </Label>
-                                <Input
-                                  id="password"
-                                  name={field.name}
-                                  type="password"
-                                  value={field.state.value}
-                                  onBlur={field.handleBlur}
-                                  onChange={(event) =>
-                                    field.handleChange(event.target.value)
-                                  }
-                                  placeholder={m.login_password_placeholder()}
-                                  disabled={isSubmitting}
-                                  autoComplete="current-password webauthn"
-                                  aria-invalid={isInvalid}
-                                />
-                                {isInvalid && errorMessage ? (
-                                  <p className="text-sm text-destructive">
-                                    {errorMessage}
-                                  </p>
-                                ) : null}
-                              </div>
-                            );
-                          }}
+                          {(field) => (
+                            <FormTextField
+                              field={field}
+                              label={m.login_password_label()}
+                              type="password"
+                              placeholder={m.login_password_placeholder()}
+                              disabled={isSubmitting}
+                              autoComplete="current-password webauthn"
+                            />
+                          )}
                         </form.Field>
                         {formError && (
                           <Alert variant="destructive">
@@ -505,9 +388,7 @@ function LoginPage() {
                 )}
               </div>
 
-              {(config?.github_oauth ||
-                config?.google_oauth ||
-                config?.microsoft_oauth) && (
+              {oauthProviderCount > 0 && (
                 <div className="space-y-3">
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center">
@@ -520,74 +401,21 @@ function LoginPage() {
                     </div>
                   </div>
                   <div className={`grid gap-3 ${oauthGridClass}`}>
-                    {config?.github_oauth && (
+                    {enabledOAuthProviders.map((provider) => (
                       <Button
+                        key={provider}
                         type="button"
                         variant="outline"
-                        onClick={() => handleOAuthLogin('github')}
+                        onClick={() => handleOAuthLogin(provider)}
                         className="bg-card/80 hover:bg-card text-foreground border-border/70"
                       >
-                        <svg
+                        <ProviderIcon
+                          provider={provider}
                           className="w-4 h-4 mr-2"
-                          fill="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <title>{m.provider_github()}</title>
-                          <path
-                            fillRule="evenodd"
-                            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {m.provider_github()}
+                        />
+                        {providerLabel(provider)}
                       </Button>
-                    )}
-                    {config?.google_oauth && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleOAuthLogin('google')}
-                        className="bg-card/80 hover:bg-card text-foreground border-border/70"
-                      >
-                        <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                          <title>{m.provider_google()}</title>
-                          <path
-                            fill="#4285F4"
-                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                          />
-                          <path
-                            fill="#34A853"
-                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                          />
-                          <path
-                            fill="#FBBC05"
-                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                          />
-                          <path
-                            fill="#EA4335"
-                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                          />
-                        </svg>
-                        {m.provider_google()}
-                      </Button>
-                    )}
-                    {config?.microsoft_oauth && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleOAuthLogin('microsoft')}
-                        className="bg-card/80 hover:bg-card text-foreground border-border/70"
-                      >
-                        <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                          <title>{m.provider_microsoft()}</title>
-                          <path fill="#F25022" d="M2 2h9v9H2z" />
-                          <path fill="#7FBA00" d="M13 2h9v9h-9z" />
-                          <path fill="#00A4EF" d="M2 13h9v9H2z" />
-                          <path fill="#FFB900" d="M13 13h9v9h-9z" />
-                        </svg>
-                        {m.provider_microsoft()}
-                      </Button>
-                    )}
+                    ))}
                   </div>
                 </div>
               )}
@@ -619,6 +447,6 @@ function LoginPage() {
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
-  validateSearch: (search: Record<string, unknown>): SearchParams =>
-    searchParamsSchema.parse(search),
+  validateSearch: (search: Record<string, unknown>): MinecraftSearchParams =>
+    minecraftSearchSchema.parse(search),
 });

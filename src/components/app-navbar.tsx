@@ -21,16 +21,11 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import * as m from '@/paraglide/messages';
-import { ApiError, apiClient, queryKeys } from '@/utils/api';
+import { ApiError, apiClient, queryKeys, type UserInfo } from '@/utils/api';
 
-type CurrentUser = {
-  id: string;
-  username: string;
-};
-
-async function fetchOptionalUser(): Promise<CurrentUser | null> {
+async function fetchOptionalUser(): Promise<UserInfo | null> {
   try {
-    return await apiClient<CurrentUser>('/api/v1/user/me', {
+    return await apiClient<UserInfo>('/api/v1/user/me', {
       requiresAuth: false,
     });
   } catch (error) {

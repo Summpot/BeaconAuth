@@ -6,11 +6,8 @@ import { useForm } from '@tanstack/react-form';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   CheckCircle2,
-  Chrome,
-  Github,
   Key,
   Lightbulb,
-  Link2,
   Loader2,
   Plus,
   Trash2,
@@ -20,6 +17,13 @@ import {
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
+import { FormTextField } from '@/components/form-text-field';
+import {
+  OAUTH_PROVIDERS,
+  type OAuthProvider,
+  ProviderIcon,
+  providerLabel,
+} from '@/components/provider-icon';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -47,21 +51,27 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { getErrorMessage } from '@/lib/errors';
 import * as m from '@/paraglide/messages';
-import { ApiError, apiClient } from '../utils/api';
+import { apiClient, type ServerConfig, type UserInfo } from '../utils/api';
 
-function formatProviderLabel(provider: string) {
-  switch (provider) {
-    case 'github':
-      return m.provider_github();
-    case 'google':
-      return m.provider_google();
-    case 'microsoft':
-      return m.provider_microsoft();
-    default:
-      return provider;
-  }
-}
+const PROVIDER_OAUTH_FLAG = {
+  github: 'github_oauth',
+  google: 'google_oauth',
+  microsoft: 'microsoft_oauth',
+} as const satisfies Record<OAuthProvider, keyof ServerConfig>;
+
+const AVATAR_SOURCE_LABELS: Record<OAuthProvider, () => string> = {
+  github: m.settings_avatar_source_github,
+  google: m.settings_avatar_source_google,
+  microsoft: m.settings_avatar_source_microsoft,
+};
+
+const LINK_PROVIDER_LABELS: Record<OAuthProvider, () => string> = {
+  github: m.settings_link_github,
+  google: m.settings_link_google,
+  microsoft: m.settings_link_microsoft,
+};
 
 const makePasswordChangeSchema = () =>
   z
@@ -113,25 +123,11 @@ const profileSchema = z.object({
 
 type ProfileData = z.infer<typeof profileSchema>;
 
-interface UserInfo {
-  id: string;
-  username: string;
-  email: string | null;
-  avatar_source: string | null;
-  avatar_url: string | null;
-}
 interface PasskeyInfo {
   id: string;
   name: string;
   created_at: string;
   last_used_at: string | null;
-}
-
-interface ServerConfig {
-  database_auth: boolean;
-  github_oauth: boolean;
-  google_oauth: boolean;
-  microsoft_oauth: boolean;
 }
 
 interface IdentityInfo {
@@ -145,24 +141,6 @@ interface IdentitiesResponse {
   has_password: boolean;
   passkey_count: number;
 }
-
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof ApiError) {
-    const data = error.data as { message?: string } | undefined;
-    return data?.message ?? fallback;
-  }
-  return fallback;
-};
-
-const getFieldErrorMessage = (errors: Array<unknown> | undefined) => {
-  const error = errors?.[0];
-  if (!error) return '';
-  if (typeof error === 'string') return error;
-  if (typeof error === 'object' && 'message' in error) {
-    return String((error as { message?: string }).message ?? '');
-  }
-  return '';
-};
 
 function SettingsPage() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -181,9 +159,12 @@ function SettingsPage() {
   const linkedProviders = new Set(
     (identities?.identities ?? []).map((i) => i.provider),
   );
-  const isGithubLinked = linkedProviders.has('github');
-  const isGoogleLinked = linkedProviders.has('google');
-  const isMicrosoftLinked = linkedProviders.has('microsoft');
+  const enabledProviders = OAUTH_PROVIDERS.filter(
+    (p) => config?.[PROVIDER_OAUTH_FLAG[p]],
+  );
+  const linkableProviders = enabledProviders.filter(
+    (p) => !linkedProviders.has(p),
+  );
 
   const refreshIdentities = async () => {
     try {
@@ -399,9 +380,7 @@ function SettingsPage() {
     }
   };
 
-  const handleOAuthLink = async (
-    provider: 'github' | 'google' | 'microsoft',
-  ) => {
+  const handleOAuthLink = async (provider: OAuthProvider) => {
     try {
       const result = await apiClient<{ authorizationUrl?: string }>(
         '/api/v1/oauth/link/start',
@@ -615,57 +594,32 @@ function SettingsPage() {
 
                           <div className="flex-1 space-y-5">
                             <profileForm.Field name="email">
-                              {(field) => {
-                                const isInvalid =
-                                  field.state.meta.isTouched &&
-                                  !field.state.meta.isValid;
-                                const errorMessage = getFieldErrorMessage(
-                                  field.state.meta.errors,
-                                );
-
-                                return (
-                                  <div className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                      <Label htmlFor="email">
-                                        {m.settings_email_label()}
-                                      </Label>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7"
-                                            aria-label={m.aria_email_info()}
-                                          >
-                                            <Lightbulb className="h-4 w-4 text-muted-foreground" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          {m.settings_email_tooltip()}
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </div>
-                                    <Input
-                                      id="email"
-                                      name={field.name}
-                                      value={field.state.value}
-                                      onBlur={field.handleBlur}
-                                      onChange={(event) =>
-                                        field.handleChange(event.target.value)
-                                      }
-                                      placeholder={m.settings_email_placeholder()}
-                                      disabled={isSubmitting}
-                                      aria-invalid={isInvalid}
-                                    />
-                                    {isInvalid && errorMessage ? (
-                                      <p className="text-sm text-destructive">
-                                        {errorMessage}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                );
-                              }}
+                              {(field) => (
+                                <FormTextField
+                                  field={field}
+                                  label={m.settings_email_label()}
+                                  labelAdornment={
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          aria-label={m.aria_email_info()}
+                                        >
+                                          <Lightbulb className="h-4 w-4 text-muted-foreground" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        {m.settings_email_tooltip()}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  }
+                                  placeholder={m.settings_email_placeholder()}
+                                  disabled={isSubmitting}
+                                />
+                              )}
                             </profileForm.Field>
 
                             <profileForm.Field name="avatar_source">
@@ -698,99 +652,35 @@ function SettingsPage() {
                                       </div>
                                     </div>
 
-                                    {config?.github_oauth && (
-                                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                                    {enabledProviders.map((p) => (
+                                      <div
+                                        key={p}
+                                        className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80"
+                                      >
                                         <div className="flex items-center gap-3">
                                           <RadioGroupItem
-                                            value="github"
-                                            id="avatar_github"
-                                            disabled={!isGithubLinked}
+                                            value={p}
+                                            id={`avatar_${p}`}
+                                            disabled={!linkedProviders.has(p)}
                                           />
                                           <Label
-                                            htmlFor="avatar_github"
+                                            htmlFor={`avatar_${p}`}
                                             className="cursor-pointer flex items-center gap-2"
                                           >
-                                            <Github className="h-4 w-4" />
-                                            {m.settings_avatar_source_github()}
-                                          </Label>
-                                        </div>
-                                        {!isGithubLinked && (
-                                          <Badge variant="secondary">
-                                            {m.settings_avatar_requires_linked()}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {config?.google_oauth && (
-                                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                                        <div className="flex items-center gap-3">
-                                          <RadioGroupItem
-                                            value="google"
-                                            id="avatar_google"
-                                            disabled={!isGoogleLinked}
-                                          />
-                                          <Label
-                                            htmlFor="avatar_google"
-                                            className="cursor-pointer flex items-center gap-2"
-                                          >
-                                            <Chrome className="h-4 w-4" />
-                                            {m.settings_avatar_source_google()}
-                                          </Label>
-                                        </div>
-                                        {!isGoogleLinked && (
-                                          <Badge variant="secondary">
-                                            {m.settings_avatar_requires_linked()}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {config?.microsoft_oauth && (
-                                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
-                                        <div className="flex items-center gap-3">
-                                          <RadioGroupItem
-                                            value="microsoft"
-                                            id="avatar_microsoft"
-                                            disabled={!isMicrosoftLinked}
-                                          />
-                                          <Label
-                                            htmlFor="avatar_microsoft"
-                                            className="cursor-pointer flex items-center gap-2"
-                                          >
-                                            <svg
-                                              role="img"
+                                            <ProviderIcon
+                                              provider={p}
                                               className="h-4 w-4"
-                                              viewBox="0 0 24 24"
-                                              aria-label={m.provider_microsoft()}
-                                            >
-                                              <path
-                                                fill="#F25022"
-                                                d="M2 2h9v9H2z"
-                                              />
-                                              <path
-                                                fill="#7FBA00"
-                                                d="M13 2h9v9h-9z"
-                                              />
-                                              <path
-                                                fill="#00A4EF"
-                                                d="M2 13h9v9H2z"
-                                              />
-                                              <path
-                                                fill="#FFB900"
-                                                d="M13 13h9v9h-9z"
-                                              />
-                                            </svg>
-                                            {m.settings_avatar_source_microsoft()}
+                                            />
+                                            {AVATAR_SOURCE_LABELS[p]()}
                                           </Label>
                                         </div>
-                                        {!isMicrosoftLinked && (
+                                        {!linkedProviders.has(p) && (
                                           <Badge variant="secondary">
                                             {m.settings_avatar_requires_linked()}
                                           </Badge>
                                         )}
                                       </div>
-                                    )}
+                                    ))}
 
                                     <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
                                       <div className="flex items-center gap-3">
@@ -866,40 +756,16 @@ function SettingsPage() {
                         </p>
 
                         <changeUsernameForm.Field name="username">
-                          {(field) => {
-                            const isInvalid =
-                              field.state.meta.isTouched &&
-                              !field.state.meta.isValid;
-                            const errorMessage = getFieldErrorMessage(
-                              field.state.meta.errors,
-                            );
-
-                            return (
-                              <div className="space-y-2">
-                                <Label htmlFor="username" className="sr-only">
-                                  {m.settings_username_label()}
-                                </Label>
-                                <Input
-                                  id="username"
-                                  name={field.name}
-                                  value={field.state.value}
-                                  onBlur={field.handleBlur}
-                                  onChange={(event) =>
-                                    field.handleChange(event.target.value)
-                                  }
-                                  placeholder={m.settings_username_placeholder()}
-                                  disabled={isSubmitting}
-                                  className="h-10"
-                                  aria-invalid={isInvalid}
-                                />
-                                {isInvalid && errorMessage ? (
-                                  <p className="text-sm text-destructive mt-1">
-                                    {errorMessage}
-                                  </p>
-                                ) : null}
-                              </div>
-                            );
-                          }}
+                          {(field) => (
+                            <FormTextField
+                              field={field}
+                              label={m.settings_username_label()}
+                              srOnlyLabel
+                              placeholder={m.settings_username_placeholder()}
+                              disabled={isSubmitting}
+                              className="h-10"
+                            />
+                          )}
                         </changeUsernameForm.Field>
                       </CardContent>
 
@@ -993,29 +859,14 @@ function SettingsPage() {
                             >
                               <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-secondary-foreground">
-                                  {i.provider === 'github' ? (
-                                    <Github className="h-5 w-5" />
-                                  ) : i.provider === 'google' ? (
-                                    <Chrome className="h-5 w-5" />
-                                  ) : i.provider === 'microsoft' ? (
-                                    <svg
-                                      role="img"
-                                      className="h-5 w-5"
-                                      viewBox="0 0 24 24"
-                                      aria-label={m.provider_microsoft()}
-                                    >
-                                      <path fill="#F25022" d="M2 2h9v9H2z" />
-                                      <path fill="#7FBA00" d="M13 2h9v9h-9z" />
-                                      <path fill="#00A4EF" d="M2 13h9v9H2z" />
-                                      <path fill="#FFB900" d="M13 13h9v9h-9z" />
-                                    </svg>
-                                  ) : (
-                                    <Link2 className="h-5 w-5" />
-                                  )}
+                                  <ProviderIcon
+                                    provider={i.provider}
+                                    className="h-5 w-5"
+                                  />
                                 </div>
                                 <div>
                                   <h3 className="font-semibold capitalize">
-                                    {formatProviderLabel(i.provider)}
+                                    {providerLabel(i.provider)}
                                   </h3>
                                   <p className="text-xs text-muted-foreground break-all">
                                     {i.provider_user_id}
@@ -1037,55 +888,22 @@ function SettingsPage() {
                     )}
 
                     {/* Link Buttons Row */}
-                    {(config?.github_oauth && !isGithubLinked) ||
-                    (config?.google_oauth && !isGoogleLinked) ||
-                    (config?.microsoft_oauth && !isMicrosoftLinked) ? (
+                    {linkableProviders.length > 0 ? (
                       <div className="flex flex-wrap gap-3 pt-2">
-                        {config?.github_oauth && !isGithubLinked && (
+                        {linkableProviders.map((p) => (
                           <Button
+                            key={p}
                             variant="outline"
-                            onClick={() => handleOAuthLink('github')}
+                            onClick={() => handleOAuthLink(p)}
                             className="gap-2"
                           >
-                            <Github className="h-4 w-4" />
-                            {m.settings_link_github()}
+                            <ProviderIcon provider={p} className="h-4 w-4" />
+                            {LINK_PROVIDER_LABELS[p]()}
                           </Button>
-                        )}
-                        {config?.google_oauth && !isGoogleLinked && (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleOAuthLink('google')}
-                            className="gap-2"
-                          >
-                            <Chrome className="h-4 w-4" />
-                            {m.settings_link_google()}
-                          </Button>
-                        )}
-                        {config?.microsoft_oauth && !isMicrosoftLinked && (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleOAuthLink('microsoft')}
-                            className="gap-2"
-                          >
-                            <svg
-                              role="img"
-                              className="h-4 w-4"
-                              viewBox="0 0 24 24"
-                              aria-label={m.provider_microsoft()}
-                            >
-                              <path fill="#F25022" d="M2 2h9v9H2z" />
-                              <path fill="#7FBA00" d="M13 2h9v9h-9z" />
-                              <path fill="#00A4EF" d="M2 13h9v9H2z" />
-                              <path fill="#FFB900" d="M13 13h9v9h-9z" />
-                            </svg>
-                            {m.settings_link_microsoft()}
-                          </Button>
-                        )}
+                        ))}
                       </div>
                     ) : (
-                      !config?.github_oauth &&
-                      !config?.google_oauth &&
-                      !config?.microsoft_oauth && (
+                      enabledProviders.length === 0 && (
                         <p className="text-sm text-muted-foreground italic pt-2">
                           {m.settings_no_providers()}
                         </p>
@@ -1123,112 +941,37 @@ function SettingsPage() {
                       {([isSubmitting]) => (
                         <div className="grid md:grid-cols-2 gap-4">
                           <changePasswordForm.Field name="currentPassword">
-                            {(field) => {
-                              const isInvalid =
-                                field.state.meta.isTouched &&
-                                !field.state.meta.isValid;
-                              const errorMessage = getFieldErrorMessage(
-                                field.state.meta.errors,
-                              );
-
-                              return (
-                                <div className="space-y-2">
-                                  <Label htmlFor="currentPassword">
-                                    {m.settings_current_password()}
-                                  </Label>
-                                  <Input
-                                    id="currentPassword"
-                                    name={field.name}
-                                    type="password"
-                                    value={field.state.value}
-                                    onBlur={field.handleBlur}
-                                    onChange={(event) =>
-                                      field.handleChange(event.target.value)
-                                    }
-                                    placeholder="••••••••"
-                                    disabled={isSubmitting}
-                                    aria-invalid={isInvalid}
-                                  />
-                                  {isInvalid && errorMessage ? (
-                                    <p className="text-sm text-destructive">
-                                      {errorMessage}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            }}
+                            {(field) => (
+                              <FormTextField
+                                field={field}
+                                label={m.settings_current_password()}
+                                type="password"
+                                placeholder="••••••••"
+                                disabled={isSubmitting}
+                              />
+                            )}
                           </changePasswordForm.Field>
                           <changePasswordForm.Field name="newPassword">
-                            {(field) => {
-                              const isInvalid =
-                                field.state.meta.isTouched &&
-                                !field.state.meta.isValid;
-                              const errorMessage = getFieldErrorMessage(
-                                field.state.meta.errors,
-                              );
-
-                              return (
-                                <div className="space-y-2">
-                                  <Label htmlFor="newPassword">
-                                    {m.settings_new_password()}
-                                  </Label>
-                                  <Input
-                                    id="newPassword"
-                                    name={field.name}
-                                    type="password"
-                                    value={field.state.value}
-                                    onBlur={field.handleBlur}
-                                    onChange={(event) =>
-                                      field.handleChange(event.target.value)
-                                    }
-                                    placeholder="••••••••"
-                                    disabled={isSubmitting}
-                                    aria-invalid={isInvalid}
-                                  />
-                                  {isInvalid && errorMessage ? (
-                                    <p className="text-sm text-destructive">
-                                      {errorMessage}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            }}
+                            {(field) => (
+                              <FormTextField
+                                field={field}
+                                label={m.settings_new_password()}
+                                type="password"
+                                placeholder="••••••••"
+                                disabled={isSubmitting}
+                              />
+                            )}
                           </changePasswordForm.Field>
                           <changePasswordForm.Field name="confirmPassword">
-                            {(field) => {
-                              const isInvalid =
-                                field.state.meta.isTouched &&
-                                !field.state.meta.isValid;
-                              const errorMessage = getFieldErrorMessage(
-                                field.state.meta.errors,
-                              );
-
-                              return (
-                                <div className="space-y-2">
-                                  <Label htmlFor="confirmPassword">
-                                    {m.settings_confirm_password()}
-                                  </Label>
-                                  <Input
-                                    id="confirmPassword"
-                                    name={field.name}
-                                    type="password"
-                                    value={field.state.value}
-                                    onBlur={field.handleBlur}
-                                    onChange={(event) =>
-                                      field.handleChange(event.target.value)
-                                    }
-                                    placeholder="••••••••"
-                                    disabled={isSubmitting}
-                                    aria-invalid={isInvalid}
-                                  />
-                                  {isInvalid && errorMessage ? (
-                                    <p className="text-sm text-destructive">
-                                      {errorMessage}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            }}
+                            {(field) => (
+                              <FormTextField
+                                field={field}
+                                label={m.settings_confirm_password()}
+                                type="password"
+                                placeholder="••••••••"
+                                disabled={isSubmitting}
+                              />
+                            )}
                           </changePasswordForm.Field>
                           <div className="flex items-end justify-end">
                             <Button
@@ -1270,76 +1013,26 @@ function SettingsPage() {
                             </AlertDescription>
                           </Alert>
                           <setPasswordForm.Field name="newPassword">
-                            {(field) => {
-                              const isInvalid =
-                                field.state.meta.isTouched &&
-                                !field.state.meta.isValid;
-                              const errorMessage = getFieldErrorMessage(
-                                field.state.meta.errors,
-                              );
-
-                              return (
-                                <div className="space-y-2">
-                                  <Label htmlFor="newPassword">
-                                    {m.settings_new_password()}
-                                  </Label>
-                                  <Input
-                                    id="newPassword"
-                                    name={field.name}
-                                    type="password"
-                                    value={field.state.value}
-                                    onBlur={field.handleBlur}
-                                    onChange={(event) =>
-                                      field.handleChange(event.target.value)
-                                    }
-                                    placeholder="••••••••"
-                                    disabled={isSubmitting}
-                                    aria-invalid={isInvalid}
-                                  />
-                                  {isInvalid && errorMessage ? (
-                                    <p className="text-sm text-destructive">
-                                      {errorMessage}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            }}
+                            {(field) => (
+                              <FormTextField
+                                field={field}
+                                label={m.settings_new_password()}
+                                type="password"
+                                placeholder="••••••••"
+                                disabled={isSubmitting}
+                              />
+                            )}
                           </setPasswordForm.Field>
                           <setPasswordForm.Field name="confirmPassword">
-                            {(field) => {
-                              const isInvalid =
-                                field.state.meta.isTouched &&
-                                !field.state.meta.isValid;
-                              const errorMessage = getFieldErrorMessage(
-                                field.state.meta.errors,
-                              );
-
-                              return (
-                                <div className="space-y-2">
-                                  <Label htmlFor="confirmPassword">
-                                    {m.settings_confirm_password_simple()}
-                                  </Label>
-                                  <Input
-                                    id="confirmPassword"
-                                    name={field.name}
-                                    type="password"
-                                    value={field.state.value}
-                                    onBlur={field.handleBlur}
-                                    onChange={(event) =>
-                                      field.handleChange(event.target.value)
-                                    }
-                                    placeholder="••••••••"
-                                    disabled={isSubmitting}
-                                    aria-invalid={isInvalid}
-                                  />
-                                  {isInvalid && errorMessage ? (
-                                    <p className="text-sm text-destructive">
-                                      {errorMessage}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            }}
+                            {(field) => (
+                              <FormTextField
+                                field={field}
+                                label={m.settings_confirm_password_simple()}
+                                type="password"
+                                placeholder="••••••••"
+                                disabled={isSubmitting}
+                              />
+                            )}
                           </setPasswordForm.Field>
                           <div className="flex justify-end pt-2">
                             <Button type="submit" disabled={isSubmitting}>
