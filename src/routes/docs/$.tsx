@@ -77,14 +77,14 @@ function Page() {
       <Suspense
         fallback={
           <div className="px-6 py-8" aria-busy="true" aria-live="polite">
-            <div className="text-body-md text-on-surface-variant">
+            <div className="text-sm text-muted-foreground">
               {m.docs_loading()}
             </div>
             <div className="mt-4 space-y-3">
-              <div className="h-8 w-64 animate-pulse rounded-xs bg-surface-container-highest" />
-              <div className="h-4 w-96 max-w-full animate-pulse rounded-xs bg-surface-container-highest" />
-              <div className="h-4 w-80 max-w-full animate-pulse rounded-xs bg-surface-container-highest" />
-              <div className="h-4 w-md max-w-full animate-pulse rounded-xs bg-surface-container-highest" />
+              <div className="h-8 w-64 rounded bg-muted/60 animate-pulse" />
+              <div className="h-4 w-96 max-w-full rounded bg-muted/60 animate-pulse" />
+              <div className="h-4 w-80 max-w-full rounded bg-muted/60 animate-pulse" />
+              <div className="h-4 w-md max-w-full rounded bg-muted/60 animate-pulse" />
             </div>
           </div>
         }

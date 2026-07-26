@@ -112,37 +112,44 @@ function OAuthCompletePage() {
         : m.oauth_complete_subtitle_error();
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-surface p-4">
+    <div className="min-h-full flex items-center justify-center p-4 bg-background">
       <div className="w-full max-w-lg">
-        <Card className="rounded-xl">
+        <Card className="border-0 shadow-lg bg-card/80 backdrop-blur supports-backdrop-filter:bg-card/70">
           <CardHeader className="text-center">
-            <div className="relative mx-auto">
+            <div className="mx-auto relative">
               <div
                 className={
                   isSuccess
-                    ? 'flex size-20 items-center justify-center rounded-full bg-primary-container text-on-primary-container'
-                    : 'flex size-20 items-center justify-center rounded-full bg-error-container text-on-error-container'
+                    ? 'absolute -inset-3 rounded-full bg-green-500/15 blur'
+                    : 'absolute -inset-3 rounded-full bg-destructive/15 blur'
+                }
+              />
+              <div
+                className={
+                  isSuccess
+                    ? 'relative size-20 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center'
+                    : 'relative size-20 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center'
                 }
               >
                 {isSuccess ? (
-                  <CheckCircle2 className="size-10" />
+                  <CheckCircle2 className="size-10 text-green-600 dark:text-green-400" />
                 ) : (
-                  <XCircle className="size-10" />
+                  <XCircle className="size-10 text-destructive" />
                 )}
               </div>
             </div>
 
-            <CardTitle className="text-headline-sm">{title}</CardTitle>
-            <CardDescription className="text-body-lg">
-              {subtitle}
-            </CardDescription>
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              {title}
+            </CardTitle>
+            <CardDescription className="text-base">{subtitle}</CardDescription>
           </CardHeader>
 
           <CardContent className="pt-0">
-            <div className="rounded-md bg-surface-container-high px-4 py-3">
-              <div className="flex items-center justify-center gap-3 text-body-md text-on-surface-variant">
+            <div className="rounded-lg border bg-background/40 px-4 py-3">
+              <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
                 {isSuccess ? (
-                  <Loader2 className="size-4 animate-spin text-primary" />
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 ) : null}
                 <span className="leading-relaxed">{message}</span>
               </div>
@@ -150,15 +157,15 @@ function OAuthCompletePage() {
           </CardContent>
 
           {status === 'error' ? (
-            <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <Button asChild variant="text" className="w-full sm:w-auto">
-                <Link to="/">
-                  <Home />
-                  {m.oauth_complete_button_back_home()}
-                </Link>
-              </Button>
+            <CardFooter className="flex flex-col sm:flex-row gap-3">
               <Button asChild className="w-full sm:w-auto">
                 <Link to="/login">{m.oauth_complete_button_try_again()}</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link to="/">
+                  <Home className="mr-2 h-4 w-4" />
+                  {m.oauth_complete_button_back_home()}
+                </Link>
               </Button>
             </CardFooter>
           ) : null}

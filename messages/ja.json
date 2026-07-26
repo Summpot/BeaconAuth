@@ -121,7 +121,6 @@
   "settings_no_passkeys": "まだパスキーが登録されていません",
   "settings_add_passkey_promo": "パスキーを追加して、より速く安全に認証しましょう",
   "settings_created_at": "作成日: {date}",
-  "settings_delete_passkey": "パスキーを削除",
   "settings_last_used": "最終使用: {date}",
   "settings_what_are_passkeys": "パスキーとは？",
   "settings_passkeys_help_text": "パスキーは、端末の生体認証（指紋・顔認証）や PIN を使う、安全なパスワード不要の認証方式です。パスワードより安全で、より簡単に利用できます。",

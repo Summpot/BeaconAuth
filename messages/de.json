@@ -121,7 +121,6 @@
   "settings_no_passkeys": "Noch keine Passkeys registriert",
   "settings_add_passkey_promo": "Füge einen Passkey hinzu – schneller und sicherer authentifizieren",
   "settings_created_at": "Erstellt: {date}",
-  "settings_delete_passkey": "Passkey löschen",
   "settings_last_used": "Zuletzt verwendet: {date}",
   "settings_what_are_passkeys": "Was sind Passkeys?",
   "settings_passkeys_help_text": "Passkeys sind eine sichere, passwortlose Authentifizierungsmethode, die die biometrische Authentifizierung (Fingerabdruck, Gesichtserkennung) oder eine PIN deines Geräts nutzt. Sie sind sicherer als Passwörter und einfacher zu verwenden.",

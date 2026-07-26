@@ -121,7 +121,6 @@
   "settings_no_passkeys": "등록된 패스키가 없습니다",
   "settings_add_passkey_promo": "더 빠르고 안전한 인증을 위해 패스키를 추가하세요",
   "settings_created_at": "생성됨: {date}",
-  "settings_delete_passkey": "패스키 삭제",
   "settings_last_used": "마지막 사용: {date}",
   "settings_what_are_passkeys": "패스키란?",
   "settings_passkeys_help_text": "패스키는 기기의 생체 인증(지문, 얼굴 인식) 또는 PIN을 사용하는 안전한 비밀번호 없는 인증 방식입니다. 비밀번호보다 안전하고 사용하기 쉽습니다.",

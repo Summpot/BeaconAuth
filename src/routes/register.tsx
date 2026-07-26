@@ -95,20 +95,18 @@ function RegisterPage() {
   });
 
   return (
-    <div className="flex min-h-full flex-col bg-surface">
-      <div className="flex flex-1 items-center justify-center p-6">
+    <div className="min-h-full flex flex-col bg-background">
+      <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <Card className="rounded-xl">
-            <CardHeader className="pb-2 text-center">
-              <div className="mb-4 flex justify-center">
-                <div className="flex size-20 items-center justify-center rounded-full bg-primary-container">
-                  <BeaconIcon className="size-12" />
-                </div>
+          <Card className="shadow-sm">
+            <CardHeader className="text-center pb-4">
+              <div className="flex justify-center mb-4">
+                <BeaconIcon className="w-16 h-16" />
               </div>
-              <CardTitle className="text-headline-sm">
+              <CardTitle className="text-2xl font-semibold">
                 {m.button_create_account()}
               </CardTitle>
-              <CardDescription className="text-body-lg">
+              <CardDescription>
                 {m.register_description_join_community()}
               </CardDescription>
             </CardHeader>
@@ -125,7 +123,7 @@ function RegisterPage() {
                   void form.handleSubmit();
                 }}
                 method="post"
-                className="space-y-5"
+                className="space-y-4"
               >
                 <form.Subscribe selector={(state) => [state.isSubmitting]}>
                   {([isSubmitting]) => (
@@ -182,13 +180,12 @@ function RegisterPage() {
 
                       <Button
                         type="submit"
-                        size="lg"
                         disabled={isSubmitting}
                         className="w-full"
                       >
                         {isSubmitting ? (
                           <>
-                            <Loader2 className="animate-spin" />
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             {m.register_button_creating_account()}
                           </>
                         ) : (
@@ -201,7 +198,7 @@ function RegisterPage() {
               </form>
 
               <div className="text-center">
-                <p className="text-body-md text-on-surface-variant">
+                <p className="text-sm text-muted-foreground">
                   {m.register_already_have_account()}{' '}
                   <Link
                     to="/login"
@@ -209,7 +206,7 @@ function RegisterPage() {
                       challenge: searchParams.challenge,
                       redirect_port: searchParams.redirect_port,
                     }}
-                    className="rounded-xs text-label-lg text-primary transition-colors duration-200 ease-standard hover:underline"
+                    className="text-primary hover:text-primary/80 font-medium transition-colors"
                   >
                     {m.login_button_signin()}
                   </Link>
@@ -219,7 +216,7 @@ function RegisterPage() {
           </Card>
 
           <div className="mt-6 text-center">
-            <p className="text-body-sm text-on-surface-variant">
+            <p className="text-xs text-muted-foreground">
               {m.register_password_stored_securely()}
             </p>
           </div>

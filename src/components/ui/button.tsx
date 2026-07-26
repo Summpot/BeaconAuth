@@ -1,66 +1,35 @@
+import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
-import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Material Design 3 common buttons.
- *
- * The five M3 variants are exposed under their spec names (`filled`,
- * `elevated`, `tonal`, `outlined`, `text`); the shadcn/ui names are kept as
- * aliases so existing call sites keep working:
- *   default -> filled | secondary -> filled tonal | outline -> outlined
- *   ghost   -> text   | link      -> text + underline
- */
 const buttonVariants = cva(
-  [
-    "state-layer relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full",
-    "text-label-lg select-none",
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[1.125rem]",
-    "outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary",
-    "disabled:pointer-events-none disabled:border-transparent disabled:bg-on-surface/12 disabled:text-on-surface/38 disabled:shadow-level0",
-    "aria-disabled:pointer-events-none aria-disabled:bg-on-surface/12 aria-disabled:text-on-surface/38",
-  ],
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
-        filled: "bg-primary text-on-primary shadow-level0 hover:shadow-level1",
-        default: "bg-primary text-on-primary shadow-level0 hover:shadow-level1",
-        elevated:
-          "bg-surface-container-low text-primary shadow-level1 hover:shadow-level2",
-        tonal:
-          "bg-secondary-container text-on-secondary-container shadow-level0 hover:shadow-level1",
-        secondary:
-          "bg-secondary-container text-on-secondary-container shadow-level0 hover:shadow-level1",
-        outlined:
-          "border border-outline bg-transparent text-primary focus-visible:border-primary disabled:border-on-surface/12",
+        default:
+          "bg-primary text-primary-foreground border border-primary/10 shadow-xs hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border border-outline bg-transparent text-primary focus-visible:border-primary disabled:border-on-surface/12",
-        text: "bg-transparent text-primary",
-        ghost: "bg-transparent text-on-surface-variant",
-        link: "bg-transparent text-primary underline-offset-4 hover:underline",
-        destructive: "bg-error text-on-error shadow-level0 hover:shadow-level1",
-        "destructive-text": "bg-transparent text-error",
+          "border border-border/70 bg-transparent text-foreground shadow-xs hover:bg-accent/40 hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+        secondary:
+          "bg-secondary text-secondary-foreground border border-border/60 hover:bg-secondary/80",
+        ghost:
+          "text-foreground hover:bg-accent/40 hover:text-foreground dark:hover:bg-accent/50",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-6 has-[>svg:first-child]:pr-6 has-[>svg:first-child]:pl-4",
-        sm: "h-8 px-4 text-label-md has-[>svg:first-child]:pr-4 has-[>svg:first-child]:pl-3",
-        lg: "h-14 px-8 text-title-md has-[>svg:first-child]:pr-8 has-[>svg:first-child]:pl-6 [&_svg:not([class*='size-'])]:size-6",
-        icon: "size-10 p-0",
-        "icon-sm": "size-8 p-0",
-        "icon-lg": "size-12 p-0 [&_svg:not([class*='size-'])]:size-6",
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-10 px-6 has-[>svg]:px-4",
+        icon: "size-9 rounded-md",
+        "icon-sm": "size-8 rounded-md",
+        "icon-lg": "size-10 rounded-md",
       },
     },
-    compoundVariants: [
-      // Text buttons use tighter padding per the M3 spec.
-      { variant: "text", size: "default", class: "px-3" },
-      { variant: "ghost", size: "default", class: "px-3" },
-      { variant: "link", size: "default", class: "px-2" },
-      { variant: "text", size: "sm", class: "px-3" },
-      { variant: "ghost", size: "sm", class: "px-3" },
-      { variant: "destructive-text", size: "default", class: "px-3" },
-    ],
     defaultVariants: {
       variant: "default",
       size: "default",

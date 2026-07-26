@@ -6,24 +6,22 @@ import * as m from '@/paraglide/messages';
 
 function ErrorPage() {
   return (
-    <div className="flex min-h-full items-center justify-center bg-surface p-4">
+    <div className="flex items-center justify-center min-h-full p-4">
       <div className="w-full max-w-md">
-        <Card className="rounded-xl">
+        <Card>
           <CardContent className="p-8">
             <div className="text-center">
-              <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-error-container text-on-error-container">
-                <AlertTriangle className="size-10" />
-              </div>
-              <h1 className="mb-3 text-headline-sm text-on-surface">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h1 className="text-2xl font-bold mb-4">
                 {m.error_page_invalid_request_title()}
               </h1>
-              <p className="mb-6 text-body-lg text-on-surface-variant">
+              <p className="text-muted-foreground mb-4">
                 {m.error_page_invalid_request_desc_line1()}
                 <br />
                 {m.error_page_invalid_request_desc_line2()}
               </p>
-              <Alert variant="destructive" className="text-left">
-                <AlertTriangle />
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   {m.error_page_missing_required_params()}
                 </AlertDescription>

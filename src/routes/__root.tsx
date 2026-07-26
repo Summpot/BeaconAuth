@@ -92,7 +92,7 @@ function RootComponent() {
       <ThemeProvider defaultTheme="system" storageKey="beaconauth-ui-theme">
         <QueryClientProvider client={queryClient}>
           <MotionConfig reducedMotion="user">
-            <div className="relative flex min-h-screen flex-col bg-surface text-on-surface">
+            <div className="min-h-screen bg-background text-foreground relative flex flex-col">
               {showNavbar ? <AppNavbar /> : null}
               <main className="flex-1">
                 {isDocs ? (
@@ -104,11 +104,10 @@ function RootComponent() {
                     <motion.div
                       // Keyed by pathname so non-doc route changes animate.
                       key={pathname}
-                      initial={{ opacity: 0, y: 8 }}
+                      initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      // M3 emphasized-decelerate easing for incoming content.
-                      transition={{ duration: 0.25, ease: [0.05, 0.7, 0.1, 1] }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
                     >
                       <Outlet />
                     </motion.div>

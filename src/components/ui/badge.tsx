@@ -1,35 +1,22 @@
+import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
-import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Material Design 3 badge / static chip.
- * Uses the 8dp small-corner shape and the label-medium type role.
- */
 const badgeVariants = cva(
-  [
-    "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap",
-    "rounded-sm px-2 py-1 text-label-md",
-    "[&>svg]:pointer-events-none [&>svg]:size-3.5",
-    "transition-colors duration-200 ease-standard",
-  ],
+  "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden",
   {
     variants: {
       variant: {
         default:
-          "bg-secondary-container text-on-secondary-container [a&]:hover:bg-secondary-container/80",
+          "border border-border/60 bg-secondary/70 text-foreground [a&]:hover:bg-secondary/80",
         secondary:
-          "bg-surface-container-highest text-on-surface-variant [a&]:hover:bg-surface-container-high",
-        primary:
-          "bg-primary-container text-on-primary-container [a&]:hover:bg-primary-container/80",
-        tertiary:
-          "bg-tertiary-container text-on-tertiary-container [a&]:hover:bg-tertiary-container/80",
+          "border border-border/60 bg-muted text-muted-foreground [a&]:hover:bg-muted/80",
         destructive:
-          "bg-error-container text-on-error-container [a&]:hover:bg-error-container/80",
+          "border border-destructive/30 bg-destructive/10 text-destructive [a&]:hover:bg-destructive/15 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
         outline:
-          "border border-outline bg-transparent text-on-surface-variant [a&]:hover:bg-on-surface/8",
+          "border border-border/70 text-foreground [a&]:hover:bg-accent/40",
       },
     },
     defaultVariants: {

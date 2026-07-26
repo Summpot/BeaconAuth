@@ -5,12 +5,14 @@ import * as m from '@/paraglide/messages';
 
 export function MinecraftFlowAlert({ title }: { title: string }) {
   return (
-    <Alert variant="info">
-      <Gamepad2 />
+    <Alert>
+      <Gamepad2 className="h-4 w-4" />
       <AlertDescription>
-        <div className="space-y-1">
-          <span className="text-title-sm">{title}</span>
-          <p className="text-body-md opacity-90">{m.minecraft_flow_desc()}</p>
+        <div className="space-y-2">
+          <span className="text-primary font-medium">{title}</span>
+          <p className="text-sm text-muted-foreground">
+            {m.minecraft_flow_desc()}
+          </p>
         </div>
       </AlertDescription>
     </Alert>

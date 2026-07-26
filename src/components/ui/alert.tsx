@@ -1,28 +1,16 @@
-import { cva, type VariantProps } from "class-variance-authority"
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Material Design 3 banner.
- * Semantics are carried by the tonal container roles rather than by borders,
- * so every variant keeps a guaranteed on-colour contrast pair.
- */
 const alertVariants = cva(
-  [
-    "relative grid w-full items-start gap-y-1 rounded-md px-4 py-3 text-body-md",
-    "grid-cols-[0_1fr] has-[>svg]:grid-cols-[calc(var(--spacing)*5)_1fr] has-[>svg]:gap-x-4",
-    "[&>svg]:size-5 [&>svg]:translate-y-0.5 [&>svg]:text-current",
-  ],
+  "relative w-full rounded-xl border border-border/70 bg-card/90 px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start shadow-xs [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
   {
     variants: {
       variant: {
-        default: "bg-surface-container-high text-on-surface",
-        primary: "bg-primary-container text-on-primary-container",
-        success: "bg-primary-container text-on-primary-container",
-        info: "bg-secondary-container text-on-secondary-container",
-        warning: "bg-tertiary-container text-on-tertiary-container",
-        destructive: "bg-error-container text-on-error-container",
+        default: "text-card-foreground",
+        destructive:
+          "text-destructive bg-destructive/5 border-destructive/20 [&>svg]:text-current *:data-[slot=alert-description]:text-destructive/90",
       },
     },
     defaultVariants: {
@@ -50,7 +38,10 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-title"
-      className={cn("col-start-2 min-h-5 text-title-sm", className)}
+      className={cn(
+        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
+        className
+      )}
       {...props}
     />
   )
@@ -64,7 +55,7 @@ function AlertDescription({
     <div
       data-slot="alert-description"
       className={cn(
-        "col-start-2 grid justify-items-start gap-1 text-body-md [&_p]:leading-relaxed",
+        "text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-relaxed",
         className
       )}
       {...props}
@@ -72,4 +63,4 @@ function AlertDescription({
   )
 }
 
-export { Alert, AlertDescription, AlertTitle, alertVariants }
+export { Alert, AlertTitle, AlertDescription }

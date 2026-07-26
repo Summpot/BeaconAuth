@@ -121,7 +121,6 @@
   "settings_no_passkeys": "尚未註冊通行金鑰",
   "settings_add_passkey_promo": "新增通行金鑰以獲得更快、更安全的身分驗證",
   "settings_created_at": "建立時間：{date}",
-  "settings_delete_passkey": "刪除通行金鑰",
   "settings_last_used": "最後使用：{date}",
   "settings_what_are_passkeys": "什麼是通行金鑰？",
   "settings_passkeys_help_text": "通行金鑰是一種安全的無密碼身分驗證方式，使用裝置的生物辨識（指紋、臉部辨識）或 PIN。它比密碼更安全，也更容易使用。",
