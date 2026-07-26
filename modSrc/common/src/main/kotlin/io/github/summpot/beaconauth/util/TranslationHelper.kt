@@ -10,6 +10,7 @@ object TranslationHelper {
     private const val COMMAND_PREFIX = "command.beaconauth."
     private const val HTML_PREFIX = "html.beaconauth."
     private const val SERVER_PREFIX = "server.beaconauth."
+    private const val MIGRATION_PREFIX = "migration.beaconauth."
 
     // Chat messages
     fun welcome() = Component.translatable("$PREFIX${"welcome"}")
@@ -44,4 +45,43 @@ object TranslationHelper {
     fun serverAlreadyAuthenticated() = "${SERVER_PREFIX}already_authenticated"
     fun serverAuthSuccessful() = "${SERVER_PREFIX}auth_successful"
     fun serverAuthFailed() = "${SERVER_PREFIX}auth_failed"
+
+    // Migration prompts and command feedback
+    fun migrationPromptRegister() = Component.translatable("${MIGRATION_PREFIX}prompt_register")
+    fun migrationPromptClaimAvailable(legacyName: String) =
+        Component.translatable("${MIGRATION_PREFIX}prompt_claim_available", legacyName)
+    fun migrationPromptClaimAccept(legacyName: String) =
+        Component.translatable("${MIGRATION_PREFIX}prompt_claim_accept", legacyName)
+    fun migrationClaimAccepted(legacyName: String) =
+        Component.translatable("${MIGRATION_PREFIX}claim_accepted", legacyName)
+    fun migrationClaimNoPending() = Component.translatable("${MIGRATION_PREFIX}claim_no_pending")
+    fun migrationClaimFailed(reason: String) =
+        Component.translatable("${MIGRATION_PREFIX}claim_failed", reason)
+    fun migrationAutoClaimed(legacyName: String) =
+        Component.translatable("${MIGRATION_PREFIX}auto_claimed", legacyName)
+    fun migrationAutoClaimedPremium(legacyName: String) =
+        Component.translatable("${MIGRATION_PREFIX}auto_claimed_premium", legacyName)
+    fun migrationReclaimBlocked() = Component.translatable("${MIGRATION_PREFIX}reclaim_blocked")
+    fun migrationStatusHeader() = Component.translatable("${MIGRATION_PREFIX}status_header")
+    fun migrationStatusEntry(name: String, fromUuid: String, toUuid: String, actor: String) =
+        Component.translatable("${MIGRATION_PREFIX}status_entry", name, fromUuid, toUuid, actor)
+    fun migrationStatusNotFound(query: String) =
+        Component.translatable("${MIGRATION_PREFIX}status_not_found", query)
+    fun migrationAdminClaimed(legacyName: String, targetName: String) =
+        Component.translatable("${MIGRATION_PREFIX}admin_claimed", legacyName, targetName)
+    fun migrationAdminClaimSkipped(reason: String) =
+        Component.translatable("${MIGRATION_PREFIX}admin_claim_skipped", reason)
+    fun migrationUndoSuccess(claimId: String) =
+        Component.translatable("${MIGRATION_PREFIX}undo_success", claimId)
+    fun migrationUndoFailed(claimId: String) =
+        Component.translatable("${MIGRATION_PREFIX}undo_failed", claimId)
+    fun migrationListEmpty() = Component.translatable("${MIGRATION_PREFIX}list_empty")
+    fun migrationListItem(id: String, name: String, fromUuid: String, toUuid: String) =
+        Component.translatable("${MIGRATION_PREFIX}list_item", id, name, fromUuid, toUuid)
+    fun migrationRequiresPermission() =
+        Component.translatable("${COMMAND_PREFIX}migration_requires_permission")
+    fun migrationInvalidUuid(value: String) =
+        Component.translatable("${COMMAND_PREFIX}migration_invalid_uuid", value)
+    fun migrationPlayerOnly() =
+        Component.translatable("${COMMAND_PREFIX}migration_player_only")
 }

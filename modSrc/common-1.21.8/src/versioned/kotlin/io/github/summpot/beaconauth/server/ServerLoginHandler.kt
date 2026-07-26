@@ -5,6 +5,7 @@ import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.login.LoginQueryType
 import io.github.summpot.beaconauth.login.LoginVerificationStatus
 import io.github.summpot.beaconauth.login.ServerLoginNegotiation
+import io.github.summpot.beaconauth.server.migration.MigrationManager
 import io.netty.buffer.Unpooled
 import net.minecraft.network.Connection
 import net.minecraft.network.FriendlyByteBuf
@@ -115,6 +116,14 @@ class ServerLoginHandler @JvmOverloads constructor(
 
             if (allowVanilla) {
                 logger.info("Vanilla client allowed; finishing negotiation")
+                val vanillaTarget = gameProfile?.id
+                if (vanillaTarget != null) {
+                    try {
+                        MigrationManager.evaluateLogin(server, vanillaTarget, null, gameProfile?.name)
+                    } catch (e: Exception) {
+                        logger.warn("Migration evaluation failed for vanilla ${gameProfile?.name}: ${e.message}", e)
+                    }
+                }
                 finish()
             } else {
                 logger.warn("Vanilla client rejected (mod required)")
@@ -146,6 +155,14 @@ class ServerLoginHandler @JvmOverloads constructor(
 
         if (bypass) {
             logger.info("Existing session allowed (post-PROBE allow-through); finishing negotiation")
+            val bypassTarget = gameProfile?.id
+            if (bypassTarget != null) {
+                try {
+                    MigrationManager.evaluateLogin(server, bypassTarget, null, gameProfile?.name)
+                } catch (e: Exception) {
+                    logger.warn("Migration evaluation failed for bypass ${gameProfile?.name}: ${e.message}", e)
+                }
+            }
             finish()
         } else {
             logger.info("Starting BeaconAuth web flow")
@@ -220,6 +237,19 @@ class ServerLoginHandler @JvmOverloads constructor(
                         // Best-effort: still apply the BeaconAuth username even if stableUuid was not returned.
                         gameProfile = GameProfile(profile.id, effectiveName)
                         logger.info("Using BeaconAuth username for ${profile.name}: $effectiveName")
+                    }
+                    val targetUuid = gameProfile?.id ?: stableUuid
+                    if (targetUuid != null) {
+                        try {
+                            MigrationManager.evaluateLogin(
+                                server,
+                                targetUuid,
+                                effectiveName,
+                                profile.name
+                            )
+                        } catch (e: Exception) {
+                            logger.warn("Migration evaluation failed for ${profile.name}: ${e.message}", e)
+                        }
                     }
                     logger.info("✓ Verification successful for ${profile.name}")
                     finish()

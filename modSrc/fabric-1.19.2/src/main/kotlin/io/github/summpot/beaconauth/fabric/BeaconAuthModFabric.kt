@@ -6,6 +6,7 @@ import net.fabricmc.api.EnvType
 import net.fabricmc.loader.api.FabricLoader
 import io.github.summpot.beaconauth.BeaconAuthMod
 import io.github.summpot.beaconauth.config.BeaconAuthConfig
+import io.github.summpot.beaconauth.config.MigrationConfig
 import fuzs.forgeconfigapiport.api.config.v2.ForgeConfigRegistry
 import net.minecraftforge.fml.config.ModConfig
 import net.minecraftforge.common.ForgeConfigSpec
@@ -55,6 +56,17 @@ private object BeaconAuthServerConfig {
     private val bypassIfOnlineModeVerified: ForgeConfigSpec.BooleanValue
     private val forceAuthIfOfflineMode: ForgeConfigSpec.BooleanValue
     private val allowVanillaOfflineClients: ForgeConfigSpec.BooleanValue
+    private val migrationEnabled: ForgeConfigSpec.BooleanValue
+    private val migrationPromptMode: ForgeConfigSpec.ConfigValue<String>
+    private val migrationPromptOnJoin: ForgeConfigSpec.BooleanValue
+    private val migrationPromptInterval: ForgeConfigSpec.IntValue
+    private val migrationForceAuthAfter: ForgeConfigSpec.ConfigValue<String>
+    private val migrationPlayerdataClaim: ForgeConfigSpec.ConfigValue<String>
+    private val migrationClaimNameSource: ForgeConfigSpec.ConfigValue<String>
+    private val migrationOnlyIfTargetEmpty: ForgeConfigSpec.BooleanValue
+    private val migrationKeepLegacyBackup: ForgeConfigSpec.BooleanValue
+    private val migrationDryRun: ForgeConfigSpec.BooleanValue
+    private val migrationAutoForPremium: ForgeConfigSpec.BooleanValue
 
     val spec: ForgeConfigSpec
 
@@ -149,6 +161,60 @@ private object BeaconAuthServerConfig {
 
         builder.pop()
 
+        builder.comment(
+            "Offline -> BeaconAuth Identity Migration",
+            "Helps migrate an offline-mode server's existing players to BeaconAuth by",
+            "claiming their legacy OfflinePlayer:<name> playerdata when they log in.",
+            "Read the docs before enabling; claims are first-claim-wins and cannot be safely reversed after the player has played.",
+            "All defaults are OFF/disabled so existing servers see no behavior change."
+        ).push("migration")
+
+        migrationEnabled = builder
+            .comment("Master switch for the migration feature (prompts + claims).")
+            .define("enabled", false)
+
+        migrationPromptMode = builder
+            .comment("Prompt mode: off | soft | force_after_date")
+            .define("prompt_mode", "off")
+
+        migrationPromptOnJoin = builder
+            .comment("Show the migration prompt when a player joins the server.")
+            .define("prompt_on_join", true)
+
+        migrationPromptInterval = builder
+            .comment("Minimum minutes between repeated soft prompts to the same player.")
+            .defineInRange("prompt_interval_minutes", 30, 1, 1440)
+
+        migrationForceAuthAfter = builder
+            .comment("ISO-8601 instant after which force_auth_if_offline_mode becomes effective. Empty = never.")
+            .define("force_auth_after", "")
+
+        migrationPlayerdataClaim = builder
+            .comment("off | auto | confirm")
+            .define("playerdata_claim", "off")
+
+        migrationClaimNameSource = builder
+            .comment("beacon_username | launcher_username | either")
+            .define("claim_name_source", "beacon_username")
+
+        migrationOnlyIfTargetEmpty = builder
+            .comment("Only claim when the target UUID has no existing playerdata.")
+            .define("only_if_target_empty", true)
+
+        migrationKeepLegacyBackup = builder
+            .comment("Keep a backup copy of migrated source files so claims can be undone.")
+            .define("keep_legacy_backup", true)
+
+        migrationDryRun = builder
+            .comment("Report what WOULD be migrated without changing files.")
+            .define("dry_run", false)
+
+        migrationAutoForPremium = builder
+            .comment("Allow auto-claiming for premium bypass players (auto mode only).")
+            .define("auto_for_premium", false)
+
+        builder.pop()
+
         spec = builder.build()
     }
 
@@ -161,6 +227,19 @@ private object BeaconAuthServerConfig {
             bypassIfOnlineModeVerified.get(),
             forceAuthIfOfflineMode.get(),
             allowVanillaOfflineClients.get()
+        )
+        MigrationConfig.apply(
+            migrationEnabled.get(),
+            migrationPromptMode.get(),
+            migrationPromptOnJoin.get(),
+            migrationPromptInterval.get(),
+            migrationForceAuthAfter.get(),
+            migrationPlayerdataClaim.get(),
+            migrationClaimNameSource.get(),
+            migrationOnlyIfTargetEmpty.get(),
+            migrationKeepLegacyBackup.get(),
+            migrationDryRun.get(),
+            migrationAutoForPremium.get()
         )
     }
 }
