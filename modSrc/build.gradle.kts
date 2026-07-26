@@ -4,12 +4,66 @@ import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.language.base.artifact.SourcesArtifact
 import org.gradle.api.file.DuplicatesStrategy
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import java.io.File
+import java.util.jar.Attributes
+import java.util.jar.JarEntry
+import java.util.jar.JarFile
+import java.util.jar.JarOutputStream
+import java.util.jar.Manifest
 
 plugins {
     id("dev.architectury.loom") version "1.17-SNAPSHOT" apply false
     id("architectury-plugin") version "3.5-SNAPSHOT"
     id("com.gradleup.shadow") version "9.6.1" apply false
     kotlin("jvm") version "2.2.21" apply false
+}
+
+/**
+ * nimbus-jose-jwt is a multi-release jar (Multi-Release: true + META-INF/versions/9/module-info.class).
+ * Shadow can keep Multi-Release: true while dropping META-INF/versions (especially with
+ * DuplicatesStrategy.EXCLUDE). Forge/ModLauncher SecureJar then crashes on load with:
+ * UnionFileSystem$NoSuchFileException: /META-INF/versions
+ *
+ * Minecraft mods do not need JPMS multi-release content from shaded deps, so strip both.
+ */
+fun stripBrokenMultiReleaseManifest(jarFile: File) {
+    val tempFile = File(jarFile.parentFile, "${jarFile.name}.tmp")
+    JarFile(jarFile).use { inputJar ->
+        val manifest = Manifest(inputJar.manifest)
+        val multiRelease = manifest.mainAttributes.getValue("Multi-Release")
+        val hasVersionsTree = inputJar.entries().asSequence().any { entry ->
+            entry.name.startsWith("META-INF/versions/")
+        }
+        if (!"true".equals(multiRelease, ignoreCase = true) || hasVersionsTree) {
+            return
+        }
+
+        manifest.mainAttributes.remove(Attributes.Name("Multi-Release"))
+        JarOutputStream(tempFile.outputStream(), manifest).use { outputJar ->
+            inputJar.entries().asSequence().forEach { entry ->
+                if (entry.name.equals("META-INF/MANIFEST.MF", ignoreCase = true)) {
+                    return@forEach
+                }
+                if (entry.name.startsWith("META-INF/versions/") || entry.name.endsWith("module-info.class")) {
+                    return@forEach
+                }
+                val newEntry = JarEntry(entry.name)
+                newEntry.time = entry.time
+                outputJar.putNextEntry(newEntry)
+                if (!entry.isDirectory) {
+                    inputJar.getInputStream(entry).use { it.copyTo(outputJar) }
+                }
+                outputJar.closeEntry()
+            }
+        }
+    }
+    if (!jarFile.delete()) {
+        throw GradleException("Failed to replace multi-release jar: ${jarFile.absolutePath}")
+    }
+    if (!tempFile.renameTo(jarFile)) {
+        throw GradleException("Failed to rename fixed jar into place: ${jarFile.absolutePath}")
+    }
 }
 
 /**
@@ -112,6 +166,20 @@ subprojects {
     // is contributed from multiple roots.
     tasks.withType<Jar>().configureEach {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+
+    // Applied when a platform module enables the Shadow plugin.
+    pluginManager.withPlugin("com.gradleup.shadow") {
+        tasks.withType<ShadowJar>().configureEach {
+            // Drop JPMS multi-release payloads from shaded deps (nimbus-jose-jwt, etc.).
+            exclude("META-INF/versions/**")
+            exclude("module-info.class")
+            exclude("META-INF/**/module-info.class")
+
+            doLast {
+                stripBrokenMultiReleaseManifest(archiveFile.get().asFile)
+            }
+        }
     }
 
     // Architectury Transformer sometimes attempts to write debug logs into
