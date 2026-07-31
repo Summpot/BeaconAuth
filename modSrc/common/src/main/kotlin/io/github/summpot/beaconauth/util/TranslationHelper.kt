@@ -30,6 +30,11 @@ object TranslationHelper {
     fun mustBePlayer() = Component.translatable("${COMMAND_PREFIX}must_be_player")
     fun loginFailed(error: String) = Component.translatable("${COMMAND_PREFIX}login_failed", error)
     fun loginRequestSent() = Component.translatable("${COMMAND_PREFIX}login_request_sent")
+    fun legacyTransferInvalid() = Component.translatable("${COMMAND_PREFIX}legacy_transfer_invalid")
+    fun legacyTransferDone(name: String, beaconUsername: String) =
+        Component.translatable("${COMMAND_PREFIX}legacy_transfer_done", name, beaconUsername)
+    fun legacyTransferNotFound(name: String) =
+        Component.translatable("${COMMAND_PREFIX}legacy_transfer_not_found", name)
 
     // HTML translations (for client-side use, returns translation key)
     fun htmlSuccessTitle() = "${HTML_PREFIX}success.title"

@@ -63,6 +63,7 @@ private object BeaconAuthServerConfig {
     private val bypassIfOnlineModeVerified: ForgeConfigSpec.BooleanValue
     private val forceAuthIfOfflineMode: ForgeConfigSpec.BooleanValue
     private val allowVanillaOfflineClients: ForgeConfigSpec.BooleanValue
+    private val useLegacyOfflineUuids: ForgeConfigSpec.BooleanValue
 
     val spec: ForgeConfigSpec
 
@@ -155,6 +156,17 @@ private object BeaconAuthServerConfig {
             )
             .define("allow_vanilla_offline_clients", false)
 
+        useLegacyOfflineUuids = builder
+            .comment(
+                "Legacy offline identity mode (for migrating existing offline-mode servers)",
+                "If true: each BeaconAuth account is mapped to the offline-mode UUID it claimed on first login",
+                "World data (playerdata/stats/advancements) is preserved without renaming files",
+                "Mapping is stored per-world in <world>/beaconauth-identities.json",
+                "Security: the identity is bound to the username used on first login (small servers only)",
+                "Recommended: false"
+            )
+            .define("use_legacy_offline_uuids", false)
+
         builder.pop()
 
         spec = builder.build()
@@ -168,7 +180,8 @@ private object BeaconAuthServerConfig {
             jkuAllowedHostPatterns.get(),
             bypassIfOnlineModeVerified.get(),
             forceAuthIfOfflineMode.get(),
-            allowVanillaOfflineClients.get()
+            allowVanillaOfflineClients.get(),
+            useLegacyOfflineUuids.get()
         )
     }
 }

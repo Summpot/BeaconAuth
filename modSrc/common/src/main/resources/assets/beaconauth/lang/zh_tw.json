@@ -16,6 +16,9 @@
   "command.beaconauth.must_be_player": "此指令必須由玩家執行",
   "command.beaconauth.login_failed": "啟動登入失敗: %s",
   "command.beaconauth.login_request_sent": "§7已向您的客戶端送出登入請求",
+  "command.beaconauth.legacy_transfer_invalid": "§c無效的角色。請提供現有的 Minecraft 使用者名稱。",
+  "command.beaconauth.legacy_transfer_done": "§a已將 '%s' 的舊版離線身分轉移給 BeaconAuth 帳戶 '%s'。該帳戶將於下次登入時認領此身分。",
+  "command.beaconauth.legacy_transfer_not_found": "§c找不到 '%s' 的舊版離線身分。請先讓該玩家使用 BeaconAuth 登入一次。",
 
   "html.beaconauth.success.title": "登入成功",
   "html.beaconauth.success.heading": "登入成功！",
@@ -36,5 +39,6 @@
   "disconnect.beaconauth.invalid_verify": "BeaconAuth 驗證資料無效",
   "disconnect.beaconauth.failure": "BeaconAuth 驗證失敗: %s",
   "disconnect.beaconauth.official_name_conflict": "使用者名稱 '%s' 已被此伺服器中的官方 Minecraft 玩家使用。請修改您的 BeaconAuth 使用者名稱後再試。",
+  "disconnect.beaconauth.legacy_identity_claimed": "此遊戲內身分已綁定到另一個 BeaconAuth 帳戶。如果您認為這是誤判，請聯絡伺服器管理員使用 /beaconauth transfer-identity 轉移身分。",
   "disconnect.beaconauth.cancelled": "驗證已取消: %s"
 }

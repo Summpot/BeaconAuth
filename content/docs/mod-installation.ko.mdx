@@ -63,6 +63,14 @@ bypass_if_online_mode_verified = true
 force_auth_if_offline_mode = true
 # Only applies when force_auth_if_offline_mode is true
 allow_vanilla_offline_clients = false
+# 레거시 오프라인 ID 모드 (기존 offline-mode 서버 마이그레이션용):
+# - true인 경우: 각 BeaconAuth 계정은 첫 인증 로그인 시 주장한 오프라인 UUID("OfflinePlayer:<이름>")에
+#   매핑되며 이후 해당 ID가 고정됩니다.
+# - 월드 데이터(playerdata/, stats/, advancements/)는 파일 이름 변경 없이 보존됩니다.
+# - 매핑은 월드별로 <월드 디렉터리>/beaconauth-identities.json에 저장됩니다.
+# - 보안: ID는 첫 로그인 시 사용한 이름에 묶이므로, 나중에 같은 이름으로 가입한 계정도
+#   동일한 UUID로 매핑됩니다. 소규모 서버용입니다.
+use_legacy_offline_uuids = false
 ```
 
 ### 참고
@@ -72,3 +80,16 @@ allow_vanilla_offline_clients = false
 - `jku.allowed_host_patterns` 는 콤마/공백으로 구분된 allowlist 입니다. 지원 패턴:
   - `example.com`, `*.example.com`
   - 지원하지 않음: 단독 `*` 또는 `auth*.example.com` 같은 중간 와일드카드
+
+### 기존 offline-mode 서버 마이그레이션 (레거시 ID)
+
+1. `behavior.use_legacy_offline_uuids = true`를 활성화하고 서버를 offline-mode로 유지합니다.
+2. 각 플레이어가 처음 BeaconAuth로 로그인하면 mod가 계정을 오프라인 UUID(`OfflinePlayer:<이름>`)에
+   바인딩하고 `<월드 디렉터리>/beaconauth-identities.json`에 저장합니다. 기존 `playerdata/`,
+   `stats/`, `advancements/`는 파일 이름 변경 없이 그대로 사용됩니다.
+3. 레거시 ID는 한 번만 인계받을 수 있습니다. 이후 다른 BeaconAuth 계정이 같은 이름으로 로그인을
+   시도하면 조용히 ID를 가져가지 않고 명확한 메시지와 함께 로그인이 거부됩니다.
+4. 실수 시 구제 방법: 서버 운영자(권한 레벨 2)는
+   `/beaconauth transfer-identity <Minecraft이름> <BeaconAuth사용자이름>`으로 ID를 이전할 수 있습니다.
+5. 마이그레이션이 끝난 후에도 매핑은 유지됩니다. 이후 모드를 끄면 계정은 안정적인 per-account
+   UUID(새 월드 데이터, 기존 데이터와는 무관)로 돌아갑니다.

@@ -2,6 +2,7 @@ package io.github.summpot.beaconauth.server
 
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
+import net.minecraft.server.MinecraftServer
 import com.nimbusds.jose.jwk.JWKSet
 import com.nimbusds.jose.jwk.source.RemoteJWKSet
 import com.nimbusds.jose.proc.JWSKeySelector
@@ -132,6 +133,38 @@ object AuthServer {
         // Collisions are practically irrelevant here because the input space is the BeaconAuth user id.
         val name = "beaconauth:user:$subject"
         return UUID.nameUUIDFromBytes(name.toByteArray(Charsets.UTF_8))
+    }
+
+    /**
+     * Attach the running server's world to [IdentityMapping] so legacy offline UUIDs are loaded
+     * and persisted for the current world. Must be called before any player authenticates.
+     */
+    fun attachServer(server: MinecraftServer) {
+        IdentityMapping.attach(server)
+    }
+
+    /**
+     * Resolve the identity UUID for a BeaconAuth account.
+     *
+     * Default ("stable") mode: derive a stable per-account UUID from the subject.
+     * Legacy mode ([BeaconAuthConfig.shouldUseLegacyOfflineUuids]): map the account to the
+     * offline-mode UUID it claimed on first authenticated login so existing world data
+     * (keyed by "OfflinePlayer:<name>") is preserved without renaming files.
+     */
+    private fun resolveIdentityUuid(subject: String, profileName: String, server: MinecraftServer?): UUID {
+        if (!BeaconAuthConfig.shouldUseLegacyOfflineUuids()) {
+            return stableUuidForSubject(subject)
+        }
+        if (server == null) {
+            throw SecurityException(
+                "Legacy offline UUID mapping requires the running Minecraft server, but none was provided"
+            )
+        }
+        IdentityMapping.attach(server)
+        return when (val resolution = IdentityMapping.claim(subject, IdentityMapping.offlineUuidFor(profileName))) {
+            is IdentityMapping.Resolution.Bound -> resolution.uuid
+            is IdentityMapping.Resolution.ClaimedByOther -> throw LegacyIdentityClaimedException(resolution.claimedBy)
+        }
     }
 
     /**
@@ -295,13 +328,23 @@ object AuthServer {
         val message: String,
         val username: String? = null,
         val stableUuid: UUID? = null,
+        val legacyIdentityClaimed: Boolean = false,
+    )
+
+    /** Thrown when a legacy offline identity is already owned by another BeaconAuth account. */
+    private class LegacyIdentityClaimedException(claimedBy: String) : SecurityException(
+        "The legacy offline identity is already claimed by BeaconAuth account '$claimedBy'"
     )
 
     /**
      * Verify JWT and PKCE data for a player profile during the login phase.
+     *
+     * When legacy offline-UUID mapping is enabled ([BeaconAuthConfig.shouldUseLegacyOfflineUuids]),
+     * the returned [VerificationResult.stableUuid] is the offline-mode UUID the account claimed on
+     * its first authenticated login, so existing world data keeps working unchanged.
      */
     @JvmStatic
-    fun verifyForProfile(profileName: String, jwt: String, verifier: String): VerificationResult {
+    fun verifyForProfile(profileName: String, jwt: String, verifier: String, server: MinecraftServer?): VerificationResult {
         return try {
             ensureInitialized()
 
@@ -356,10 +399,11 @@ object AuthServer {
 
             val username = claims.getStringClaim("username") ?: profileName
             val subject = claims.subject ?: throw SecurityException("JWT missing subject")
-            val stableUuid = stableUuidForSubject(subject)
+            val stableUuid = resolveIdentityUuid(subject, profileName, server)
             authenticatedPlayers.add(stableUuid)
             logger.info(
-                "✓ Authentication successful for $profileName (user: $username, subject: $subject, stableUuid: $stableUuid)"
+                "✓ Authentication successful for $profileName (user: $username, subject: $subject, " +
+                    "identityUuid: $stableUuid, legacyOfflineMode: ${BeaconAuthConfig.shouldUseLegacyOfflineUuids()})"
             )
             VerificationResult(true, "Welcome, $username!", username, stableUuid)
         } catch (e: com.nimbusds.jose.RemoteKeySourceException) {
@@ -367,7 +411,11 @@ object AuthServer {
             VerificationResult(false, "Cannot contact authentication server")
         } catch (e: SecurityException) {
             logger.warn("✗ Authentication failed for $profileName: ${e.message}")
-            VerificationResult(false, e.message ?: "Authentication failed")
+            VerificationResult(
+                false,
+                e.message ?: "Authentication failed",
+                legacyIdentityClaimed = e is LegacyIdentityClaimedException,
+            )
         } catch (e: com.nimbusds.jose.proc.BadJOSEException) {
             val alg = try {
                 SignedJWT.parse(jwt).header.algorithm?.name

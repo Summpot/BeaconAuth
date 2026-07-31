@@ -63,6 +63,14 @@ bypass_if_online_mode_verified = true
 force_auth_if_offline_mode = true
 # Only applies when force_auth_if_offline_mode is true
 allow_vanilla_offline_clients = false
+# Mode d'identité hors ligne hérité (pour migrer un serveur offline-mode existant) :
+# - Si true : chaque compte BeaconAuth est mappé à l'UUID hors ligne ("OfflinePlayer:<nom>")
+#   qu'il a revendiqué lors de sa première connexion authentifiée, et conserve cette identité.
+# - Les données du monde (playerdata/, stats/, advancements/) sont préservées sans renommer de fichiers.
+# - Le mappage est stocké par monde dans <répertoire du monde>/beaconauth-identities.json.
+# - Sécurité : l'identité est liée au nom utilisé à la première connexion ; un autre compte
+#   s'inscrivant plus tard avec le même nom obtiendrait la même UUID. Conçu pour les petits serveurs.
+use_legacy_offline_uuids = false
 ```
 
 ### Notes
@@ -72,3 +80,17 @@ allow_vanilla_offline_clients = false
 - `jku.allowed_host_patterns` est une allowlist séparée par virgules/espaces. Motifs supportés:
   - `example.com`, `*.example.com`
   - Non supporté: `*` seul ou jokers au milieu comme `auth*.example.com`
+
+### Migration d'un serveur offline-mode existant (identités héritées)
+
+1. Activez `behavior.use_legacy_offline_uuids = true` et conservez le serveur en offline-mode.
+2. Lors de la première connexion BeaconAuth d'un joueur, le mod lie le compte à l'UUID hors ligne
+   (`OfflinePlayer:<nom>`) et écrit `<répertoire du monde>/beaconauth-identities.json`, si bien que
+   les `playerdata/`, `stats/` et `advancements/` existants continuent de fonctionner sans renommage.
+3. Une identité héritée ne peut être revendiquée qu'une seule fois : si un autre compte BeaconAuth
+   tente ensuite de se connecter avec le même nom, la connexion est refusée avec un message clair,
+   au lieu d'être silencieusement associée.
+4. Correction en cas d'erreur : un opérateur du serveur (niveau de permission 2) peut transférer
+   une identité avec `/beaconauth transfer-identity <nomMinecraft> <nomUtilisateurBeaconAuth>`.
+5. Une fois la migration terminée, l'association reste active ; désactiver ensuite le mode fait
+   revenir les comptes à des UUID stables par compte (nouvelles données du monde, pas les anciennes).

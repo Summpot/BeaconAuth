@@ -16,6 +16,9 @@
   "command.beaconauth.must_be_player": "このコマンドはプレイヤーのみ実行できます",
   "command.beaconauth.login_failed": "ログイン開始に失敗しました: %s",
   "command.beaconauth.login_request_sent": "§7ログイン要求をクライアントに送信しました",
+  "command.beaconauth.legacy_transfer_invalid": "§c無効なプロフィールです。既存の Minecraft ユーザー名を指定してください。",
+  "command.beaconauth.legacy_transfer_done": "§a'%s' のレガシー オフライン ID を BeaconAuth アカウント '%s' に移行しました。このアカウントは次回ログイン時に ID を引き継ぎます。",
+  "command.beaconauth.legacy_transfer_not_found": "§c'%s' のレガシー オフライン ID が見つかりません。まずプレイヤーに BeaconAuth で一度ログインしてもらってください。",
 
   "html.beaconauth.success.title": "ログイン成功",
   "html.beaconauth.success.heading": "ログイン成功！",
@@ -36,5 +39,6 @@
   "disconnect.beaconauth.invalid_verify": "BeaconAuth 検証ペイロードが無効です",
   "disconnect.beaconauth.failure": "BeaconAuth 検証に失敗しました: %s",
   "disconnect.beaconauth.official_name_conflict": "名前 '%s' はこのサーバーの公式 Minecraft プレイヤーに既に使用されています。BeaconAuth ユーザー名を変更してから再試行してください。",
+  "disconnect.beaconauth.legacy_identity_claimed": "このゲーム内 ID は既に別の BeaconAuth アカウントに紐付けられています。誤りだと思われる場合は、サーバー管理者に /beaconauth transfer-identity で移行を依頼してください。",
   "disconnect.beaconauth.cancelled": "認証がキャンセルされました: %s"
 }

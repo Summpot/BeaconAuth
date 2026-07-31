@@ -63,6 +63,13 @@ bypass_if_online_mode_verified = true
 force_auth_if_offline_mode = true
 # Only applies when force_auth_if_offline_mode is true
 allow_vanilla_offline_clients = false
+# 舊版離線身份模式（用於遷移既有的 offline-mode 伺服器）：
+# - 若為 true：每個 BeaconAuth 帳戶會被對應到其首次認證登入時聲明的離線 UUID（"OfflinePlayer:<名稱>"）
+#   並從此固定使用該身份。
+# - 世界資料（playerdata/、stats/、advancements/）不需改名即可保留。
+# - 對應關係按世界儲存於 <世界目錄>/beaconauth-identities.json。
+# - 安全提示：身份綁定首次登入時的使用者名稱，之後以相同名稱註冊的帳戶會對應到同一 UUID。適用於小型伺服器。
+use_legacy_offline_uuids = false
 ```
 
 ### 注意
@@ -72,3 +79,16 @@ allow_vanilla_offline_clients = false
 - `jku.allowed_host_patterns` 是逗號/空白分隔的 allowlist。支援模式:
   - `example.com`, `*.example.com`
   - 不支援: 單獨的 `*` 或字串中間通配（例如 `auth*.example.com`）
+
+### 遷移既有的 offline-mode 伺服器（舊版離線身分）
+
+1. 啟用 `behavior.use_legacy_offline_uuids = true`，並保持伺服器 offline-mode。
+2. 每個玩家首次透過 BeaconAuth 登入時，模組會將該帳戶綁定到離線 UUID（`OfflinePlayer:<名稱>`），
+   並寫入 `<世界目錄>/beaconauth-identities.json`，現有 `playerdata/`、`stats/`、`advancements/`
+   不需改名即可繼續使用。
+3. 舊版離線身分只能被認領一次：如果之後有其他 BeaconAuth 帳戶用相同遊戲名稱登入，登入會被
+   拒絕並給出明確提示，而不是靜默綁定該身分。
+4. 誤操作補救：伺服器管理員（權限等級 2）可用
+   `/beaconauth transfer-identity <遊戲名稱> <BeaconAuth使用者名稱>` 轉移身分。
+5. 所有人遷移完成後對應關係仍會生效；之後再關閉該模式會讓帳戶回到穩定的 per-account UUID
+   （新世界資料，不再關聯舊資料）。

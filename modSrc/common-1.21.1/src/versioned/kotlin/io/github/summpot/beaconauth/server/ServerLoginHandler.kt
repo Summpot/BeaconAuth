@@ -194,11 +194,17 @@ class ServerLoginHandler @JvmOverloads constructor(
             LoginVerificationStatus.SUCCESS -> {
                 val jwt = data.readUtf(4096)
                 val verifier = data.readUtf(512)
-                val result = AuthServer.verifyForProfile(profile.name, jwt, verifier)
+                val result = AuthServer.verifyForProfile(profile.name, jwt, verifier, server)
                 if (result.success) {
                     val effectiveName = sanitizeMinecraftUsername(result.username) ?: profile.name
                     val stableUuid = result.stableUuid
-                    val conflictingProfile = OfficialNameGuard.findConflict(server, effectiveName, stableUuid)
+                    val conflictingProfile = if (BeaconAuthConfig.shouldUseLegacyOfflineUuids()) {
+                        // Legacy offline identity mode: the UUID is the offline-mode UUID, which by
+                        // design does not collide with official Mojang profiles. Skip the guard.
+                        null
+                    } else {
+                        OfficialNameGuard.findConflict(server, effectiveName, stableUuid)
+                    }
                     if (conflictingProfile != null) {
                         logger.warn(
                             "Rejecting BeaconAuth user ${profile.name}: name '$effectiveName' conflicts with existing official Minecraft profile ${conflictingProfile.id}"
@@ -210,8 +216,9 @@ class ServerLoginHandler @JvmOverloads constructor(
                         return
                     }
                     if (stableUuid != null) {
-                        // Replace the login profile UUID with a stable per-account UUID.
-                        // This prevents account takeover on offline-mode servers via username changes.
+                        // Replace the login profile UUID with the BeaconAuth identity UUID
+                        // (stable per-account UUID, or the mapped legacy offline UUID in
+                        // legacy offline identity mode). This keeps world data intact.
                         gameProfile = GameProfile(stableUuid, effectiveName)
                         logger.info(
                             "Using BeaconAuth identity for ${profile.name}: name=$effectiveName stableUuid=$stableUuid"
@@ -225,7 +232,11 @@ class ServerLoginHandler @JvmOverloads constructor(
                     finish()
                 } else {
                     logger.error("✗ Verification failed: ${result.message}")
-                    fail(Component.translatable("disconnect.beaconauth.failure", result.message))
+                    if (result.legacyIdentityClaimed) {
+                        fail(Component.translatable("disconnect.beaconauth.legacy_identity_claimed"))
+                    } else {
+                        fail(Component.translatable("disconnect.beaconauth.failure", result.message))
+                    }
                 }
             }
             LoginVerificationStatus.CANCELLED -> {

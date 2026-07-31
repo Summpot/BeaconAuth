@@ -67,6 +67,14 @@ bypass_if_online_mode_verified = true
 force_auth_if_offline_mode = true
 # Only applies when force_auth_if_offline_mode is true
 allow_vanilla_offline_clients = false
+# Legacy offline identity mode (for migrating an existing offline-mode server):
+# - If true: each BeaconAuth account is mapped to the offline-mode UUID ("OfflinePlayer:<name>")
+#   it claimed on its first authenticated login, and keeps that identity afterwards.
+# - World data (playerdata/, stats/, advancements/) is preserved without renaming files.
+# - The mapping is stored per-world in <world>/beaconauth-identities.json.
+# - Security: the identity is bound to the username used on first login, so another account
+#   registering the same username later would map to the same UUID. Intended for small servers.
+use_legacy_offline_uuids = false
 ```
 
 ### Notes
@@ -77,3 +85,17 @@ allow_vanilla_offline_clients = false
   - `example.com`, `*.example.com`
   - Not supported: bare `*` or mid-string wildcards like `auth*.example.com`
 - With the default behavior settings on an online-mode server, premium accounts join like vanilla multiplayer; offline accounts need the BeaconAuth mod and web login.
+
+### Migrating an existing offline-mode server (legacy identities)
+
+1. Enable `behavior.use_legacy_offline_uuids = true` and keep the server in offline-mode.
+2. On each player's first BeaconAuth login, the mod binds that account to the offline UUID
+   (`OfflinePlayer:<name>`) and writes `<world>/beaconauth-identities.json`, so existing
+   `playerdata/`, `stats/`, and `advancements/` keep working without renaming files.
+3. A legacy identity can only ever be claimed once: if another BeaconAuth account later tries
+   to log in with the same in-game name, login is rejected with a clear message instead of
+   silently binding the identity.
+4. Rescue path for mistakes: a server operator (permission level 2) can transfer an identity
+   with `/beaconauth transfer-identity <minecraftName> <beaconUsername>`.
+5. Once everyone is migrated, the mapping keeps working; turning the mode off later switches
+   accounts back to stable per-account UUIDs (new world data, not the legacy data).

@@ -16,6 +16,9 @@
   "command.beaconauth.must_be_player": "This command must be run by a player",
   "command.beaconauth.login_failed": "Failed to start login: %s",
   "command.beaconauth.login_request_sent": "§7Login request sent to your client",
+  "command.beaconauth.legacy_transfer_invalid": "§cInvalid profile. Provide an existing Minecraft username.",
+  "command.beaconauth.legacy_transfer_done": "§aLegacy offline identity of '%s' transferred to BeaconAuth account '%s'. That account will claim it on next login.",
+  "command.beaconauth.legacy_transfer_not_found": "§cNo legacy offline identity found for '%s'. Ask the player to log in once with BeaconAuth first.",
 
   "html.beaconauth.success.title": "Login Successful",
   "html.beaconauth.success.heading": "Login successful!",
@@ -36,5 +39,6 @@
   "disconnect.beaconauth.invalid_verify": "Invalid BeaconAuth verification payload",
   "disconnect.beaconauth.failure": "BeaconAuth verification failed: %s",
   "disconnect.beaconauth.official_name_conflict": "The name '%s' is already used by an official Minecraft player on this server. Please change your BeaconAuth username and try again.",
+  "disconnect.beaconauth.legacy_identity_claimed": "This in-game identity is already bound to another BeaconAuth account. If you believe this is an error, ask a server administrator to transfer it with /beaconauth transfer-identity.",
   "disconnect.beaconauth.cancelled": "Authentication cancelled: %s"
 }

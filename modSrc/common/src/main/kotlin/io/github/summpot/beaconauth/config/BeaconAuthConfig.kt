@@ -19,6 +19,7 @@ object BeaconAuthConfig {
 	@Volatile private var bypassIfOnlineModeVerified: Boolean = true
 	@Volatile private var forceAuthIfOfflineMode: Boolean = true
 	@Volatile private var allowVanillaOfflineClients: Boolean = false
+	@Volatile private var useLegacyOfflineUuids: Boolean = false
 
 	private fun normalizeBaseUrl(raw: String): String = raw.trim().trimEnd('/')
 
@@ -42,7 +43,8 @@ object BeaconAuthConfig {
 		jkuAllowedHostPatternsCsv: String,
 		bypassIfOnlineModeVerified: Boolean,
 		forceAuthIfOfflineMode: Boolean,
-		allowVanillaOfflineClients: Boolean
+		allowVanillaOfflineClients: Boolean,
+		useLegacyOfflineUuids: Boolean
 	) {
 		val normalizedBaseUrl = normalizeBaseUrl(authBaseUrl)
 		this.authBaseUrl = normalizedBaseUrl
@@ -52,6 +54,7 @@ object BeaconAuthConfig {
 		this.bypassIfOnlineModeVerified = bypassIfOnlineModeVerified
 		this.forceAuthIfOfflineMode = forceAuthIfOfflineMode
 		this.allowVanillaOfflineClients = allowVanillaOfflineClients
+		this.useLegacyOfflineUuids = useLegacyOfflineUuids
 	}
 
 	fun getAuthBaseUrl(): String = authBaseUrl
@@ -72,4 +75,17 @@ object BeaconAuthConfig {
 	fun shouldBypassIfOnlineModeVerified(): Boolean = bypassIfOnlineModeVerified
 	fun shouldForceAuthIfOfflineMode(): Boolean = forceAuthIfOfflineMode
 	fun shouldAllowVanillaOfflineClients(): Boolean = allowVanillaOfflineClients
+	/**
+	 * Legacy offline-UUID identity mode (default false).
+	 *
+	 * When true, each BeaconAuth account is mapped to the offline-mode UUID
+	 * ("OfflinePlayer:<name>") it claimed on its first authenticated login. The mapping is
+	 * persisted per-world in <world>/beaconauth-identities.json and the account keeps that UUID
+	 * afterwards, so world data from an existing offline-mode server is preserved without
+	 * renaming files. Intended for small community servers.
+	 *
+	 * When false (default), BeaconAuth identities use stable per-account UUIDs that are immune
+	 * to username-based impersonation.
+	 */
+	fun shouldUseLegacyOfflineUuids(): Boolean = useLegacyOfflineUuids
 }

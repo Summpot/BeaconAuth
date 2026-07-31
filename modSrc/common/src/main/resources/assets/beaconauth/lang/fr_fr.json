@@ -16,6 +16,9 @@
   "command.beaconauth.must_be_player": "Cette commande doit être exécutée par un joueur",
   "command.beaconauth.login_failed": "Impossible de démarrer la connexion : %s",
   "command.beaconauth.login_request_sent": "§7Demande de connexion envoyée à votre client",
+  "command.beaconauth.legacy_transfer_invalid": "§cProfil invalide. Fournissez un nom d'utilisateur Minecraft existant.",
+  "command.beaconauth.legacy_transfer_done": "§aL'identité hors ligne héritée de '%s' a été transférée au compte BeaconAuth '%s'. Ce compte la revendiquera à sa prochaine connexion.",
+  "command.beaconauth.legacy_transfer_not_found": "§cAucune identité hors ligne héritée trouvée pour '%s'. Demandez au joueur de se connecter une fois avec BeaconAuth d'abord.",
 
   "html.beaconauth.success.title": "Connexion réussie",
   "html.beaconauth.success.heading": "Connexion réussie !",
@@ -36,5 +39,6 @@
   "disconnect.beaconauth.invalid_verify": "Données de vérification BeaconAuth invalides",
   "disconnect.beaconauth.failure": "Échec de la vérification BeaconAuth : %s",
   "disconnect.beaconauth.official_name_conflict": "Le nom '%s' est déjà utilisé par un joueur Minecraft officiel sur ce serveur. Veuillez modifier votre nom d’utilisateur BeaconAuth puis réessayer.",
+  "disconnect.beaconauth.legacy_identity_claimed": "Cette identité en jeu est déjà liée à un autre compte BeaconAuth. Si vous pensez qu’il s’agit d’une erreur, demandez à un administrateur du serveur de la transférer avec /beaconauth transfer-identity.",
   "disconnect.beaconauth.cancelled": "Authentification annulée : %s"
 }

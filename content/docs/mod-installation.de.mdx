@@ -63,6 +63,14 @@ bypass_if_online_mode_verified = true
 force_auth_if_offline_mode = true
 # Only applies when force_auth_if_offline_mode is true
 allow_vanilla_offline_clients = false
+# Legacy-Offline-Identitätsmodus (für die Migration eines bestehenden Offline-Mode-Servers):
+# - Bei true: Jedes BeaconAuth-Konto wird der Offline-UUID ("OfflinePlayer:<Name>") zugeordnet,
+#   die es bei seiner ersten authentifizierten Anmeldung beansprucht hat, und behält diese Identität.
+# - Weltdaten (playerdata/, stats/, advancements/) bleiben ohne Umbenennung von Dateien erhalten.
+# - Die Zuordnung wird pro Welt in <Weltverzeichnis>/beaconauth-identities.json gespeichert.
+# - Sicherheit: Die Identität ist an den bei der ersten Anmeldung verwendeten Namen gebunden.
+#   Spätere Konten mit demselben Namen würden derselben UUID zugeordnet. Nur für kleine Server gedacht.
+use_legacy_offline_uuids = false
 ```
 
 ### Hinweise
@@ -72,3 +80,17 @@ allow_vanilla_offline_clients = false
 - `jku.allowed_host_patterns` ist eine kommagetrennte/leerzeichengetrennte Allowlist. Unterstützte Muster:
   - `example.com`, `*.example.com`
   - Nicht unterstützt: nacktes `*` oder Wildcards mitten im String wie `auth*.example.com`
+
+### Migration eines bestehenden Offline-Mode-Servers (Legacy-Identitäten)
+
+1. Aktiviere `behavior.use_legacy_offline_uuids = true` und behalte den Server im Offline-Modus.
+2. Bei der ersten BeaconAuth-Anmeldung eines Spielers bindet das Mod das Konto an die Offline-UUID
+   (`OfflinePlayer:<Name>`) und schreibt `<Weltverzeichnis>/beaconauth-identities.json`, sodass
+   vorhandene `playerdata/`, `stats/` und `advancements/` ohne Umbenennung weiter funktionieren.
+3. Eine Legacy-Identität kann nur einmal beansprucht werden: Versucht danach ein anderes
+   BeaconAuth-Konto mit demselben Namen zu loggen, wird die Anmeldung mit einer klaren Meldung
+   abgelehnt, statt die Identität still zu übernehmen.
+4. Notfalllösung bei Fehlern: Ein Server-Operator (Berechtigungsstufe 2) kann eine Identität mit
+   `/beaconauth transfer-identity <MinecraftName> <BeaconAuthBenutzername>` übertragen.
+5. Nach Abschluss der Migration bleibt die Zuordnung aktiv; ein späteres Deaktivieren des Modus
+   wechselt die Konten zurück auf stabile Per-Account-UUIDs (neue Weltdaten, nicht die alten).
