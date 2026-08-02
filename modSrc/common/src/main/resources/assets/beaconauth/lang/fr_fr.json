@@ -19,6 +19,13 @@
   "command.beaconauth.legacy_transfer_invalid": "§cProfil invalide. Fournissez un nom d'utilisateur Minecraft existant.",
   "command.beaconauth.legacy_transfer_done": "§aL'identité hors ligne héritée de '%s' a été transférée au compte BeaconAuth '%s'. Ce compte la revendiquera à sa prochaine connexion.",
   "command.beaconauth.legacy_transfer_not_found": "§cAucune identité hors ligne héritée trouvée pour '%s'. Demandez au joueur de se connecter une fois avec BeaconAuth d'abord.",
+  "command.beaconauth.unmigrated_none": "§aAucun profil hors ligne non revendiqué trouvé. Toutes les données de monde existantes appartiennent déjà à des comptes BeaconAuth.",
+  "command.beaconauth.unmigrated_header": "§eProfils hors ligne non revendiqués (%s) – ces joueurs ne se sont pas encore connectés avec BeaconAuth :",
+  "command.beaconauth.unmigrated_entry": "§7- %s (%s)",
+  "command.beaconauth.unmigrated_entry_unknown": "§7- Nom inconnu (%s)",
+  "command.beaconauth.unmigrated_hint": "§7Demandez à chaque joueur listé de se connecter une fois avec BeaconAuth pour revendiquer ses données de monde.",
+  "command.beaconauth.unmigrated_legacy_disabled": "§7Remarque : le mode UUID hors ligne hérité (use_legacy_offline_uuids) est désactivé, ces profils ne peuvent donc pas être revendiqués.",
+  "command.beaconauth.unmigrated_error": "§cÉchec de l'analyse des profils non revendiqués : %s",
 
   "html.beaconauth.success.title": "Connexion réussie",
   "html.beaconauth.success.heading": "Connexion réussie !",

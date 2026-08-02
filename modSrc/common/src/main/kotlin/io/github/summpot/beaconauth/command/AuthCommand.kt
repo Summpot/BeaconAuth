@@ -3,6 +3,7 @@ package io.github.summpot.beaconauth.command
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.context.CommandContext
+import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.server.IdentityMapping
 import io.github.summpot.beaconauth.util.TranslationHelper
 import net.minecraft.commands.CommandSourceStack
@@ -51,6 +52,11 @@ object AuthCommand {
                                 )
                         )
                 )
+                .then(
+                    Commands.literal("unmigrated")
+                        .requires { source -> source.hasPermission(2) }
+                        .executes { context -> executeUnmigrated(context) }
+                )
         )
     }
 
@@ -86,6 +92,43 @@ object AuthCommand {
             )
         } else {
             sendFailure(context.source, TranslationHelper.legacyTransferNotFound(profileName))
+        }
+        return 1
+    }
+
+    /**
+     * Lists every offline-mode profile in <world>/playerdata that no BeaconAuth account has
+     * claimed yet, to help plan a migration from an existing offline-mode server.
+     */
+    private fun executeUnmigrated(context: CommandContext<CommandSourceStack>): Int {
+        val server = context.source.server
+        if (server == null) {
+            sendFailure(context.source, TranslationHelper.mustBePlayer())
+            return 1
+        }
+        val profiles = try {
+            IdentityMapping.unclaimedProfiles(server)
+        } catch (e: Exception) {
+            sendFailure(context.source, TranslationHelper.unmigratedScanError(e.message ?: e.toString()))
+            return 1
+        }
+        if (profiles.isEmpty()) {
+            sendSuccess(context.source, TranslationHelper.unmigratedScanNone(), true)
+            return 1
+        }
+        sendSuccess(context.source, TranslationHelper.unmigratedScanHeader(profiles.size), true)
+        for (profile in profiles) {
+            val entry = if (profile.name != null) {
+                TranslationHelper.unmigratedScanEntry(profile.name, profile.uuid.toString())
+            } else {
+                TranslationHelper.unmigratedScanEntryUnknown(profile.uuid.toString())
+            }
+            sendSuccess(context.source, entry, false)
+        }
+        if (BeaconAuthConfig.shouldUseLegacyOfflineUuids()) {
+            sendSuccess(context.source, TranslationHelper.unmigratedScanHint(), false)
+        } else {
+            sendSuccess(context.source, TranslationHelper.unmigratedScanLegacyDisabled(), false)
         }
         return 1
     }

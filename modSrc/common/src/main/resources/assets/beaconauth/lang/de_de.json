@@ -19,6 +19,13 @@
   "command.beaconauth.legacy_transfer_invalid": "§cUngültiges Profil. Gib einen bestehenden Minecraft-Benutzernamen an.",
   "command.beaconauth.legacy_transfer_done": "§aDie Legacy-Offline-Identität von '%s' wurde an das BeaconAuth-Konto '%s' übertragen. Dieses Konto übernimmt sie beim nächsten Login.",
   "command.beaconauth.legacy_transfer_not_found": "§cKeine Legacy-Offline-Identität für '%s' gefunden. Bitte lasse den Spieler sich zuerst einmal mit BeaconAuth anmelden.",
+  "command.beaconauth.unmigrated_none": "§aKeine nicht zugeordneten Offline-Profile gefunden. Alle vorhandenen Weltdaten gehören bereits BeaconAuth-Konten.",
+  "command.beaconauth.unmigrated_header": "§eNicht zugeordnete Offline-Profile (%s) – diese Spieler haben sich noch nicht mit BeaconAuth angemeldet:",
+  "command.beaconauth.unmigrated_entry": "§7- %s (%s)",
+  "command.beaconauth.unmigrated_entry_unknown": "§7- Unbekannter Name (%s)",
+  "command.beaconauth.unmigrated_hint": "§7Bitte lass jeden aufgeführten Spieler sich einmal mit BeaconAuth anmelden, um seine Weltdaten zu übernehmen.",
+  "command.beaconauth.unmigrated_legacy_disabled": "§7Hinweis: Der Legacy-Offline-UUID-Modus (use_legacy_offline_uuids) ist deaktiviert, daher können diese Profile nicht zugeordnet werden.",
+  "command.beaconauth.unmigrated_error": "§cSuche nach nicht zugeordneten Profilen fehlgeschlagen: %s",
 
   "html.beaconauth.success.title": "Login erfolgreich",
   "html.beaconauth.success.heading": "Login erfolgreich!",

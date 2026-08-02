@@ -19,6 +19,13 @@
   "command.beaconauth.legacy_transfer_invalid": "§cInvalid profile. Provide an existing Minecraft username.",
   "command.beaconauth.legacy_transfer_done": "§aLegacy offline identity of '%s' transferred to BeaconAuth account '%s'. That account will claim it on next login.",
   "command.beaconauth.legacy_transfer_not_found": "§cNo legacy offline identity found for '%s'. Ask the player to log in once with BeaconAuth first.",
+  "command.beaconauth.unmigrated_none": "§aNo unclaimed offline profiles found. All existing world data is already owned by BeaconAuth accounts.",
+  "command.beaconauth.unmigrated_header": "§eUnclaimed offline profiles (%s) — these players have not logged in with BeaconAuth yet:",
+  "command.beaconauth.unmigrated_entry": "§7- %s (%s)",
+  "command.beaconauth.unmigrated_entry_unknown": "§7- unknown name (%s)",
+  "command.beaconauth.unmigrated_hint": "§7Ask each listed player to log in once with BeaconAuth to claim their world data.",
+  "command.beaconauth.unmigrated_legacy_disabled": "§7Note: legacy offline UUID mode (use_legacy_offline_uuids) is disabled, so none of these profiles can be claimed.",
+  "command.beaconauth.unmigrated_error": "§cFailed to scan for unclaimed profiles: %s",
 
   "html.beaconauth.success.title": "Login Successful",
   "html.beaconauth.success.heading": "Login successful!",

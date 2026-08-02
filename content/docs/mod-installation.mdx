@@ -92,10 +92,13 @@ use_legacy_offline_uuids = false
 2. On each player's first BeaconAuth login, the mod binds that account to the offline UUID
    (`OfflinePlayer:<name>`) and writes `<world>/beaconauth-identities.json`, so existing
    `playerdata/`, `stats/`, and `advancements/` keep working without renaming files.
-3. A legacy identity can only ever be claimed once: if another BeaconAuth account later tries
+3. To plan the migration, run `/beaconauth unmigrated` (permission level 2). It lists every
+   offline profile in `playerdata/` that no BeaconAuth account has claimed yet, with the player
+   name when available; the server also logs the total count on startup.
+4. A legacy identity can only ever be claimed once: if another BeaconAuth account later tries
    to log in with the same in-game name, login is rejected with a clear message instead of
    silently binding the identity.
-4. Rescue path for mistakes: a server operator (permission level 2) can transfer an identity
+5. Rescue path for mistakes: a server operator (permission level 2) can transfer an identity
    with `/beaconauth transfer-identity <minecraftName> <beaconUsername>`.
-5. Once everyone is migrated, the mapping keeps working; turning the mode off later switches
+6. Once everyone is migrated, the mapping keeps working; turning the mode off later switches
    accounts back to stable per-account UUIDs (new world data, not the legacy data).

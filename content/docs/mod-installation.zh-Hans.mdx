@@ -90,9 +90,12 @@ use_legacy_offline_uuids = false
 2. 每个玩家首次通过 BeaconAuth 登录时，模组会将该账户绑定到离线 UUID（`OfflinePlayer:<名字>`），
    并写入 `<世界目录>/beaconauth-identities.json`，现有 `playerdata/`、`stats/`、`advancements/`
    无需改名即可继续使用。
-3. 旧版离线身份只能被认领一次：如果之后有其他 BeaconAuth 账户用相同游戏名登录，登录会被
+3. 若要规划迁移，请运行 `/beaconauth unmigrated`（权限等级 2）。它会列出 `playerdata/` 中
+   尚未被任何 BeaconAuth 账户认领的每个离线档案（尽可能显示玩家名）；服务器启动时也会在
+   日志中记录未迁移总数。
+4. 旧版离线身份只能被认领一次：如果之后有其他 BeaconAuth 账户用相同游戏名登录，登录会被
    拒绝并给出明确提示，而不是静默绑定该身份。
-4. 误操作补救：服务器管理员（权限等级 2）可用
+5. 误操作补救：服务器管理员（权限等级 2）可用
    `/beaconauth transfer-identity <游戏名> <BeaconAuth用户名>` 转移身份。
-5. 所有人迁移完成后映射仍会生效；之后再关闭该模式会让账户回到稳定的 per-account UUID
+6. 所有人迁移完成后映射仍会生效；之后再关闭该模式会让账户回到稳定的 per-account UUID
    （新世界数据，不再关联旧数据）。

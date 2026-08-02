@@ -87,10 +87,14 @@ use_legacy_offline_uuids = false
 2. Lors de la première connexion BeaconAuth d'un joueur, le mod lie le compte à l'UUID hors ligne
    (`OfflinePlayer:<nom>`) et écrit `<répertoire du monde>/beaconauth-identities.json`, si bien que
    les `playerdata/`, `stats/` et `advancements/` existants continuent de fonctionner sans renommage.
-3. Une identité héritée ne peut être revendiquée qu'une seule fois : si un autre compte BeaconAuth
+3. Pour planifier la migration, exécutez `/beaconauth unmigrated` (niveau de permission 2). La
+   commande liste chaque profil hors ligne de `playerdata/` qui n'a encore été revendiqué par aucun
+   compte BeaconAuth, avec le nom du joueur quand il est disponible ; le serveur journalise aussi le
+   nombre total au démarrage.
+4. Une identité héritée ne peut être revendiquée qu'une seule fois : si un autre compte BeaconAuth
    tente ensuite de se connecter avec le même nom, la connexion est refusée avec un message clair,
    au lieu d'être silencieusement associée.
-4. Correction en cas d'erreur : un opérateur du serveur (niveau de permission 2) peut transférer
+5. Correction en cas d'erreur : un opérateur du serveur (niveau de permission 2) peut transférer
    une identité avec `/beaconauth transfer-identity <nomMinecraft> <nomUtilisateurBeaconAuth>`.
-5. Une fois la migration terminée, l'association reste active ; désactiver ensuite le mode fait
+6. Une fois la migration terminée, l'association reste active ; désactiver ensuite le mode fait
    revenir les comptes à des UUID stables par compte (nouvelles données du monde, pas les anciennes).

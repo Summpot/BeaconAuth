@@ -2,6 +2,7 @@ package io.github.summpot.beaconauth.server
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.storage.LevelResource
 import org.slf4j.LoggerFactory
@@ -31,6 +32,14 @@ object IdentityMapping {
         val identities: Map<String, String> = emptyMap(),
         val owners: Map<String, String> = emptyMap(),
     )
+
+    private data class UserCacheEntry(val name: String?, val uuid: String?)
+
+    /**
+     * An offline-mode profile that has world data in <world>/playerdata but is not yet claimed by
+     * any BeaconAuth account. [name] is resolved from the vanilla user cache when available.
+     */
+    data class UnclaimedProfile(val name: String?, val uuid: UUID)
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
 
@@ -101,6 +110,28 @@ object IdentityMapping {
             } else {
                 logger.info("No BeaconAuth identity mapping file at {}; a new one will be created on first login", path)
             }
+            logUnclaimedSummaryLocked(server)
+        }
+    }
+
+    /**
+     * Logs a one-line summary of offline profiles that still need migration, so server operators
+     * know how many existing players have not claimed their world data with BeaconAuth yet.
+     * Only runs in legacy mode, where claims are possible.
+     */
+    private fun logUnclaimedSummaryLocked(server: MinecraftServer) {
+        if (!BeaconAuthConfig.shouldUseLegacyOfflineUuids()) {
+            return
+        }
+        val unclaimed = unclaimedProfilesLocked(server)
+        if (unclaimed.isEmpty()) {
+            logger.info("All existing offline player profiles are claimed by BeaconAuth accounts")
+        } else {
+            logger.info(
+                "Found {} offline player profiles not claimed by any BeaconAuth account yet; " +
+                    "run /beaconauth unmigrated (permission level 2) for the full list",
+                unclaimed.size
+            )
         }
     }
 
@@ -170,6 +201,81 @@ object IdentityMapping {
                 "Transferred legacy offline identity $uuid from BeaconAuth account $oldOwner to $beaconUsername"
             )
             return true
+        }
+    }
+
+    /**
+     * Scans <world>/playerdata and returns every offline profile whose UUID is not claimed by any
+     * BeaconAuth account yet. Player names are resolved from the vanilla <world>/usercache.json
+     * when possible (offline UUIDs cannot be derived back to names). Used by the
+     * `/beaconauth unmigrated` command and the startup summary to plan offline-mode migrations.
+     */
+    fun unclaimedProfiles(server: MinecraftServer): List<UnclaimedProfile> = lock.withLock {
+        unclaimedProfilesLocked(server)
+    }
+
+    private fun unclaimedProfilesLocked(server: MinecraftServer): List<UnclaimedProfile> {
+        val playerDataDir = server.getWorldPath(LevelResource.ROOT).resolve("playerdata")
+        if (!Files.isDirectory(playerDataDir)) {
+            return emptyList()
+        }
+        val namesByUuid = loadUserCache(playerDataDir.parent.resolve("usercache.json"))
+        return try {
+            Files.newDirectoryStream(playerDataDir).use { stream ->
+                stream
+                    .filter { Files.isRegularFile(it) }
+                    .mapNotNull { file -> parseDatUuid(file.fileName.toString()) }
+                    .filter { uuid -> !owners.containsKey(uuid) }
+                    .distinct()
+                    .sortedBy { uuid -> namesByUuid[uuid]?.lowercase() ?: uuid.toString() }
+                    .map { uuid -> UnclaimedProfile(namesByUuid[uuid], uuid) }
+                    .toList()
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to scan playerdata for unclaimed profiles: {}", e.message)
+            emptyList()
+        }
+    }
+
+    private fun parseDatUuid(fileName: String): UUID? {
+        if (!fileName.endsWith(".dat")) {
+            return null
+        }
+        return try {
+            UUID.fromString(fileName.removeSuffix(".dat"))
+        } catch (e: IllegalArgumentException) {
+            logger.warn("Skipping non-UUID player data file '$fileName'")
+            null
+        }
+    }
+
+    /**
+     * Reads the vanilla <world>/usercache.json (a JSON array of {name, uuid}) as a best-effort
+     * name lookup for [UnclaimedProfile] entries. Offline-mode UUIDs cannot be reversed into
+     * names otherwise.
+     */
+    private fun loadUserCache(path: Path): Map<UUID, String> {
+        if (!Files.isRegularFile(path)) {
+            return emptyMap()
+        }
+        return try {
+            Files.newBufferedReader(path).use { reader ->
+                val entries = gson.fromJson(reader, Array<UserCacheEntry>::class.java) ?: return emptyMap()
+                entries.mapNotNull { entry ->
+                    if (entry.name.isNullOrBlank() || entry.uuid == null) {
+                        return@mapNotNull null
+                    }
+                    val uuid = try {
+                        UUID.fromString(entry.uuid)
+                    } catch (e: IllegalArgumentException) {
+                        return@mapNotNull null
+                    }
+                    uuid to entry.name
+                }.toMap()
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to read user cache {} for unmigrated profile names: {}", path, e.message)
+            emptyMap()
         }
     }
 

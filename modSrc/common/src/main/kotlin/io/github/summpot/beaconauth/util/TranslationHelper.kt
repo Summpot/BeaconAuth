@@ -35,6 +35,15 @@ object TranslationHelper {
         Component.translatable("${COMMAND_PREFIX}legacy_transfer_done", name, beaconUsername)
     fun legacyTransferNotFound(name: String) =
         Component.translatable("${COMMAND_PREFIX}legacy_transfer_not_found", name)
+    fun unmigratedScanNone() = Component.translatable("${COMMAND_PREFIX}unmigrated_none")
+    fun unmigratedScanHeader(count: Int) = Component.translatable("${COMMAND_PREFIX}unmigrated_header", count)
+    fun unmigratedScanEntry(name: String, uuid: String) =
+        Component.translatable("${COMMAND_PREFIX}unmigrated_entry", name, uuid)
+    fun unmigratedScanEntryUnknown(uuid: String) =
+        Component.translatable("${COMMAND_PREFIX}unmigrated_entry_unknown", uuid)
+    fun unmigratedScanHint() = Component.translatable("${COMMAND_PREFIX}unmigrated_hint")
+    fun unmigratedScanLegacyDisabled() = Component.translatable("${COMMAND_PREFIX}unmigrated_legacy_disabled")
+    fun unmigratedScanError(error: String) = Component.translatable("${COMMAND_PREFIX}unmigrated_error", error)
 
     // HTML translations (for client-side use, returns translation key)
     fun htmlSuccessTitle() = "${HTML_PREFIX}success.title"

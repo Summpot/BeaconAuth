@@ -19,6 +19,13 @@
   "command.beaconauth.legacy_transfer_invalid": "§c无效的角色。请提供现有的 Minecraft 用户名。",
   "command.beaconauth.legacy_transfer_done": "§a已把 '%s' 的旧版离线身份转移给 BeaconAuth 账户 '%s'。该账户将在下次登录时认领此身份。",
   "command.beaconauth.legacy_transfer_not_found": "§c未找到 '%s' 的旧版离线身份。请先让该玩家使用 BeaconAuth 登录一次。",
+  "command.beaconauth.unmigrated_none": "§a未发现未认领的离线档案。所有现有的世界数据都已被 BeaconAuth 账户认领。",
+  "command.beaconauth.unmigrated_header": "§e未认领的离线档案 (%s) —— 这些玩家尚未使用 BeaconAuth 登录:",
+  "command.beaconauth.unmigrated_entry": "§7- %s (%s)",
+  "command.beaconauth.unmigrated_entry_unknown": "§7- 未知名称 (%s)",
+  "command.beaconauth.unmigrated_hint": "§7请让名单中的每位玩家使用 BeaconAuth 登录一次，以认领他们的世界数据。",
+  "command.beaconauth.unmigrated_legacy_disabled": "§7注意: 旧版离线 UUID 模式 (use_legacy_offline_uuids) 已禁用，因此这些档案无法被认领。",
+  "command.beaconauth.unmigrated_error": "§c扫描未认领档案失败: %s",
 
   "html.beaconauth.success.title": "登录成功",
   "html.beaconauth.success.heading": "登录成功！",

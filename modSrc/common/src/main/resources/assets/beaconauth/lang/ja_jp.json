@@ -19,6 +19,13 @@
   "command.beaconauth.legacy_transfer_invalid": "§c無効なプロフィールです。既存の Minecraft ユーザー名を指定してください。",
   "command.beaconauth.legacy_transfer_done": "§a'%s' のレガシー オフライン ID を BeaconAuth アカウント '%s' に移行しました。このアカウントは次回ログイン時に ID を引き継ぎます。",
   "command.beaconauth.legacy_transfer_not_found": "§c'%s' のレガシー オフライン ID が見つかりません。まずプレイヤーに BeaconAuth で一度ログインしてもらってください。",
+  "command.beaconauth.unmigrated_none": "§a未割り当てのオフライン プロファイルは見つかりませんでした。既存のワールドデータはすべて BeaconAuth アカウントに割り当てられています。",
+  "command.beaconauth.unmigrated_header": "§e未割り当てのオフライン プロファイル (%s) — これらのプレイヤーはまだ BeaconAuth でログインしていません:",
+  "command.beaconauth.unmigrated_entry": "§7- %s (%s)",
+  "command.beaconauth.unmigrated_entry_unknown": "§7- 不明な名前 (%s)",
+  "command.beaconauth.unmigrated_hint": "§7リストに載っている各プレイヤーに BeaconAuth で一度ログインしてもらい、ワールドデータを引き継がせてください。",
+  "command.beaconauth.unmigrated_legacy_disabled": "§7注: レガシー オフライン UUID モード (use_legacy_offline_uuids) は無効のため、これらのプロファイルを割り当てることはできません。",
+  "command.beaconauth.unmigrated_error": "§c未割り当てプロファイルのスキャンに失敗しました: %s",
 
   "html.beaconauth.success.title": "ログイン成功",
   "html.beaconauth.success.heading": "ログイン成功！",
