@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/card';
 import { PageLoader } from '@/components/ui/page-loader';
 import * as m from '@/paraglide/messages';
-import { apiClient } from '../utils/api';
 
 function OAuthCompletePage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
@@ -50,34 +49,18 @@ function OAuthCompletePage() {
           return;
         }
 
-        // Minecraft mode - generate JWT and redirect to mod
-        const redirect_port = parseInt(redirectPortStr, 10);
-
-        // Get Minecraft JWT using the session cookie (set by OAuth callback)
-        const result = await apiClient<{ redirectUrl?: string }>(
-          '/api/v1/minecraft-jwt',
-          {
-            method: 'POST',
-            body: {
-              challenge,
-              redirect_port,
-              profile_url: `${window.location.origin}/profile`,
-            },
-          },
-        );
-
-        // Clean up sessionStorage
+        // Minecraft mode: the OIDC authorization code was returned to the mod's
+        // loopback callback. The mod client exchanges it at the token endpoint
+        // directly, so there is nothing left to do in the browser.
         sessionStorage.removeItem('minecraft_challenge');
         sessionStorage.removeItem('minecraft_redirect_port');
 
-        if (result?.redirectUrl) {
-          setStatus('success');
-          setTarget('minecraft');
-          setMessage(m.oauth_complete_auth_success_minecraft());
-          setTimeout(() => {
-            window.location.href = result.redirectUrl as string;
-          }, 750);
-        }
+        setStatus('success');
+        setTarget('minecraft');
+        setMessage(m.oauth_complete_auth_success_minecraft());
+        setTimeout(() => {
+          window.location.href = '/profile';
+        }, 750);
       } catch (error) {
         console.error('OAuth completion error:', error);
         setStatus('error');

@@ -51,6 +51,10 @@ export function AppNavbar() {
       await apiClient('/api/v1/logout', { method: 'POST' });
     },
     onSuccess: async () => {
+      // Drop any stale Minecraft-flow handoff parameters so a later join
+      // does not resume an abandoned OIDC authorization.
+      sessionStorage.removeItem('minecraft_challenge');
+      sessionStorage.removeItem('minecraft_redirect_port');
       queryClient.setQueryData(queryKeys.userMe(), null);
       queryClient.removeQueries({ queryKey: queryKeys.userMe() });
       await navigate({ to: '/login', replace: true });

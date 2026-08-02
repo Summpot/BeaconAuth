@@ -283,13 +283,15 @@ object AuthServer {
             // Step 6: Configure claims verifier (for iss, aud, exp validation)
             // RequiredClaims: iss, aud must match expected values
             // ProhibitedClaims: none
+            //
+            // OIDC ID tokens carry aud = client_id (OIDC Core §3.1.3.7).
             val claimsVerifier = DefaultJWTClaimsVerifier<SecurityContext>(
-                BeaconAuthConfig.getExpectedAudience(),
+                BeaconAuthConfig.getOidcClientId(),
                 JWTClaimsSet.Builder()
 					// Issuer is derived from authentication.base_url (BASE_URL).
 					.issuer(BeaconAuthConfig.getExpectedIssuer())
                     .build(),
-                setOf("challenge") // Required custom claims
+                setOf("nonce") // Required custom claims (OIDC ID tokens)
             )
             processor.jwtClaimsSetVerifier = claimsVerifier
 
@@ -299,7 +301,7 @@ object AuthServer {
             logger.info("✓ JWT processor initialized successfully")
             logger.info("  JWKS URL: ${BeaconAuthConfig.getJwksUrl()}")
             logger.info("  Expected Issuer (derived): ${BeaconAuthConfig.getExpectedIssuer()}")
-            logger.info("  Expected Audience: ${BeaconAuthConfig.getExpectedAudience()}")
+            logger.info("  Expected Audience: ${BeaconAuthConfig.getOidcClientId()}")
             logger.info(
                 "  JKU: enabled=${isJkuEnabled()} requireHttps=${isJkuEnabled()} " +
                     "allowedPatterns=${effectiveAllowedJkuHostPatterns().joinToString(",").ifEmpty { "<none>" }}"
@@ -314,13 +316,21 @@ object AuthServer {
     }
 
     /**
-     * Build login URL with PKCE challenge and redirect port
-     * This URL points to the external React authentication app
+     * Build the OIDC authorization URL with PKCE challenge, nonce and loopback redirect port.
+     * This URL points to the external React authentication app.
      */
     @JvmStatic
-    fun buildLoginUrl(challenge: String, redirectPort: Int): String {
+    fun buildLoginUrl(challenge: String, redirectPort: Int, nonce: String): String {
         ensureInitialized()
-        return "${BeaconAuthConfig.getAuthBaseUrl()}/login?challenge=$challenge&redirect_port=$redirectPort"
+        val redirectUri = "http://127.0.0.1:$redirectPort/auth-callback"
+        return "${BeaconAuthConfig.getAuthBaseUrl()}/api/v1/oidc/authorize?" +
+            "response_type=code&client_id=" + java.net.URLEncoder.encode(BeaconAuthConfig.getOidcClientId(), "UTF-8") +
+            "&redirect_uri=" + java.net.URLEncoder.encode(redirectUri, "UTF-8") +
+            "&scope=openid" +
+            "&state=" + java.net.URLEncoder.encode(nonce, "UTF-8") +
+            "&code_challenge=" + java.net.URLEncoder.encode(challenge, "UTF-8") +
+            "&code_challenge_method=S256" +
+            "&nonce=" + java.net.URLEncoder.encode(nonce, "UTF-8")
     }
 
     data class VerificationResult(
@@ -337,21 +347,26 @@ object AuthServer {
     )
 
     /**
-     * Verify JWT and PKCE data for a player profile during the login phase.
+     * Verify an OIDC ID token for a player profile during the login phase.
+     *
+     * The ID token is validated per OIDC Core §3.1.3.7: signature (via JWKS),
+     * issuer, audience, expiry and the `nonce` claim must match the one bound
+     * to this login attempt (recorded at INIT). The `sub` claim is the
+     * BeaconAuth user id used to derive the stable in-game UUID.
      *
      * When legacy offline-UUID mapping is enabled ([BeaconAuthConfig.shouldUseLegacyOfflineUuids]),
      * the returned [VerificationResult.stableUuid] is the offline-mode UUID the account claimed on
      * its first authenticated login, so existing world data keeps working unchanged.
      */
     @JvmStatic
-    fun verifyForProfile(profileName: String, jwt: String, verifier: String, server: MinecraftServer?): VerificationResult {
+    fun verifyForProfile(profileName: String, idToken: String, nonce: String?, server: MinecraftServer?): VerificationResult {
         return try {
             ensureInitialized()
 
             val parsedJwt = try {
-                SignedJWT.parse(jwt)
+                SignedJWT.parse(idToken)
             } catch (e: Exception) {
-                throw SecurityException("Invalid JWT format")
+                throw SecurityException("Invalid ID token format")
             }
 
 			// Optional JKU validation (reject untrusted JWKS URLs early, before any HTTP fetch).
@@ -363,7 +378,7 @@ object AuthServer {
             val processor = jwtProcessor ?: throw SecurityException("JWT processor not initialized")
 
             val claims: JWTClaimsSet = try {
-                processor.process(jwt, null)
+                processor.process(idToken, null)
             } catch (e: com.nimbusds.jose.proc.BadJOSEException) {
                 // If the signature fails, attempt a one-time JWKS refresh and retry.
                 // This helps with key rotation and misconfigured deployments that serve different keys
@@ -375,7 +390,7 @@ object AuthServer {
 
                 if (message.contains("Invalid signature", ignoreCase = true)) {
                     logger.warn(
-						"JWT signature verification failed for $profileName (alg=$alg, kid=$kid, jku=$headerJku). " +
+						"ID token signature verification failed for $profileName (alg=$alg, kid=$kid, jku=$headerJku). " +
                             "Refreshing JWKS and retrying once..."
                     )
 
@@ -385,20 +400,21 @@ object AuthServer {
                     }
 
                     val refreshed = jwtProcessor ?: throw SecurityException("JWT processor not initialized")
-                    refreshed.process(jwt, null)
+                    refreshed.process(idToken, null)
                 } else {
                     throw e
                 }
             }
-            val jwtChallenge = claims.getStringClaim("challenge")
-                ?: throw SecurityException("JWT missing 'challenge' claim")
-            val computedChallenge = PKCEUtils.generateCodeChallenge(verifier)
-            if (computedChallenge != jwtChallenge) {
-                throw SecurityException("PKCE verification failed - verifier does not match challenge")
+
+            // OIDC nonce validation: the ID token must carry the nonce bound to this login attempt.
+            val tokenNonce = claims.getStringClaim("nonce")
+                ?: throw SecurityException("ID token missing 'nonce' claim")
+            if (nonce == null || !PKCEUtils.constantTimeEquals(tokenNonce, nonce)) {
+                throw SecurityException("ID token nonce does not match the login attempt")
             }
 
-            val username = claims.getStringClaim("username") ?: profileName
-            val subject = claims.subject ?: throw SecurityException("JWT missing subject")
+            val username = claims.getStringClaim("preferred_username") ?: profileName
+            val subject = claims.subject ?: throw SecurityException("ID token missing subject")
             val stableUuid = resolveIdentityUuid(subject, profileName, server)
             authenticatedPlayers.add(stableUuid)
             logger.info(
@@ -418,25 +434,25 @@ object AuthServer {
             )
         } catch (e: com.nimbusds.jose.proc.BadJOSEException) {
             val alg = try {
-                SignedJWT.parse(jwt).header.algorithm?.name
+                SignedJWT.parse(idToken).header.algorithm?.name
             } catch (_: Exception) {
                 null
             } ?: "<unknown>"
 
             val kid = try {
-                SignedJWT.parse(jwt).header.keyID
+                SignedJWT.parse(idToken).header.keyID
             } catch (_: Exception) {
                 null
             } ?: "<no-kid>"
 
             logger.warn(
-                "✗ JWT validation failed for $profileName (alg=$alg, kid=$kid, jwksUrl=${BeaconAuthConfig.getJwksUrl()}): ${e.message}"
+                "✗ ID token validation failed for $profileName (alg=$alg, kid=$kid, jwksUrl=${BeaconAuthConfig.getJwksUrl()}): ${e.message}"
             )
 
             // Diagnostics only: decode claims WITHOUT verification to help identify mismatched environments.
             // This MUST NOT be used for authorization decisions.
             try {
-                val unverified = SignedJWT.parse(jwt).jwtClaimsSet
+                val unverified = SignedJWT.parse(idToken).jwtClaimsSet
                 val unverifiedIssuer = unverified.issuer ?: "<missing>"
                 val unverifiedAudience = unverified.audience?.joinToString(",") ?: "<missing>"
                 val unverifiedSubject = unverified.subject ?: "<missing>"
@@ -448,10 +464,10 @@ object AuthServer {
             }
 
             logger.warn(
-                "  If this persists, ensure the auth service that issues the Minecraft JWT is using the same ES256 key that it serves via jwks_url. " +
+                "  If this persists, ensure the auth service that issues the ID token is using the same ES256 key that it serves via jwks_url. " +
                     "If you run multiple instances, key rotation must keep old keys available until issued tokens expire."
             )
-            VerificationResult(false, "JWT validation failed")
+            VerificationResult(false, "ID token validation failed")
         } catch (e: com.nimbusds.jwt.proc.BadJWTException) {
             logger.warn("✗ JWT claims validation failed for $profileName: ${e.message}")
             VerificationResult(false, "JWT claims validation failed")

@@ -18,17 +18,6 @@ pub struct RegisterPayload {
 pub struct LoginPayload {
     pub username: String,
     pub password: String,
-    #[serde(default)]
-    pub challenge: String,
-    #[serde(default)]
-    pub redirect_port: u16,
-}
-
-/// Response for successful login
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LoginResponse {
-    #[serde(rename = "redirectUrl")]
-    pub redirect_url: String,
 }
 
 /// Error response
@@ -42,10 +31,6 @@ pub struct ErrorResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OAuthStartPayload {
     pub provider: String,
-    #[serde(default)]
-    pub challenge: String,
-    #[serde(default)]
-    pub redirect_port: u16,
 }
 
 /// Response for OAuth start
@@ -76,36 +61,77 @@ pub struct OAuthStateClaims {
     pub token_type: String,
 
     pub provider: String,
-    pub challenge: Option<String>,
-    pub redirect_port: Option<u16>,
 
     /// When present, the OAuth flow is being used to link this provider identity
     /// to an already-authenticated user.
     pub link_user_id: Option<String>,
 }
 
-/// JWT Claims structure
+/// OpenID Connect discovery document (subset served at `/.well-known/openid-configuration`).
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    /// Issuer
+pub struct OidcDiscovery {
+    pub issuer: String,
+    pub authorization_endpoint: String,
+    pub token_endpoint: String,
+    pub userinfo_endpoint: String,
+    pub jwks_uri: String,
+    pub scopes_supported: Vec<String>,
+    pub response_types_supported: Vec<String>,
+    pub subject_types_supported: Vec<String>,
+    pub id_token_signing_alg_values_supported: Vec<String>,
+    pub code_challenge_methods_supported: Vec<String>,
+}
+
+/// Client credential (registered static OIDC client for the Minecraft mod).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OidcClient {
+    pub client_id: String,
+    /// Public client: no secret. PKCE is the only proof.
+    pub redirect_uri_prefix: String,
+}
+
+/// Authorization code stored on the server (one-time, short-lived).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthCodeState {
+    /// Canonical user id (subject).
+    pub user_id: String,
+    /// OIDC `nonce` bound to the authorization request.
+    pub nonce: String,
+    /// PKCE S256 challenge from the authorization request.
+    pub code_challenge: String,
+    /// Redirect URI that must match at the token endpoint.
+    pub redirect_uri: String,
+    pub expires_at: i64,
+}
+
+/// ID token claims issued to the Minecraft mod OIDC client.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IdTokenClaims {
     pub iss: String,
-
-    /// Subject (user ID)
     pub sub: String,
-
-    /// Audience
     pub aud: String,
-
-    /// Minecraft username to apply in-game.
-    ///
-    /// This must follow vanilla Minecraft username rules (3..16 chars, [A-Za-z0-9_]).
-    pub username: String,
-
-    /// Expiration time (Unix timestamp)
     pub exp: i64,
+    pub iat: i64,
+    pub auth_time: i64,
+    pub nonce: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preferred_username: Option<String>,
+}
 
-    /// PKCE challenge (critical for BeaconAuth)
-    pub challenge: String,
+/// Successful token endpoint response (RFC 6749 §5.1).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub token_type: String,
+    pub expires_in: i64,
+    pub id_token: String,
+}
+
+/// Error response for the token endpoint (RFC 6749 §5.2).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TokenErrorResponse {
+    pub error: String,
+    pub error_description: Option<String>,
 }
 
 /// Response for GET /api/v1/config
@@ -134,21 +160,6 @@ pub struct SessionClaims {
     pub exp: i64,
     /// Token type: "access" or "refresh"
     pub token_type: String,
-}
-
-/// Request payload for POST /api/v1/minecraft-jwt
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MinecraftJwtRequest {
-    pub challenge: String,
-    pub redirect_port: u16,
-    pub profile_url: String,
-}
-
-/// Response for POST /api/v1/minecraft-jwt
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MinecraftJwtResponse {
-    #[serde(rename = "redirectUrl")]
-    pub redirect_url: String,
 }
 
 /// Linked identity info (e.g. an OAuth provider account linked to the canonical user).
@@ -302,27 +313,12 @@ mod tests {
     fn test_login_payload_deserialization() {
         let json = r#"{
             "username": "testuser",
-            "password": "testpass",
-            "challenge": "abc123",
-            "redirect_port": 25585
+            "password": "testpass"
         }"#;
 
         let payload: LoginPayload = serde_json::from_str(json).unwrap();
         assert_eq!(payload.username, "testuser");
         assert_eq!(payload.password, "testpass");
-        assert_eq!(payload.challenge, "abc123");
-        assert_eq!(payload.redirect_port, 25585);
-    }
-
-    #[test]
-    fn test_login_response_serialization() {
-        let response = LoginResponse {
-            redirect_url: "http://localhost:25585/callback?jwt=token".to_string(),
-        };
-
-        let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("redirectUrl"));
-        assert!(json.contains("http://localhost:25585"));
     }
 
     #[test]
@@ -338,26 +334,31 @@ mod tests {
     }
 
     #[test]
-    fn test_claims_serialization() {
-        let claims = Claims {
+    fn test_id_token_claims_serialization() {
+        let claims = IdTokenClaims {
             iss: "test-issuer".to_string(),
             sub: "user123".to_string(),
-            aud: "test-audience".to_string(),
-            username: "player123".to_string(),
+            aud: "beaconauth-mod".to_string(),
             exp: 1234567890,
-            challenge: "challenge123".to_string(),
+            iat: 1234567800,
+            auth_time: 1234567800,
+            nonce: "nonce123".to_string(),
+            preferred_username: Some("player123".to_string()),
         };
 
         let json = serde_json::to_string(&claims).unwrap();
         assert!(json.contains("test-issuer"));
         assert!(json.contains("user123"));
+        assert!(json.contains("beaconauth-mod"));
+        assert!(json.contains("nonce123"));
         assert!(json.contains("player123"));
-        assert!(json.contains("challenge123"));
 
         // Test deserialization
-        let decoded: Claims = serde_json::from_str(&json).unwrap();
+        let decoded: IdTokenClaims = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.iss, claims.iss);
-        assert_eq!(decoded.username, claims.username);
-        assert_eq!(decoded.challenge, claims.challenge);
+        assert_eq!(decoded.sub, claims.sub);
+        assert_eq!(decoded.aud, claims.aud);
+        assert_eq!(decoded.nonce, claims.nonce);
+        assert_eq!(decoded.preferred_username, claims.preferred_username);
     }
 }

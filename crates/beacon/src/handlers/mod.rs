@@ -1,11 +1,12 @@
 // Re-export all handlers
 pub mod auth;
 pub mod identity;
+pub mod oidc;
 pub mod passkey;
 pub mod user;
 
 // Re-export the auth handlers
-pub use auth::{get_minecraft_jwt, refresh_token};
+pub use auth::refresh_token;
 
 // Keep original handlers here
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
@@ -335,16 +336,6 @@ pub async fn oauth_start(
         token_type: "oauth_state".to_string(),
         provider: payload.provider.clone(),
         link_user_id: None,
-        challenge: if payload.challenge.is_empty() {
-            None
-        } else {
-            Some(payload.challenge.clone())
-        },
-        redirect_port: if payload.redirect_port == 0 {
-            None
-        } else {
-            Some(payload.redirect_port)
-        },
     };
 
     let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
@@ -494,16 +485,6 @@ pub async fn oauth_link_start(
         token_type: "oauth_state".to_string(),
         provider: payload.provider.clone(),
         link_user_id: Some(user_id.clone()),
-        challenge: if payload.challenge.is_empty() {
-            None
-        } else {
-            Some(payload.challenge.clone())
-        },
-        redirect_port: if payload.redirect_port == 0 {
-            None
-        } else {
-            Some(payload.redirect_port)
-        },
     };
 
     let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);

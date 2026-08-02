@@ -2,20 +2,38 @@ package io.github.summpot.beaconauth.client
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.util.PKCEUtils
 import io.github.summpot.beaconauth.util.TranslationHelper
+import com.google.gson.JsonParser
 import net.minecraft.Util
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.ConfirmLinkScreen
 import org.slf4j.LoggerFactory
 import java.net.BindException
 import java.net.InetSocketAddress
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.jvm.Volatile
 
 /**
  * Client helper responsible for PKCE generation, loopback HTTP server, and
  * bridging OAuth callbacks back into the login-phase negotiation.
+ *
+ * Implements the OIDC authorization-code flow as a public client:
+ *  1. The login URL points at the server's `/api/v1/oidc/authorize` endpoint
+ *     with `code_challenge`, `nonce`, `state` and the loopback redirect URI.
+ *  2. After the user authenticates in the browser, the server redirects to
+ *     `http://127.0.0.1:<port>/auth-callback?code=...&state=...`.
+ *  3. This client exchanges the code at the token endpoint (with the PKCE
+ *     verifier) and validates the `nonce` in the returned ID token before
+ *     handing it to the login-phase negotiation.
  */
 object AuthClient {
     private val logger = LoggerFactory.getLogger("BeaconAuth/Client")
@@ -24,16 +42,18 @@ object AuthClient {
     private const val PORT_RANGE_END = 38133
     private const val CALLBACK_PATH = "/auth-callback"
 
-    data class LoginInitPayload(val codeChallenge: String, val boundPort: Int)
+    data class LoginInitPayload(val codeChallenge: String, val boundPort: Int, val nonce: String)
 
     interface LoginPhaseCallback {
-        fun onAuthSuccess(jwt: String, verifier: String)
+        fun onAuthSuccess(idToken: String)
         fun onAuthError(message: String)
     }
 
     private var httpServer: HttpServer? = null
     private var boundPort: Int = -1
     private var currentCodeVerifier: String? = null
+    private var currentNonce: String? = null
+    private var currentState: String? = null
     @Volatile private var loginPhaseCallback: LoginPhaseCallback? = null
     private val serverReady = AtomicBoolean(false)
 
@@ -43,14 +63,44 @@ object AuthClient {
         }
     }
 
+    private fun randomUrlSafe(bytes: Int): String {
+        val buf = ByteArray(bytes)
+        SecureRandom().nextBytes(buf)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf)
+    }
+
     @JvmStatic
     fun prepareLoginPhaseCredentials(): LoginInitPayload {
         startLocalHttpServer()
         val verifier = PKCEUtils.generateCodeVerifier()
         val challenge = PKCEUtils.generateCodeChallenge(verifier)
+        val nonce = randomUrlSafe(24)
+        val state = randomUrlSafe(24)
         currentCodeVerifier = verifier
-        logger.info("Generated PKCE challenge for login-phase handshake")
-        return LoginInitPayload(challenge, boundPort)
+        currentNonce = nonce
+        currentState = state
+        logger.info("Generated PKCE challenge + nonce for OIDC login-phase handshake")
+        return LoginInitPayload(challenge, boundPort, nonce)
+    }
+
+    /**
+     * Build the OIDC authorization URL from the credentials generated at INIT.
+     * Used by 1.20.x when the server pushes no LOGIN_URL payload.
+     */
+    @JvmStatic
+    fun buildOidcLoginUrl(): String {
+        val challenge = currentCodeVerifier?.let { PKCEUtils.generateCodeChallenge(it) }
+            ?: throw IllegalStateException("Login flow not initiated")
+        val nonce = currentNonce ?: throw IllegalStateException("Login flow not initiated")
+        val redirectUri = "http://127.0.0.1:$boundPort$CALLBACK_PATH"
+        return "${BeaconAuthConfig.getAuthBaseUrl()}/api/v1/oidc/authorize?" +
+            "response_type=code&client_id=" + java.net.URLEncoder.encode(BeaconAuthConfig.getOidcClientId(), "UTF-8") +
+            "&redirect_uri=" + java.net.URLEncoder.encode(redirectUri, "UTF-8") +
+            "&scope=openid" +
+            "&state=" + java.net.URLEncoder.encode(nonce, "UTF-8") +
+            "&code_challenge=" + java.net.URLEncoder.encode(challenge, "UTF-8") +
+            "&code_challenge_method=S256" +
+            "&nonce=" + java.net.URLEncoder.encode(nonce, "UTF-8")
     }
 
     @JvmStatic
@@ -120,35 +170,46 @@ object AuthClient {
                 ?.associate { it[0] to java.net.URLDecoder.decode(it[1], "UTF-8") }
                 ?: emptyMap()
 
-            val jwt = params["jwt"]
-            val profileUrl = params["profile_url"]
+            val code = params["code"]
+            val error = params["error"]
+            val state = params["state"]
 
-            if (jwt.isNullOrBlank()) {
-                logger.error("Received callback without JWT parameter")
-                val redirectUrl = if (profileUrl != null) {
-                    "$profileUrl?status=error&message=Missing+JWT+parameter"
-                } else {
-                    "/profile?status=error&message=Missing+JWT+parameter"
-                }
-                sendRedirectResponse(exchange, redirectUrl)
-                loginPhaseCallback?.onAuthError("Missing JWT parameter")
+            if (!error.isNullOrBlank()) {
+                logger.error("OIDC authorization error: $error")
+                sendRedirectResponse(exchange, "/profile?status=error&message=" + java.net.URLEncoder.encode(error, "UTF-8"))
+                loginPhaseCallback?.onAuthError("Authorization error: $error")
+                return
+            }
+
+            if (code.isNullOrBlank()) {
+                logger.error("Received callback without code parameter")
+                sendRedirectResponse(exchange, "/profile?status=error&message=Missing+code+parameter")
+                loginPhaseCallback?.onAuthError("Missing code parameter")
+                return
+            }
+
+            // Validate state (CSRF protection).
+            val expectedState = currentState
+            if (expectedState == null || state == null || state != expectedState) {
+                logger.error("OIDC state mismatch")
+                sendRedirectResponse(exchange, "/profile?status=error&message=State+mismatch")
+                loginPhaseCallback?.onAuthError("State mismatch")
                 return
             }
 
             val verifier = currentCodeVerifier
             if (verifier == null) {
                 logger.error("No code verifier found - login flow not initiated properly")
-                val redirectUrl = if (profileUrl != null) {
-                    "$profileUrl?status=error&message=Login+flow+not+initiated"
-                } else {
-                    "/profile?status=error&message=Login+flow+not+initiated"
-                }
-                sendRedirectResponse(exchange, redirectUrl)
+                sendRedirectResponse(exchange, "/profile?status=error&message=Login+flow+not+initiated")
                 loginPhaseCallback?.onAuthError("Login flow not initiated")
                 return
             }
 
-            logger.info("Received JWT from browser, notifying server...")
+            logger.info("Received OIDC code from browser, exchanging at token endpoint...")
+
+            val idToken = exchangeCodeForIdToken(code, verifier, state)
+            currentCodeVerifier = null
+            currentState = null
 
             // Try to bring Minecraft window to foreground
             try {
@@ -157,35 +218,52 @@ object AuthClient {
                 logger.warn("Failed to focus Minecraft window: ${e.message}")
             }
 
-            loginPhaseCallback?.onAuthSuccess(jwt, verifier)
-            currentCodeVerifier = null
+            loginPhaseCallback?.onAuthSuccess(idToken)
+            currentNonce = null
 
             // Redirect to profile page with success status
-            val redirectUrl = if (profileUrl != null) {
-                "$profileUrl?status=success&message=Authentication+successful"
-            } else {
-                "/profile?status=success&message=Authentication+successful"
-            }
-            sendRedirectResponse(exchange, redirectUrl)
+            sendRedirectResponse(exchange, "/profile?status=success&message=Authentication+successful")
         } catch (e: Exception) {
             logger.error("Error handling auth callback: ${e.message}", e)
-            val query = exchange.requestURI.query
-            val params = query?.split("&")
-                ?.map { it.split("=", limit = 2) }
-                ?.filter { it.size == 2 }
-                ?.associate { it[0] to java.net.URLDecoder.decode(it[1], "UTF-8") }
-                ?: emptyMap()
-            val profileUrl = params["profile_url"]
-            val redirectUrl = if (profileUrl != null) {
-                "$profileUrl?status=error&message=" + java.net.URLEncoder.encode(e.message ?: "Unknown error", "UTF-8")
-            } else {
-                "/profile?status=error&message=" + java.net.URLEncoder.encode(e.message ?: "Unknown error", "UTF-8")
-            }
-            sendRedirectResponse(exchange, redirectUrl)
+            sendRedirectResponse(exchange, "/profile?status=error&message=" + java.net.URLEncoder.encode(e.message ?: "Unknown error", "UTF-8"))
             loginPhaseCallback?.onAuthError(e.message ?: "Unknown error")
         } finally {
             exchange.close()
         }
+    }
+
+    /**
+     * Exchange the authorization code for an ID token at the token endpoint (RFC 6749 §4.1.3).
+     * Returns the raw ID token JWT. The nonce is verified by the server-side mod.
+     */
+    private fun exchangeCodeForIdToken(code: String, verifier: String, state: String): String {
+        val form = "grant_type=authorization_code" +
+            "&code=" + java.net.URLEncoder.encode(code, "UTF-8") +
+            "&redirect_uri=" + java.net.URLEncoder.encode("http://127.0.0.1:$boundPort$CALLBACK_PATH", "UTF-8") +
+            "&client_id=" + java.net.URLEncoder.encode(BeaconAuthConfig.getOidcClientId(), "UTF-8") +
+            "&code_verifier=" + java.net.URLEncoder.encode(verifier, "UTF-8")
+
+        val client = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build()
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(BeaconAuthConfig.getTokenEndpoint()))
+            .timeout(java.time.Duration.ofSeconds(15))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .POST(HttpRequest.BodyPublishers.ofString(form))
+            .build()
+
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            val snippet = response.body().take(512)
+            throw IllegalStateException("Token endpoint returned HTTP ${response.statusCode()}: $snippet")
+        }
+
+        val body = response.body()
+        val parsed = JsonParser.parseString(body).asJsonObject
+        val idToken = parsed.get("id_token")?.asString ?: ""
+        if (idToken.isEmpty()) {
+            throw IllegalStateException("Token response missing id_token")
+        }
+        return idToken
     }
 
     private fun sendRedirectResponse(exchange: HttpExchange, location: String) {

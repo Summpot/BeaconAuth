@@ -81,9 +81,6 @@ pub struct ServeConfig {
     pub cors_origins: String,
 
     /// JWT expiration time in seconds
-    #[arg(long, env = "JWT_EXPIRATION", default_value = "3600")]
-    pub jwt_expiration: i64,
-
     /// Log level
     #[arg(long, env = "RUST_LOG", default_value = "info")]
     pub log_level: String,

@@ -61,7 +61,8 @@ class BeaconAuthModNeoForge(
 private class BeaconAuthServerConfig(builder: ModConfigSpec.Builder) {
     private val authBaseUrl: ModConfigSpec.ConfigValue<String>
     private val jwksUrl: ModConfigSpec.ConfigValue<String>
-    private val expectedAudience: ModConfigSpec.ConfigValue<String>
+    private val oidcClientId: ModConfigSpec.ConfigValue<String>
+    private val tokenEndpoint: ModConfigSpec.ConfigValue<String>
     private val jkuAllowedHostPatterns: ModConfigSpec.ConfigValue<String>
     private val bypassIfOnlineModeVerified: ModConfigSpec.BooleanValue
     private val forceAuthIfOfflineMode: ModConfigSpec.BooleanValue
@@ -99,12 +100,21 @@ private class BeaconAuthServerConfig(builder: ModConfigSpec.Builder) {
             "These values must match your authentication server's configuration"
         ).push("jwt")
 
-        expectedAudience = builder
+        oidcClientId = builder
             .comment(
-                "Expected JWT audience (aud claim)",
-                "This must match the 'aud' claim in the JWT token"
+                "OIDC client_id used for the authorization-code flow",
+                "Must match the server's registered public client for the Minecraft mod",
+                "The client is public (no secret): PKCE is the only proof of possession"
             )
-            .define("audience", "minecraft-client")
+            .define("oidc_client_id", "beaconauth-mod")
+
+        tokenEndpoint = builder
+            .comment(
+                "OIDC token endpoint for the authorization-code exchange",
+                "Usually: <base_url>/api/v1/oidc/token",
+                "Leave empty to derive from base_url"
+            )
+            .define("token_endpoint", "")
 
         builder.pop()
 
@@ -173,7 +183,8 @@ private class BeaconAuthServerConfig(builder: ModConfigSpec.Builder) {
         BeaconAuthConfig.apply(
             authBaseUrl.get(),
             jwksUrl.get(),
-            expectedAudience.get(),
+            oidcClientId.get(),
+            tokenEndpoint.get(),
             jkuAllowedHostPatterns.get(),
             bypassIfOnlineModeVerified.getAsBoolean(),
             forceAuthIfOfflineMode.getAsBoolean(),

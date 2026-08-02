@@ -33,11 +33,10 @@ import { PageLoader } from '@/components/ui/page-loader';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage } from '@/lib/errors';
 import {
-  isMinecraftFlow,
-  type MinecraftSearchParams,
-  minecraftSearchSchema,
-  redirectAfterAuth,
-  tryCompleteMinecraftFlow,
+  completeOidcFlow,
+  isOidcFlow,
+  type OidcSearchParams,
+  oidcSearchSchema,
 } from '@/lib/minecraft-flow';
 import * as m from '@/paraglide/messages';
 import { apiClient, queryKeys, type ServerConfig } from '../utils/api';
@@ -100,11 +99,12 @@ function LoginPage() {
         console.error('Failed to load server config:', error);
       }
 
-      if (isMinecraftFlow(searchParams)) {
+      if (isOidcFlow(searchParams)) {
+        // Already authenticated via cookie: complete the authorization directly.
         try {
-          if (await tryCompleteMinecraftFlow(searchParams)) return;
+          if (await completeOidcFlow(searchParams)) return;
         } catch (error) {
-          console.log('Auto-login failed, showing login form', error);
+          console.log('OIDC auto-complete failed, showing login form', error);
         }
       }
       setConfigLoading(false);
@@ -214,26 +214,12 @@ function LoginPage() {
 
   const handleOAuthLogin = async (provider: OAuthProvider) => {
     try {
-      if (isMinecraftFlow(searchParams)) {
-        sessionStorage.setItem('minecraft_challenge', searchParams.challenge);
-        sessionStorage.setItem(
-          'minecraft_redirect_port',
-          searchParams.redirect_port.toString(),
-        );
-      } else {
-        sessionStorage.removeItem('minecraft_challenge');
-        sessionStorage.removeItem('minecraft_redirect_port');
-      }
       const result = await apiClient<{ authorizationUrl?: string }>(
         '/api/v1/oauth/start',
         {
           method: 'POST',
           requiresAuth: false,
-          body: {
-            provider,
-            challenge: searchParams.challenge || '',
-            redirect_port: searchParams.redirect_port || 0,
-          },
+          body: { provider },
         },
       );
       if (result.authorizationUrl)
@@ -287,7 +273,7 @@ function LoginPage() {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {isMinecraftFlow(searchParams) && (
+              {isOidcFlow(searchParams) && (
                 <MinecraftFlowAlert title={m.login_minecraft_title()} />
               )}
 
@@ -427,8 +413,14 @@ function LoginPage() {
                     <Link
                       to="/register"
                       search={{
-                        challenge: searchParams.challenge,
-                        redirect_port: searchParams.redirect_port,
+                        oidc: searchParams.oidc,
+                        client_id: searchParams.client_id,
+                        redirect_uri: searchParams.redirect_uri,
+                        scope: searchParams.scope,
+                        state: searchParams.state,
+                        code_challenge: searchParams.code_challenge,
+                        code_challenge_method: searchParams.code_challenge_method,
+                        nonce: searchParams.nonce,
                       }}
                       className="text-primary hover:text-primary/80 font-medium transition-colors"
                     >
@@ -447,6 +439,6 @@ function LoginPage() {
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
-  validateSearch: (search: Record<string, unknown>): MinecraftSearchParams =>
-    minecraftSearchSchema.parse(search),
+  validateSearch: (search: Record<string, unknown>): OidcSearchParams =>
+    oidcSearchSchema.parse(search),
 });

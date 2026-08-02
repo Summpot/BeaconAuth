@@ -32,8 +32,6 @@ object ServerConfig {
         get() = BeaconAuthConfig.getJwksUrl()
     val expectedIssuer: String
         get() = BeaconAuthConfig.getExpectedIssuer()
-    val expectedAudience: String
-        get() = BeaconAuthConfig.getExpectedAudience()
 
 	val jkuEnabled: Boolean
         get() = BeaconAuthConfig.getJkuAllowedHostPatterns().isNotEmpty()

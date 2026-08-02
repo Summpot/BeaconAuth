@@ -58,7 +58,8 @@ object BeaconAuthModFabric : ModInitializer {
 private object BeaconAuthServerConfig {
     private val authBaseUrl: ForgeConfigSpec.ConfigValue<String>
     private val jwksUrl: ForgeConfigSpec.ConfigValue<String>
-    private val expectedAudience: ForgeConfigSpec.ConfigValue<String>
+    private val oidcClientId: ForgeConfigSpec.ConfigValue<String>
+    private val tokenEndpoint: ForgeConfigSpec.ConfigValue<String>
     private val jkuAllowedHostPatterns: ForgeConfigSpec.ConfigValue<String>
     private val bypassIfOnlineModeVerified: ForgeConfigSpec.BooleanValue
     private val forceAuthIfOfflineMode: ForgeConfigSpec.BooleanValue
@@ -100,12 +101,21 @@ private object BeaconAuthServerConfig {
             "These values must match your authentication server's configuration"
         ).push("jwt")
 
-        expectedAudience = builder
+        oidcClientId = builder
             .comment(
-                "Expected JWT audience (aud claim)",
-                "This must match the 'aud' claim in the JWT token"
+                "OIDC client_id used for the authorization-code flow",
+                "Must match the server's registered public client for the Minecraft mod",
+                "The client is public (no secret): PKCE is the only proof of possession"
             )
-            .define("audience", "minecraft-client")
+            .define("oidc_client_id", "beaconauth-mod")
+
+        tokenEndpoint = builder
+            .comment(
+                "OIDC token endpoint for the authorization-code exchange",
+                "Usually: <base_url>/api/v1/oidc/token",
+                "Leave empty to derive from base_url"
+            )
+            .define("token_endpoint", "")
 
         builder.pop()
 
@@ -176,7 +186,8 @@ private object BeaconAuthServerConfig {
         BeaconAuthConfig.apply(
             authBaseUrl.get(),
             jwksUrl.get(),
-            expectedAudience.get(),
+            oidcClientId.get(),
+            tokenEndpoint.get(),
             jkuAllowedHostPatterns.get(),
             bypassIfOnlineModeVerified.get(),
             forceAuthIfOfflineMode.get(),

@@ -152,11 +152,23 @@ class ServerLoginHandler @JvmOverloads constructor(
         }
         val challenge = data.readUtf(512)
         val redirectPort = data.readVarInt()
+        val nonce = data.readUtf(256)
         negotiation.setChallenge(challenge, redirectPort)
-        logger.info("Received INIT: challenge length=${challenge.length}, port=$redirectPort")
+        negotiation.setNonce(nonce)
+        logger.info("Received INIT: challenge length=${challenge.length}, port=$redirectPort, nonce length=${nonce.length}")
 
         try {
-            val loginUrl = AuthServer.buildLoginUrl(challenge, redirectPort)
+            // Build the OIDC authorize URL (client fetches it from us on 1.19.2; on
+            // 1.20.x custom query, the client computes it locally after INIT).
+            val redirectUri = "http://127.0.0.1:$redirectPort/auth-callback"
+            val loginUrl = "${BeaconAuthConfig.getAuthBaseUrl()}/api/v1/oidc/authorize?" +
+                "response_type=code&client_id=${BeaconAuthConfig.getOidcClientId()}" +
+                "&redirect_uri=" + java.net.URLEncoder.encode(redirectUri, "UTF-8") +
+                "&scope=openid" +
+                "&state=" + java.net.URLEncoder.encode(nonce, "UTF-8") +
+                "&code_challenge=" + java.net.URLEncoder.encode(challenge, "UTF-8") +
+                "&code_challenge_method=S256" +
+                "&nonce=" + java.net.URLEncoder.encode(nonce, "UTF-8")
             negotiation.phase = ServerLoginNegotiation.Phase.LOGIN_URL
             sendQuery(LoginQueryType.LOGIN_URL) { buf -> buf.writeUtf(loginUrl, 2048) }
             negotiation.resetTick()
@@ -196,8 +208,7 @@ class ServerLoginHandler @JvmOverloads constructor(
         when (status) {
             LoginVerificationStatus.SUCCESS -> {
                 val jwt = data.readUtf(4096)
-                val verifier = data.readUtf(512)
-                val result = AuthServer.verifyForProfile(profile.name, jwt, verifier, server)
+                val result = AuthServer.verifyForProfile(profile.name, jwt, negotiation.getPendingNonce(), server)
                 if (result.success) {
                     val effectiveName = sanitizeMinecraftUsername(result.username) ?: profile.name
                     val stableUuid = result.stableUuid

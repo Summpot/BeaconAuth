@@ -395,16 +395,6 @@ pub async fn handle_oauth_start(mut req: Request, env: &Env) -> Result<Response>
         iat: now.timestamp(),
         token_type: "oauth_state".to_string(),
         provider: payload.provider.clone(),
-        challenge: if payload.challenge.is_empty() {
-            None
-        } else {
-            Some(payload.challenge.clone())
-        },
-        redirect_port: if payload.redirect_port == 0 {
-            None
-        } else {
-            Some(payload.redirect_port)
-        },
         link_user_id: None,
     };
 
@@ -517,16 +507,6 @@ pub async fn handle_oauth_link_start(mut req: Request, env: &Env) -> Result<Resp
         iat: now.timestamp(),
         token_type: "oauth_state".to_string(),
         provider: payload.provider.clone(),
-        challenge: if payload.challenge.is_empty() {
-            None
-        } else {
-            Some(payload.challenge.clone())
-        },
-        redirect_port: if payload.redirect_port == 0 {
-            None
-        } else {
-            Some(payload.redirect_port)
-        },
         link_user_id: Some(link_user_id),
     };
 

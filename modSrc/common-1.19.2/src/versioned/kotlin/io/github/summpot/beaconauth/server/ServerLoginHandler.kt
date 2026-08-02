@@ -152,11 +152,13 @@ class ServerLoginHandler @JvmOverloads constructor(
         }
         val challenge = data.readUtf(512)
         val redirectPort = data.readVarInt()
+        val nonce = data.readUtf(256)
         negotiation.setChallenge(challenge, redirectPort)
-        logger.info("Received INIT: challenge length=${challenge.length}, port=$redirectPort")
+        negotiation.setNonce(nonce)
+        logger.info("Received INIT: challenge length=${challenge.length}, port=$redirectPort, nonce length=${nonce.length}")
 
         try {
-            val loginUrl = AuthServer.buildLoginUrl(challenge, redirectPort)
+            val loginUrl = AuthServer.buildLoginUrl(challenge, redirectPort, nonce)
             negotiation.phase = ServerLoginNegotiation.Phase.LOGIN_URL
             sendQuery(LoginQueryType.LOGIN_URL) { buf -> buf.writeUtf(loginUrl, 2048) }
             negotiation.resetTick()
@@ -196,8 +198,7 @@ class ServerLoginHandler @JvmOverloads constructor(
         when (status) {
             LoginVerificationStatus.SUCCESS -> {
                 val jwt = data.readUtf(4096)
-                val verifier = data.readUtf(512)
-                val result = AuthServer.verifyForProfile(profile.name, jwt, verifier, server)
+                val result = AuthServer.verifyForProfile(profile.name, jwt, negotiation.getPendingNonce(), server)
                 if (result.success) {
                     val effectiveName = sanitizeMinecraftUsername(result.username) ?: profile.name
                     val stableUuid = result.stableUuid

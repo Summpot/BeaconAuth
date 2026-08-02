@@ -33,7 +33,6 @@ pub struct JwtState {
 
     pub access_token_expiration: i64,
     pub refresh_token_expiration: i64,
-    pub jwt_expiration: i64,
 }
 
 static JWT_STATE: OnceLock<Mutex<JwtState>> = OnceLock::new();
@@ -128,10 +127,6 @@ async fn init_jwt_state(env: &Env) -> Result<JwtState> {
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(2_592_000);
 
-    let jwt_expiration = env_string(env, "JWT_EXPIRATION")
-        .and_then(|s| s.parse::<i64>().ok())
-        .unwrap_or(3600);
-
     Ok(JwtState {
         issuer,
         jwks_url,
@@ -143,7 +138,6 @@ async fn init_jwt_state(env: &Env) -> Result<JwtState> {
         next_jwks_rotation_at,
         access_token_expiration,
         refresh_token_expiration,
-        jwt_expiration,
     })
 }
 

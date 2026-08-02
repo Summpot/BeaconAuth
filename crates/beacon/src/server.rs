@@ -30,7 +30,6 @@ pub fn build_api_routes() -> actix_web::Scope {
         .route("/oauth/link/start", web::post().to(handlers::oauth_link_start))
         .route("/oauth/callback", web::get().to(handlers::oauth_callback))
         .route("/refresh", web::post().to(handlers::refresh_token))
-        .route("/minecraft-jwt", web::post().to(handlers::get_minecraft_jwt))
         .route("/user/me", web::get().to(handlers::user::get_user_info))
         .route("/user/profile", web::post().to(handlers::user::update_profile))
         .route("/user/me/avatar", web::get().to(handlers::user::get_my_avatar))
@@ -65,10 +64,13 @@ pub fn build_api_routes() -> actix_web::Scope {
             "/passkey/{id}",
             web::delete().to(handlers::passkey::delete_passkey_by_id),
         )
-        .route(
-            "/passkey/delete",
+        .route("/passkey/delete",
             web::post().to(handlers::passkey::delete_passkey),
         )
+        .route("/oidc/authorize", web::get().to(handlers::oidc::authorize))
+        .route("/oidc/token", web::post().to(handlers::oidc::token))
+        .route("/oidc/complete", web::post().to(handlers::oidc::complete))
+        .route("/oidc/userinfo", web::get().to(handlers::oidc::userinfo))
 }
 
 /// All backend routes under the `/api` context path.
@@ -82,7 +84,9 @@ pub fn build_api_context_routes() -> actix_web::Scope {
 }
 
 pub fn build_jwks_routes() -> actix_web::Scope {
-    web::scope("/.well-known").route("/jwks.json", web::get().to(handlers::get_jwks))
+    web::scope("/.well-known")
+        .route("/jwks.json", web::get().to(handlers::get_jwks))
+        .route("/openid-configuration", web::get().to(handlers::oidc::discovery))
 }
 
 fn build_cors(cors_origins: &[String]) -> Cors {
@@ -208,7 +212,6 @@ pub async fn build_app_state(config: &ServeConfig) -> anyhow::Result<web::Data<A
         jwks_json,
         jwks_url,
         jwt_kid: config.jwt_kid.clone(),
-        jwt_expiration: config.jwt_expiration,
         access_token_expiration: 900, // 15 minutes
         refresh_token_expiration: 2_592_000, // 30 days
         oauth_config,
@@ -405,7 +408,6 @@ mod tests {
             bind_address: "127.0.0.1:8080".to_string(),
             control_socket: "/tmp/test.sock".into(),
             cors_origins: "http://localhost:3000, http://example.com".to_string(),
-            jwt_expiration: 3600,
             log_level: "info".to_string(),
             github_client_id: None,
             github_client_secret: None,

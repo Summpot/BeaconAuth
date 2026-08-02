@@ -33,16 +33,13 @@ object PKCEUtils {
     }
 
     /**
-     * Verify that a verifier matches a challenge
-     * Used on server-side to validate PKCE flow
+     * Constant-time string comparison (used for OIDC nonce validation).
      */
-    fun verifyChallenge(verifier: String, challenge: String): Boolean {
+    fun constantTimeEquals(a: String, b: String): Boolean {
         return try {
-            val computedChallenge = generateCodeChallenge(verifier)
-            // Constant-time comparison to prevent timing attacks
             MessageDigest.isEqual(
-                computedChallenge.toByteArray(Charsets.US_ASCII),
-                challenge.toByteArray(Charsets.US_ASCII)
+                a.toByteArray(Charsets.UTF_8),
+                b.toByteArray(Charsets.UTF_8)
             )
         } catch (e: Exception) {
             false

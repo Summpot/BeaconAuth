@@ -1,7 +1,6 @@
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
 use entity::refresh_token;
-use entity::user;
 use jsonwebtoken::{encode, Header};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use sha2::{Digest, Sha256};
@@ -21,7 +20,7 @@ pub struct TokenPair {
 
 /// Helper: Generate a raw JWT token with given claims
 /// This is the core JWT generation logic used by all token types
-fn generate_jwt<T: serde::Serialize>(
+pub(crate) fn generate_jwt<T: serde::Serialize>(
     app_state: &AppState,
     claims: &T,
 ) -> Result<String, jsonwebtoken::errors::Error> {
@@ -200,88 +199,6 @@ pub async fn refresh_token(
         .json(serde_json::json!({ "success": true }))
 }
 
-/// POST /api/v1/minecraft-jwt
-/// Get Minecraft JWT using access token
-/// This endpoint ONLY generates the Minecraft-specific JWT for client-server communication.
-/// It does NOT refresh or modify session tokens - that should only happen during login or explicit refresh.
-pub async fn get_minecraft_jwt(
-    app_state: web::Data<AppState>,
-    req: HttpRequest,
-    payload: web::Json<MinecraftJwtRequest>,
-) -> impl Responder {
-    // Get user_id from access token (no automatic refresh)
-    let user_id = match get_access_token_from_cookie(&req) {
-        Some(access_token) => {
-            match verify_access_token(&app_state, &access_token) {
-                Ok(id) => id,
-                Err(e) => {
-                    log::warn!("Invalid access token for minecraft-jwt: {}", e);
-                    return HttpResponse::Unauthorized().json(ErrorResponse {
-                        error: "unauthorized".to_string(),
-                        message: "Not authenticated. Please log in again.".to_string(),
-                    });
-                }
-            }
-        }
-        None => {
-            log::warn!("No access token provided for minecraft-jwt");
-            return HttpResponse::Unauthorized().json(ErrorResponse {
-                error: "unauthorized".to_string(),
-                message: "Not authenticated. Please log in again.".to_string(),
-            });
-        }
-    };
-
-    // Create Minecraft JWT with challenge using the unified JWT generator
-    let user_model = match user::Entity::find_by_id(user_id.clone()).one(&app_state.db).await {
-        Ok(Some(u)) => u,
-        Ok(None) => {
-            return HttpResponse::Unauthorized().json(ErrorResponse {
-                error: "unauthorized".to_string(),
-                message: "Not authenticated. Please log in again.".to_string(),
-            });
-        }
-        Err(e) => {
-            log::error!("Database error (user lookup for minecraft-jwt): {e}");
-            return HttpResponse::InternalServerError().json(ErrorResponse {
-                error: "internal_error".to_string(),
-                message: "Database error occurred".to_string(),
-            });
-        }
-    };
-
-    let now = Utc::now();
-    let exp = now + chrono::Duration::seconds(app_state.jwt_expiration);
-
-    let claims = Claims {
-        iss: app_state.oauth_config.redirect_base.clone(),
-        sub: user_id.to_string(),
-        aud: "minecraft-client".to_string(),
-        username: user_model.username,
-        exp: exp.timestamp(),
-        challenge: payload.challenge.clone(),
-    };
-
-    let token = match generate_jwt(&app_state, &claims) {
-        Ok(t) => t,
-        Err(e) => {
-            log::error!("Failed to sign JWT: {}", e);
-            return HttpResponse::InternalServerError().json(ErrorResponse {
-                error: "internal_error".to_string(),
-                message: "Failed to generate token".to_string(),
-            });
-        }
-    };
-
-    let redirect_url = format!(
-        "http://localhost:{}/auth-callback?jwt={}&profile_url={}",
-        payload.redirect_port, token,
-        urlencoding::encode(&payload.profile_url)
-    );
-
-    HttpResponse::Ok().json(MinecraftJwtResponse { redirect_url })
-}
-
 /// Helper: Set auth cookies after successful authentication
 pub fn set_auth_cookies(
     app_state: &AppState,
@@ -354,6 +271,34 @@ pub fn verify_access_token(app_state: &AppState, token: &str) -> Result<String, 
 
     // Parse and normalize user ID from subject claim.
     // We store user ids as UUIDv7 strings.
+    let user_id = Uuid::parse_str(&token_data.claims.sub)
+        .map_err(|_| "Invalid user ID in token".to_string())?
+        .to_string();
+
+    Ok(user_id)
+}
+
+/// Verify an OIDC access token (aud = `beaconauth-oidc`) issued by the token endpoint.
+pub fn verify_oidc_access_token(app_state: &AppState, token: &str) -> Result<String, String> {
+    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::ES256);
+    validation.set_issuer(&[&app_state.oauth_config.redirect_base]);
+    validation.set_audience(&["beaconauth-oidc"]);
+    validation.validate_exp = true;
+
+    let token_data = jsonwebtoken::decode::<SessionClaims>(
+        token,
+        &app_state.decoding_key,
+        &validation,
+    )
+    .map_err(|e| {
+        log::debug!("Failed to decode OIDC access token: {:?}", e);
+        format!("Invalid OIDC access token: {:?}", e)
+    })?;
+
+    if token_data.claims.token_type != "access" {
+        return Err("Invalid token type".to_string());
+    }
+
     let user_id = Uuid::parse_str(&token_data.claims.sub)
         .map_err(|_| "Invalid user ID in token".to_string())?
         .to_string();

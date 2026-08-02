@@ -1,6 +1,5 @@
 package io.github.summpot.beaconauth.client
 
-import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.login.LoginVerificationStatus
 import io.github.summpot.beaconauth.login.LoginQueryType
 import io.github.summpot.beaconauth.util.TranslationHelper
@@ -57,10 +56,11 @@ object ClientLoginHandler {
         sendCookieResponse(connection, LoginQueryType.INIT.id()) { buf ->
             buf.writeUtf(payload.codeChallenge, 512)
             buf.writeVarInt(payload.boundPort)
+            buf.writeUtf(payload.nonce, 256)
         }
-        logger.debug("Sent init response with challenge and port")
+        logger.debug("Sent init response with challenge, port and nonce")
 
-        val loginUrl = "${BeaconAuthConfig.getAuthBaseUrl()}/login?challenge=${payload.codeChallenge}&redirect_port=${payload.boundPort}"
+        val loginUrl = AuthClient.buildOidcLoginUrl()
         AuthClient.showLoginConfirmation(
             loginUrl,
             onConfirm = { },
@@ -71,7 +71,7 @@ object ClientLoginHandler {
     @JvmStatic
     fun handleVerifyRequest(connection: Connection) {
         if (cancelledBeforeVerify) {
-            sendVerifyResponse(connection, LoginVerificationStatus.CANCELLED, null, null, cancelReason)
+            sendVerifyResponse(connection, LoginVerificationStatus.CANCELLED, null, cancelReason)
             cancelledBeforeVerify = false
             cancelReason = ""
             BeaconAuthClientSession.clearHandshake()
@@ -83,16 +83,16 @@ object ClientLoginHandler {
         logger.debug("Waiting for OAuth callback to complete verification...")
 
         AuthClient.registerLoginPhaseCallback(object : AuthClient.LoginPhaseCallback {
-            override fun onAuthSuccess(jwt: String, verifier: String) {
+            override fun onAuthSuccess(idToken: String) {
                 BeaconAuthClientSession.markAuthenticated(connection)
-                sendVerifyResponse(connection, LoginVerificationStatus.SUCCESS, jwt, verifier, null)
-                logger.info("OAuth flow succeeded; sent JWT & verifier")
+                sendVerifyResponse(connection, LoginVerificationStatus.SUCCESS, idToken, null)
+                logger.info("OIDC flow succeeded; sent ID token")
             }
 
             override fun onAuthError(message: String) {
                 BeaconAuthClientSession.clearHandshake()
-                sendVerifyResponse(connection, LoginVerificationStatus.ERROR, null, null, message)
-                logger.error("OAuth flow failed: $message")
+                sendVerifyResponse(connection, LoginVerificationStatus.ERROR, null, message)
+                logger.error("OIDC flow failed: $message")
             }
         })
     }
@@ -100,7 +100,7 @@ object ClientLoginHandler {
     private fun cancelDuringVerify(connection: Connection, reason: String) {
         if (verifyRequested) {
             logger.warn("User cancelled during verify phase; sending CANCELLED")
-            sendVerifyResponse(connection, LoginVerificationStatus.CANCELLED, null, null, reason)
+            sendVerifyResponse(connection, LoginVerificationStatus.CANCELLED, null, reason)
         } else {
             // Not yet in verify, store for later
             cancelledBeforeVerify = true
@@ -124,16 +124,14 @@ object ClientLoginHandler {
     private fun sendVerifyResponse(
         connection: Connection,
         status: LoginVerificationStatus,
-        jwt: String?,
-        verifier: String?,
+        idToken: String?,
         message: String?
     ) {
         sendCookieResponse(connection, LoginQueryType.VERIFY.id()) { buf ->
             buf.writeVarInt(status.ordinal)
             when (status) {
                 LoginVerificationStatus.SUCCESS -> {
-                    buf.writeUtf(jwt ?: "", 4096)
-                    buf.writeUtf(verifier ?: "", 512)
+                    buf.writeUtf(idToken ?: "", 4096)
                 }
                 LoginVerificationStatus.CANCELLED, LoginVerificationStatus.ERROR -> {
                     buf.writeUtf(message ?: "", 256)

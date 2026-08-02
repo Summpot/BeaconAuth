@@ -142,6 +142,29 @@ pub async fn verify_access_token(
     Ok(user_id)
 }
 
+/// Verify an OIDC access token (aud = `beaconauth-oidc`) issued by the token endpoint.
+pub async fn verify_oidc_access_token(
+    state: &JwtState,
+    token: &str,
+) -> std::result::Result<String, String> {
+    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::ES256);
+    validation.set_issuer(&[&state.issuer]);
+    validation.set_audience(&["beaconauth-oidc"]);
+    validation.validate_exp = true;
+
+    let token_data = decode_with_dynamic_jwks::<models::SessionClaims>(state, token, &validation).await?;
+
+    if token_data.claims.token_type != "access" {
+        return Err("Invalid token type".to_string());
+    }
+
+    let user_id = Uuid::parse_str(&token_data.claims.sub)
+        .map_err(|_| "Invalid user ID in token".to_string())?
+        .to_string();
+
+    Ok(user_id)
+}
+
 pub async fn verify_oauth_state_token(
     state: &JwtState,
     token: &str,

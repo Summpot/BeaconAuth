@@ -28,9 +28,6 @@ pub struct AppState {
     /// JWT Key ID (kid) used in JWT headers and JWKS selection
     pub jwt_kid: String,
 
-    /// JWT expiration time in seconds (for Minecraft JWT)
-    pub jwt_expiration: i64,
-
     /// Access token expiration time in seconds
     pub access_token_expiration: i64,
 

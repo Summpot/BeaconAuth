@@ -25,6 +25,7 @@ class ServerLoginNegotiation {
 
     private var pendingChallenge: String? = null
     private var pendingPort: Int = 0
+    private var pendingNonce: String? = null
 
     var ticks: Int = 0
         private set
@@ -57,6 +58,12 @@ class ServerLoginNegotiation {
     fun getPendingChallenge(): String? = pendingChallenge
 
     fun getPendingPort(): Int = pendingPort
+
+    fun setNonce(nonce: String) {
+        this.pendingNonce = nonce
+    }
+
+    fun getPendingNonce(): String? = pendingNonce
 
     fun incrementTick() {
         ticks++

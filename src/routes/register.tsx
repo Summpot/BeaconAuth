@@ -18,8 +18,8 @@ import {
 } from '@/components/ui/card';
 import { getErrorMessage } from '@/lib/errors';
 import {
-  isMinecraftFlow,
-  minecraftSearchSchema,
+  isOidcFlow,
+  oidcSearchSchema,
   redirectAfterAuth,
 } from '@/lib/minecraft-flow';
 import * as m from '@/paraglide/messages';
@@ -112,7 +112,7 @@ function RegisterPage() {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {isMinecraftFlow(searchParams) && (
+              {isOidcFlow(searchParams) && (
                 <MinecraftFlowAlert title={m.register_minecraft_title()} />
               )}
 
@@ -203,8 +203,14 @@ function RegisterPage() {
                   <Link
                     to="/login"
                     search={{
-                      challenge: searchParams.challenge,
-                      redirect_port: searchParams.redirect_port,
+                      oidc: searchParams.oidc,
+                      client_id: searchParams.client_id,
+                      redirect_uri: searchParams.redirect_uri,
+                      scope: searchParams.scope,
+                      state: searchParams.state,
+                      code_challenge: searchParams.code_challenge,
+                      code_challenge_method: searchParams.code_challenge_method,
+                      nonce: searchParams.nonce,
                     }}
                     className="text-primary hover:text-primary/80 font-medium transition-colors"
                   >
@@ -229,5 +235,5 @@ function RegisterPage() {
 export const Route = createFileRoute('/register')({
   component: RegisterPage,
   validateSearch: (search: Record<string, unknown>) =>
-    minecraftSearchSchema.parse(search),
+    oidcSearchSchema.parse(search),
 });

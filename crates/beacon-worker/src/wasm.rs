@@ -8,6 +8,7 @@ mod env;
 mod handlers;
 mod http;
 mod jwt;
+mod oidc;
 mod state;
 mod util;
 
@@ -93,18 +94,24 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     if method == Method::Post && path == "/v1/user/profile" {
         return handlers::session::handle_user_profile_update(req, &env).await;
     }
-    if method == Method::Post && path == "/v1/minecraft-jwt" {
-        return handlers::minecraft::handle_minecraft_jwt(req, &env).await;
-    }
     if method == Method::Post && path == "/v1/oauth/start" {
         return handlers::oauth::handle_oauth_start(req, &env).await;
     }
     if method == Method::Post && path == "/v1/oauth/link/start" {
         return handlers::oauth::handle_oauth_link_start(req, &env).await;
     }
+    if method == Method::Post && path == "/v1/oidc/token" {
+        return oidc::handle_token(req, &env).await;
+    }
+    if method == Method::Post && path == "/v1/oidc/complete" {
+        return oidc::handle_oidc_complete(req, &env).await;
+    }
 
     let result = match (method, path) {
         (Method::Get, "/v1/config") => handlers::config::handle_get_config(&req, &env).await,
+        (Method::Get, "/v1/oidc/authorize") => oidc::handle_authorize(&req, &env).await,
+        (Method::Get, "/v1/oidc/userinfo") => oidc::handle_userinfo(&req, &env).await,
+        (Method::Get, "/.well-known/openid-configuration") => oidc::handle_discovery(&req, &env).await,
         (Method::Post, "/v1/admin/migrations/up") => {
             handlers::migrations::handle_migrations_up(&req, &env).await
         }

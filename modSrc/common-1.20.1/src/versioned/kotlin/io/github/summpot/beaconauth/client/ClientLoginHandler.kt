@@ -1,5 +1,6 @@
 package io.github.summpot.beaconauth.client
 
+import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.login.LoginVerificationStatus
 import io.github.summpot.beaconauth.util.TranslationHelper
 import io.netty.buffer.Unpooled
@@ -38,14 +39,20 @@ object ClientLoginHandler {
         val buf = FriendlyByteBuf(Unpooled.buffer())
         buf.writeUtf(payload.codeChallenge, 512)
         buf.writeVarInt(payload.boundPort)
+        buf.writeUtf(payload.nonce, 256)
         connection.send(ServerboundCustomQueryPacket(transactionId, buf))
-        logger.debug("Sent init response with challenge and port")
+        logger.debug("Sent init response with challenge, port and nonce")
     }
 
     @JvmStatic
     fun handleLoginUrl(connection: Connection, transactionId: Int, data: FriendlyByteBuf?) {
         BeaconAuthClientSession.noteHandshake(connection)
-        val loginUrl = data?.readUtf(2048) ?: ""
+        // The server pushes the OIDC authorize URL (built from the INIT-echoed
+        // challenge + nonce). Prefer it; fall back to a locally-built URL using
+        // the credentials already generated at INIT (never regenerate them here,
+        // or the verifier/nonce would diverge from what the server recorded).
+        val loginUrl = data?.readUtf(2048)?.takeIf { it.isNotBlank() }
+            ?: AuthClient.buildOidcLoginUrl()
 
         // Acknowledge receipt immediately
         val ack = FriendlyByteBuf(Unpooled.buffer())
@@ -64,7 +71,7 @@ object ClientLoginHandler {
     fun handleVerifyRequest(connection: Connection, transactionId: Int) {
         BeaconAuthClientSession.noteHandshake(connection)
         if (cancelledBeforeVerify) {
-            sendVerifyResponse(connection, transactionId, LoginVerificationStatus.CANCELLED, null, null, cancelReason)
+            sendVerifyResponse(connection, transactionId, LoginVerificationStatus.CANCELLED, null, cancelReason)
             cancelledBeforeVerify = false
             cancelReason = ""
             logger.info("User cancelled before verify; sent CANCELLED status")
@@ -75,15 +82,15 @@ object ClientLoginHandler {
         logger.debug("Waiting for OAuth callback to complete verification...")
 
         AuthClient.registerLoginPhaseCallback(object : AuthClient.LoginPhaseCallback {
-            override fun onAuthSuccess(jwt: String, verifier: String) {
+            override fun onAuthSuccess(idToken: String) {
                 BeaconAuthClientSession.markAuthenticated(connection)
-                sendVerifyResponse(connection, transactionId, LoginVerificationStatus.SUCCESS, jwt, verifier, null)
-                logger.info("OAuth flow succeeded; sent JWT & verifier")
+                sendVerifyResponse(connection, transactionId, LoginVerificationStatus.SUCCESS, idToken, null)
+                logger.info("OIDC flow succeeded; sent ID token")
             }
 
             override fun onAuthError(message: String) {
-                sendVerifyResponse(connection, transactionId, LoginVerificationStatus.ERROR, null, null, message)
-                logger.error("OAuth flow failed: $message")
+                sendVerifyResponse(connection, transactionId, LoginVerificationStatus.ERROR, null, message)
+                logger.error("OIDC flow failed: $message")
             }
         })
     }
@@ -104,16 +111,14 @@ object ClientLoginHandler {
         connection: Connection,
         transactionId: Int,
         status: LoginVerificationStatus,
-        jwt: String?,
-        verifier: String?,
+        idToken: String?,
         message: String?
     ) {
         val buf = FriendlyByteBuf(Unpooled.buffer())
         buf.writeVarInt(status.ordinal)
         when (status) {
             LoginVerificationStatus.SUCCESS -> {
-                buf.writeUtf(jwt ?: "", 4096)
-                buf.writeUtf(verifier ?: "", 512)
+                buf.writeUtf(idToken ?: "", 4096)
             }
             LoginVerificationStatus.CANCELLED, LoginVerificationStatus.ERROR -> {
                 buf.writeUtf(message ?: "", 256)
