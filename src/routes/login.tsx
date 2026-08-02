@@ -3,6 +3,7 @@ import {
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
   startAuthentication,
+  startRegistration,
   WebAuthnError,
 } from '@simplewebauthn/browser';
 import { useForm } from '@tanstack/react-form';
@@ -10,10 +11,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
 import { FormTextField } from '@/components/form-text-field';
 import { MinecraftFlowAlert } from '@/components/minecraft/minecraft-flow-alert';
+import { PasswordField } from '@/components/password-field';
 import {
   OAUTH_PROVIDERS,
   type OAuthProvider,
@@ -31,12 +34,12 @@ import {
 } from '@/components/ui/card';
 import { PageLoader } from '@/components/ui/page-loader';
 import { Separator } from '@/components/ui/separator';
-import { getErrorMessage } from '@/lib/errors';
+import { getErrorMessage, getFieldErrorMessage } from '@/lib/errors';
 import {
   completeOidcFlow,
   isOidcFlow,
-  type OidcSearchParams,
   oidcSearchSchema,
+  redirectAfterAuth,
 } from '@/lib/minecraft-flow';
 import * as m from '@/paraglide/messages';
 import { apiClient, queryKeys, type ServerConfig } from '../utils/api';
@@ -55,6 +58,7 @@ function LoginPage() {
   const [passkeyError, setPasskeyError] = useState<string>('');
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [formError, setFormError] = useState<string>('');
+  const [oidcError, setOidcError] = useState(false);
   const conditionalUIStarted = useRef(false);
 
   const loginFormSchema = makeLoginFormSchema();
@@ -105,6 +109,7 @@ function LoginPage() {
           if (await completeOidcFlow(searchParams)) return;
         } catch (error) {
           console.log('OIDC auto-complete failed, showing login form', error);
+          setOidcError(true);
         }
       }
       setConfigLoading(false);
@@ -166,7 +171,6 @@ function LoginPage() {
         method: 'POST',
         body: { name: 'Auto-registered Passkey' },
       });
-      const { startRegistration } = await import('@simplewebauthn/browser');
       const credential = await startRegistration({
         optionsJSON: optionsJSON.creation_options.publicKey,
         useAutoRegister: true,
@@ -174,6 +178,9 @@ function LoginPage() {
       await apiClient('/api/v1/passkey/register/finish', {
         method: 'POST',
         body: { credential, name: 'Auto-registered Passkey' },
+      });
+      toast.success(m.login_passkey_registered(), {
+        description: m.login_passkey_registered_desc(),
       });
     } catch (err) {
       console.log('Auto-register passkey failed (expected):', err);
@@ -255,6 +262,9 @@ function LoginPage() {
     );
   }
 
+  const showOAuthFirst = oauthProviderCount > 0;
+  const showPasswordForm = config?.database_auth;
+
   return (
     <div className="min-h-full flex flex-col bg-background">
       <div className="flex-1 flex items-center justify-center p-6">
@@ -277,115 +287,18 @@ function LoginPage() {
                 <MinecraftFlowAlert title={m.login_minecraft_title()} />
               )}
 
-              {config?.database_auth && (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    void form.handleSubmit();
-                  }}
-                  method="post"
-                  className="space-y-4"
-                >
-                  <form.Subscribe selector={(state) => [state.isSubmitting]}>
-                    {([isSubmitting]) => (
-                      <>
-                        <form.Field name="username">
-                          {(field) => (
-                            <FormTextField
-                              field={field}
-                              label={m.login_username_label()}
-                              type="text"
-                              placeholder={m.login_username_placeholder()}
-                              disabled={isSubmitting}
-                              autoComplete="username webauthn"
-                              autoCapitalize="none"
-                              autoCorrect="off"
-                              spellCheck={false}
-                            />
-                          )}
-                        </form.Field>
-                        <form.Field name="password">
-                          {(field) => (
-                            <FormTextField
-                              field={field}
-                              label={m.login_password_label()}
-                              type="password"
-                              placeholder={m.login_password_placeholder()}
-                              disabled={isSubmitting}
-                              autoComplete="current-password webauthn"
-                            />
-                          )}
-                        </form.Field>
-                        {formError && (
-                          <Alert variant="destructive">
-                            <AlertDescription>{formError}</AlertDescription>
-                          </Alert>
-                        )}
-                        <Button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full"
-                        >
-                          {isSubmitting ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              {m.login_button_authenticating()}
-                            </>
-                          ) : (
-                            m.login_button_signin()
-                          )}
-                        </Button>
-                      </>
-                    )}
-                  </form.Subscribe>
-                </form>
+              {oidcError && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    <p className="font-medium">{m.login_oidc_failed_title()}</p>
+                    <p className="text-sm mt-1">{m.login_oidc_failed_desc()}</p>
+                  </AlertDescription>
+                </Alert>
               )}
 
-              <div>
-                {config?.database_auth && (
-                  <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <Separator className="w-full" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">
-                        {m.login_or_use()}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handlePasskeyLogin}
-                  disabled={passkeyLoading}
-                  className="w-full"
-                >
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  {passkeyLoading
-                    ? m.login_button_authenticating()
-                    : m.login_passkey_btn()}
-                </Button>
-                {passkeyError && (
-                  <Alert variant="destructive" className="mt-3">
-                    <AlertDescription>{passkeyError}</AlertDescription>
-                  </Alert>
-                )}
-              </div>
-
-              {oauthProviderCount > 0 && (
+              {/* OAuth first, when available */}
+              {showOAuthFirst && (
                 <div className="space-y-3">
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <Separator className="w-full" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">
-                        {m.login_or_continue()}
-                      </span>
-                    </div>
-                  </div>
                   <div className={`grid gap-3 ${oauthGridClass}`}>
                     {enabledOAuthProviders.map((provider) => (
                       <Button
@@ -403,31 +316,151 @@ function LoginPage() {
                       </Button>
                     ))}
                   </div>
+                  {showPasswordForm && (
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <Separator className="w-full" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-card px-2 text-muted-foreground">
+                          {m.login_or_continue()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {config?.database_auth && (
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {m.login_no_account()}{' '}
-                    <Link
-                      to="/register"
-                      search={{
-                        oidc: searchParams.oidc,
-                        client_id: searchParams.client_id,
-                        redirect_uri: searchParams.redirect_uri,
-                        scope: searchParams.scope,
-                        state: searchParams.state,
-                        code_challenge: searchParams.code_challenge,
-                        code_challenge_method: searchParams.code_challenge_method,
-                        nonce: searchParams.nonce,
-                      }}
-                      className="text-primary hover:text-primary/80 font-medium transition-colors"
-                    >
-                      {m.login_create_one()}
-                    </Link>
-                  </p>
-                </div>
+              {/* Passkey button (always visible, secondary hierarchy) */}
+              <div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handlePasskeyLogin}
+                  disabled={passkeyLoading}
+                  className="w-full text-muted-foreground hover:text-foreground"
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  {passkeyLoading
+                    ? m.login_button_authenticating()
+                    : m.login_passkey_btn()}
+                </Button>
+                {passkeyError && (
+                  <Alert variant="destructive" className="mt-3">
+                    <AlertDescription>{passkeyError}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
+              {/* Password form */}
+              {showPasswordForm && (
+                <>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void form.handleSubmit();
+                    }}
+                    method="post"
+                    className="space-y-4"
+                  >
+                    <form.Subscribe selector={(state) => [state.isSubmitting]}>
+                      {([isSubmitting]) => (
+                        <>
+                          <form.Field name="username">
+                            {(field) => {
+                              const isInvalid =
+                                field.state.meta.isTouched &&
+                                !field.state.meta.isValid;
+                              return (
+                                <div className="space-y-2">
+                                  <FormTextField
+                                    field={field}
+                                    label={m.login_username_label()}
+                                    type="text"
+                                    placeholder={m.login_username_placeholder()}
+                                    disabled={isSubmitting}
+                                    autoComplete="username webauthn"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                  />
+                                  {isInvalid && (
+                                    <p className="text-sm text-destructive">
+                                      {getFieldErrorMessage(
+                                        field.state.meta.errors,
+                                      )}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            }}
+                          </form.Field>
+                          <form.Field name="password">
+                            {(field) => (
+                              <PasswordField
+                                label={m.login_password_label()}
+                                value={field.state.value}
+                                onChange={field.handleChange}
+                                placeholder={m.login_password_placeholder()}
+                                disabled={isSubmitting}
+                                autoComplete="current-password webauthn"
+                                errorMessage={getFieldErrorMessage(
+                                  field.state.meta.errors,
+                                )}
+                                isInvalid={
+                                  field.state.meta.isTouched &&
+                                  !field.state.meta.isValid
+                                }
+                              />
+                            )}
+                          </form.Field>
+                          {formError && (
+                            <Alert variant="destructive">
+                              <AlertDescription>{formError}</AlertDescription>
+                            </Alert>
+                          )}
+                          <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full"
+                          >
+                            {isSubmitting ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {m.login_button_authenticating()}
+                              </>
+                            ) : (
+                              m.login_button_signin()
+                            )}
+                          </Button>
+                        </>
+                      )}
+                    </form.Subscribe>
+                  </form>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {m.login_no_account()}{' '}
+                      <Link
+                        to="/register"
+                        search={{
+                          oidc: searchParams.oidc,
+                          client_id: searchParams.client_id,
+                          redirect_uri: searchParams.redirect_uri,
+                          scope: searchParams.scope,
+                          state: searchParams.state,
+                          code_challenge: searchParams.code_challenge,
+                          code_challenge_method:
+                            searchParams.code_challenge_method,
+                          nonce: searchParams.nonce,
+                        }}
+                        className="text-primary hover:text-primary/80 font-medium transition-colors"
+                      >
+                        {m.login_create_one()}
+                      </Link>
+                    </p>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -439,6 +472,8 @@ function LoginPage() {
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
-  validateSearch: (search: Record<string, unknown>): OidcSearchParams =>
-    oidcSearchSchema.parse(search),
+  validateSearch: oidcSearchSchema,
+  head: () => ({
+    meta: [{ title: m.login_welcome_title() }],
+  }),
 });

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
 import { FormTextField } from '@/components/form-text-field';
 import { MinecraftFlowAlert } from '@/components/minecraft/minecraft-flow-alert';
+import { PasswordField } from '@/components/password-field';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { getErrorMessage } from '@/lib/errors';
+import { getErrorMessage, getFieldErrorMessage } from '@/lib/errors';
 import {
   isOidcFlow,
   oidcSearchSchema,
@@ -129,45 +130,73 @@ function RegisterPage() {
                   {([isSubmitting]) => (
                     <>
                       <form.Field name="username">
-                        {(field) => (
-                          <FormTextField
-                            field={field}
-                            label={m.login_username_label()}
-                            type="text"
-                            autoComplete="username"
-                            autoCapitalize="none"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            placeholder={m.register_username_placeholder()}
-                            disabled={isSubmitting}
-                          />
-                        )}
+                        {(field) => {
+                          const isInvalid =
+                            field.state.meta.isTouched &&
+                            !field.state.meta.isValid;
+                          return (
+                            <div className="space-y-2">
+                              <FormTextField
+                                field={field}
+                                label={m.login_username_label()}
+                                type="text"
+                                autoComplete="username"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                placeholder={m.register_username_placeholder()}
+                                disabled={isSubmitting}
+                              />
+                              {isInvalid && (
+                                <p className="text-sm text-destructive">
+                                  {getFieldErrorMessage(
+                                    field.state.meta.errors,
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }}
                       </form.Field>
 
                       <form.Field name="password">
                         {(field) => (
-                          <FormTextField
-                            field={field}
+                          <PasswordField
                             label={m.login_password_label()}
-                            type="password"
+                            value={field.state.value}
+                            onChange={field.handleChange}
                             autoComplete="new-password"
                             minLength={6}
                             placeholder={m.settings_create_password_placeholder()}
                             disabled={isSubmitting}
+                            errorMessage={getFieldErrorMessage(
+                              field.state.meta.errors,
+                            )}
+                            isInvalid={
+                              field.state.meta.isTouched &&
+                              !field.state.meta.isValid
+                            }
                           />
                         )}
                       </form.Field>
 
                       <form.Field name="confirmPassword">
                         {(field) => (
-                          <FormTextField
-                            field={field}
+                          <PasswordField
                             label={m.settings_confirm_password_simple()}
-                            type="password"
+                            value={field.state.value}
+                            onChange={field.handleChange}
                             autoComplete="new-password"
                             minLength={6}
                             placeholder={m.settings_confirm_password_simple_placeholder()}
                             disabled={isSubmitting}
+                            errorMessage={getFieldErrorMessage(
+                              field.state.meta.errors,
+                            )}
+                            isInvalid={
+                              field.state.meta.isTouched &&
+                              !field.state.meta.isValid
+                            }
                           />
                         )}
                       </form.Field>
@@ -234,6 +263,8 @@ function RegisterPage() {
 
 export const Route = createFileRoute('/register')({
   component: RegisterPage,
-  validateSearch: (search: Record<string, unknown>) =>
-    oidcSearchSchema.parse(search),
+  validateSearch: oidcSearchSchema,
+  head: () => ({
+    meta: [{ title: m.button_create_account() }],
+  }),
 });

@@ -10,6 +10,7 @@ import {
 import { defineI18nUI } from 'fumadocs-ui/i18n';
 import { RootProvider } from 'fumadocs-ui/provider/tanstack';
 import { type ReactNode, useState } from 'react';
+import { Toaster } from 'sonner';
 import { AppNavbar } from '@/components/app-navbar';
 import { ThemeProvider } from '@/components/theme-provider';
 import { i18n } from '@/lib/i18n';
@@ -137,6 +138,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       </head>
       <body>
         <RootProvider i18n={i18nProps}>{children}</RootProvider>
+        <Toaster richColors position="top-center" />
         <Scripts />
       </body>
     </html>

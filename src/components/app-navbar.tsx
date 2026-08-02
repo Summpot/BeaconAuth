@@ -85,7 +85,12 @@ export function AppNavbar() {
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <Button variant="ghost" asChild className="hidden md:inline-flex">
+          <Button
+            variant="ghost"
+            asChild
+            className="hidden md:inline-flex"
+            data-active={pathname.startsWith('/docs')}
+          >
             <Link to="/docs/$">
               <BookOpen className="h-4 w-4 mr-2" />
               {m.nav_docs()}
@@ -118,8 +123,16 @@ export function AppNavbar() {
               <div className="hidden sm:block">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="max-w-[16rem]">
-                      <User className="h-4 w-4 mr-2" />
+                    <Button variant="ghost" className="max-w-[16rem] gap-2">
+                      {user?.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt={user?.username ?? ''}
+                          className="h-5 w-5 rounded-full"
+                        />
+                      ) : (
+                        <User className="h-4 w-4" />
+                      )}
                       <span className="truncate">{user?.username}</span>
                     </Button>
                   </DropdownMenuTrigger>
@@ -203,6 +216,10 @@ export function AppNavbar() {
 
                 <div className="py-2">
                   <LanguageToggle />
+                </div>
+
+                <div className="py-2">
+                  <ThemeToggle />
                 </div>
 
                 <div className="h-px bg-border my-2" />

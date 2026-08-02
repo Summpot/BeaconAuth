@@ -6,6 +6,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Navbar "current page" indicator for link-style ghost buttons. */
+[data-active="true"] {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

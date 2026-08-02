@@ -4,20 +4,14 @@ import {
 } from '@simplewebauthn/browser';
 import { useForm } from '@tanstack/react-form';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import {
-  CheckCircle2,
-  Key,
-  Lightbulb,
-  Loader2,
-  Plus,
-  Trash2,
-  X,
-  XCircle,
-} from 'lucide-react';
+import { Key, Lightbulb, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import { BeaconIcon } from '@/components/beacon-icon';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { FormTextField } from '@/components/form-text-field';
+import { PasswordField } from '@/components/password-field';
 import {
   OAUTH_PROVIDERS,
   type OAuthProvider,
@@ -51,7 +45,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { getErrorMessage } from '@/lib/errors';
+import { getErrorMessage, getFieldErrorMessage } from '@/lib/errors';
 import * as m from '@/paraglide/messages';
 import { apiClient, type ServerConfig, type UserInfo } from '../utils/api';
 
@@ -148,12 +142,9 @@ function SettingsPage() {
   const [identities, setIdentities] = useState<IdentitiesResponse | null>(null);
   const [config, setConfig] = useState<ServerConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
   const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const [passkeyName, setPasskeyName] = useState('');
+  const [passkeySubmitting, setPasskeySubmitting] = useState(false);
 
   const hasPassword = identities?.has_password ?? true;
   const linkedProviders = new Set(
@@ -199,20 +190,13 @@ function SettingsPage() {
             new_password: value.newPassword,
           },
         });
-        setMessage({
-          type: 'success',
-          text: m.settings_success_password_changed(),
-        });
+        toast.success(m.settings_success_password_changed());
         formApi.reset();
         await refreshIdentities();
       } catch (error) {
-        setMessage({
-          type: 'error',
-          text: getErrorMessage(
-            error,
-            m.settings_error_failed_connect_server(),
-          ),
-        });
+        toast.error(
+          getErrorMessage(error, m.settings_error_failed_connect_server()),
+        );
       }
     },
   });
@@ -232,20 +216,13 @@ function SettingsPage() {
           method: 'POST',
           body: { current_password: '', new_password: value.newPassword },
         });
-        setMessage({
-          type: 'success',
-          text: m.settings_success_password_set(),
-        });
+        toast.success(m.settings_success_password_set());
         formApi.reset();
         await refreshIdentities();
       } catch (error) {
-        setMessage({
-          type: 'error',
-          text: getErrorMessage(
-            error,
-            m.settings_error_failed_connect_server(),
-          ),
-        });
+        toast.error(
+          getErrorMessage(error, m.settings_error_failed_connect_server()),
+        );
       }
     },
   });
@@ -269,19 +246,12 @@ function SettingsPage() {
         setUser((prev) =>
           prev ? { ...prev, username: result.username } : prev,
         );
-        setMessage({
-          type: 'success',
-          text: m.settings_success_username_updated(),
-        });
+        toast.success(m.settings_success_username_updated());
         formApi.reset({ username: result.username });
       } catch (error) {
-        setMessage({
-          type: 'error',
-          text: getErrorMessage(
-            error,
-            m.settings_error_failed_update_username(),
-          ),
-        });
+        toast.error(
+          getErrorMessage(error, m.settings_error_failed_update_username()),
+        );
       }
     },
   });
@@ -304,18 +274,11 @@ function SettingsPage() {
 
         const userData = await apiClient<UserInfo>('/api/v1/user/me');
         setUser(userData);
-        setMessage({
-          type: 'success',
-          text: m.settings_success_profile_updated(),
-        });
+        toast.success(m.settings_success_profile_updated());
       } catch (error) {
-        setMessage({
-          type: 'error',
-          text: getErrorMessage(
-            error,
-            m.settings_error_failed_update_profile(),
-          ),
-        });
+        toast.error(
+          getErrorMessage(error, m.settings_error_failed_update_profile()),
+        );
       }
     },
   });
@@ -361,22 +324,14 @@ function SettingsPage() {
   }, []);
 
   const handleUnlinkIdentity = async (id: string) => {
-    if (!confirm(m.alert_confirm_unlink())) return;
     try {
       await apiClient(`/api/v1/identities/${id}`, { method: 'DELETE' });
-      setMessage({
-        type: 'success',
-        text: m.settings_success_login_method_unlinked(),
-      });
+      toast.success(m.settings_success_login_method_unlinked());
       await refreshIdentities();
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(
-          error,
-          m.settings_error_failed_unlink_login_method(),
-        ),
-      });
+      toast.error(
+        getErrorMessage(error, m.settings_error_failed_unlink_login_method()),
+      );
     }
   };
 
@@ -393,13 +348,9 @@ function SettingsPage() {
         window.location.href = result.authorizationUrl;
       }
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(
-          error,
-          m.settings_error_failed_start_oauth_link_flow(),
-        ),
-      });
+      toast.error(
+        getErrorMessage(error, m.settings_error_failed_start_oauth_link_flow()),
+      );
     }
   };
 
@@ -407,12 +358,10 @@ function SettingsPage() {
     e.preventDefault();
     const name = passkeyName.trim();
     if (!name) {
-      setMessage({
-        type: 'error',
-        text: m.settings_error_passkey_name_required(),
-      });
+      toast.error(m.settings_error_passkey_name_required());
       return;
     }
+    setPasskeySubmitting(true);
     try {
       const data = await apiClient<{
         creation_options: { publicKey: PublicKeyCredentialCreationOptionsJSON };
@@ -424,10 +373,7 @@ function SettingsPage() {
         method: 'POST',
         body: { credential, name },
       });
-      setMessage({
-        type: 'success',
-        text: m.settings_success_passkey_registered(),
-      });
+      toast.success(m.settings_success_passkey_registered());
       setShowPasskeyModal(false);
       setPasskeyName('');
       const passkeysData = await apiClient<{ passkeys: PasskeyInfo[] }>(
@@ -436,33 +382,29 @@ function SettingsPage() {
       setPasskeys(passkeysData.passkeys || []);
     } catch (error) {
       console.error('Passkey registration failed:', error);
-      setMessage({
-        type: 'error',
-        text: m.settings_error_register_passkey_failed({
+      toast.error(
+        m.settings_error_register_passkey_failed({
           error: getErrorMessage(error, m.settings_error_unknown_error()),
         }),
-      });
+      );
       setShowPasskeyModal(false);
       setPasskeyName('');
+    } finally {
+      setPasskeySubmitting(false);
     }
   };
 
-  const handleDeletePasskey = async (id: string, name: string) => {
-    if (!confirm(m.alert_confirm_delete_passkey({ name }))) return;
+  const handleDeletePasskey = async (id: string) => {
     try {
       await apiClient(`/api/v1/passkey/${id}`, { method: 'DELETE' });
-      setMessage({
-        type: 'success',
-        text: m.settings_success_passkey_deleted(),
-      });
+      toast.success(m.settings_success_passkey_deleted());
       setPasskeys(passkeys.filter((p) => p.id !== id));
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: m.settings_error_delete_passkey_failed({
+      toast.error(
+        m.settings_error_delete_passkey_failed({
           error: getErrorMessage(error, m.settings_error_unknown_error()),
         }),
-      });
+      );
     }
   };
 
@@ -511,34 +453,6 @@ function SettingsPage() {
             {m.settings_subtitle({ username: user.username })}
           </p>
         </div>
-
-        {message && (
-          <Alert
-            variant={message.type === 'success' ? 'default' : 'destructive'}
-            className={
-              message.type === 'success'
-                ? 'mb-8 border-border/70 bg-card/90'
-                : 'mb-8'
-            }
-          >
-            {message.type === 'success' ? (
-              <CheckCircle2 className="text-chart-1" />
-            ) : (
-              <XCircle />
-            )}
-            <AlertDescription className="flex items-center justify-between gap-4">
-              <p className="font-medium text-foreground">{message.text}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => setMessage(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
 
         <div className="grid gap-8">
           <section className="space-y-4">
@@ -873,15 +787,22 @@ function SettingsPage() {
                                   </p>
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => handleUnlinkIdentity(i.id)}
+                              <ConfirmDialog
                                 title={m.settings_unlink()}
+                                description={m.alert_confirm_unlink()}
+                                confirmLabel={m.settings_unlink()}
+                                destructive
+                                onConfirm={() => handleUnlinkIdentity(i.id)}
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  title={m.settings_unlink()}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </ConfirmDialog>
                             </div>
                           ))}
                       </div>
@@ -933,47 +854,70 @@ function SettingsPage() {
                       event.stopPropagation();
                       void changePasswordForm.handleSubmit();
                     }}
-                    className="gap-4"
                   >
                     <changePasswordForm.Subscribe
                       selector={(state) => [state.isSubmitting]}
                     >
                       {([isSubmitting]) => (
-                        <div className="grid md:grid-cols-2 gap-4">
+                        <div className="grid md:grid-cols-3 gap-4">
                           <changePasswordForm.Field name="currentPassword">
                             {(field) => (
-                              <FormTextField
-                                field={field}
+                              <PasswordField
                                 label={m.settings_current_password()}
-                                type="password"
+                                value={field.state.value}
+                                onChange={field.handleChange}
                                 placeholder="••••••••"
                                 disabled={isSubmitting}
+                                autoComplete="current-password"
+                                errorMessage={getFieldErrorMessage(
+                                  field.state.meta.errors,
+                                )}
+                                isInvalid={
+                                  field.state.meta.isTouched &&
+                                  !field.state.meta.isValid
+                                }
                               />
                             )}
                           </changePasswordForm.Field>
                           <changePasswordForm.Field name="newPassword">
                             {(field) => (
-                              <FormTextField
-                                field={field}
+                              <PasswordField
                                 label={m.settings_new_password()}
-                                type="password"
+                                value={field.state.value}
+                                onChange={field.handleChange}
                                 placeholder="••••••••"
                                 disabled={isSubmitting}
+                                autoComplete="new-password"
+                                errorMessage={getFieldErrorMessage(
+                                  field.state.meta.errors,
+                                )}
+                                isInvalid={
+                                  field.state.meta.isTouched &&
+                                  !field.state.meta.isValid
+                                }
                               />
                             )}
                           </changePasswordForm.Field>
                           <changePasswordForm.Field name="confirmPassword">
                             {(field) => (
-                              <FormTextField
-                                field={field}
+                              <PasswordField
                                 label={m.settings_confirm_password()}
-                                type="password"
+                                value={field.state.value}
+                                onChange={field.handleChange}
                                 placeholder="••••••••"
                                 disabled={isSubmitting}
+                                autoComplete="new-password"
+                                errorMessage={getFieldErrorMessage(
+                                  field.state.meta.errors,
+                                )}
+                                isInvalid={
+                                  field.state.meta.isTouched &&
+                                  !field.state.meta.isValid
+                                }
                               />
                             )}
                           </changePasswordForm.Field>
-                          <div className="flex items-end justify-end">
+                          <div className="md:col-span-3 flex justify-end">
                             <Button
                               type="submit"
                               disabled={isSubmitting}
@@ -1014,23 +958,39 @@ function SettingsPage() {
                           </Alert>
                           <setPasswordForm.Field name="newPassword">
                             {(field) => (
-                              <FormTextField
-                                field={field}
+                              <PasswordField
                                 label={m.settings_new_password()}
-                                type="password"
+                                value={field.state.value}
+                                onChange={field.handleChange}
                                 placeholder="••••••••"
                                 disabled={isSubmitting}
+                                autoComplete="new-password"
+                                errorMessage={getFieldErrorMessage(
+                                  field.state.meta.errors,
+                                )}
+                                isInvalid={
+                                  field.state.meta.isTouched &&
+                                  !field.state.meta.isValid
+                                }
                               />
                             )}
                           </setPasswordForm.Field>
                           <setPasswordForm.Field name="confirmPassword">
                             {(field) => (
-                              <FormTextField
-                                field={field}
+                              <PasswordField
                                 label={m.settings_confirm_password_simple()}
-                                type="password"
+                                value={field.state.value}
+                                onChange={field.handleChange}
                                 placeholder="••••••••"
                                 disabled={isSubmitting}
+                                autoComplete="new-password"
+                                errorMessage={getFieldErrorMessage(
+                                  field.state.meta.errors,
+                                )}
+                                isInvalid={
+                                  field.state.meta.isTouched &&
+                                  !field.state.meta.isValid
+                                }
                               />
                             )}
                           </setPasswordForm.Field>
@@ -1116,16 +1076,23 @@ function SettingsPage() {
                             </div>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:bg-destructive/10"
-                          onClick={() =>
-                            handleDeletePasskey(passkey.id, passkey.name)
-                          }
+                        <ConfirmDialog
+                          title={m.settings_unlink()}
+                          description={m.alert_confirm_delete_passkey({
+                            name: passkey.name,
+                          })}
+                          confirmLabel={m.settings_unlink()}
+                          destructive
+                          onConfirm={() => handleDeletePasskey(passkey.id)}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </ConfirmDialog>
                       </div>
                     ))}
                   </div>
@@ -1181,8 +1148,19 @@ function SettingsPage() {
                   >
                     {m.settings_cancel()}
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    {m.settings_continue()}
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    disabled={passkeySubmitting}
+                  >
+                    {passkeySubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {m.settings_continue()}
+                      </>
+                    ) : (
+                      m.settings_continue()
+                    )}
                   </Button>
                 </div>
               </div>
