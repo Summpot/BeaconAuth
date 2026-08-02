@@ -178,6 +178,9 @@ jobs:
         uses: baptiste0928/cargo-install@v3.4.0
         with:
           crate: worker-build
+          # Pin to the 0.7 toolchain: our Summpot libsql fork depends on
+          # `worker ^0.7`, and worker-build >= 0.8 requires `worker >= 0.8.5`.
+          version: "^0.7"
 
       - name: Setup sccache
         uses: Summpot/sccache-action@main
