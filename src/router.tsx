@@ -1,11 +1,26 @@
-import { createRouter } from '@tanstack/react-router';
+import { createRouter, parseSearchWith, stringifySearchWith } from '@tanstack/react-router';
 import { deLocalizeUrl, localizeUrl } from './paraglide/runtime.js';
 import { routeTree } from './routeTree.gen';
+
+/**
+ * TanStack Router's default `parseSearch` coerces query-string values into
+ * booleans/numbers via `JSON.parse` (e.g. `oidc=1` becomes the number `1`).
+ * The search-param schemas expect raw strings (e.g. `z.literal('1')`), so the
+ * coercion makes validation fail. We keep every value a string.
+ */
+const parseSearch = parseSearchWith((value) => value);
+// The stringify parser must throw for plain strings so they stay unencoded;
+// only structured values (arrays/objects) get JSON-stringified by the wrapper.
+const stringifySearch = stringifySearchWith(JSON.stringify, () => {
+  throw new Error('keep plain string values unencoded');
+});
 
 export function getRouter() {
   const router = createRouter({
     routeTree,
     scrollRestoration: true,
+    parseSearch,
+    stringifySearch,
     rewrite: {
       input: ({ url }) => deLocalizeUrl(url),
       output: ({ url }) => localizeUrl(url),
