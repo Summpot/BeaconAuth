@@ -232,7 +232,6 @@ function RegisterPage() {
                   <Link
                     to="/login"
                     search={{
-                      oidc: searchParams.oidc,
                       client_id: searchParams.client_id,
                       redirect_uri: searchParams.redirect_uri,
                       scope: searchParams.scope,

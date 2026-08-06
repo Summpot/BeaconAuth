@@ -213,7 +213,6 @@ pub async fn handle_authorize(req: &Request, env: &Env) -> Result<Response> {
         let mut login = Url::parse(&format!("{}/login", jwt_issuer(env).await?))?;
         login
             .query_pairs_mut()
-            .append_pair("oidc", "1")
             .append_pair("client_id", &query.client_id)
             .append_pair("redirect_uri", &query.redirect_uri)
             .append_pair("scope", query.scope.as_deref().unwrap_or("openid"))
@@ -232,7 +231,6 @@ pub async fn handle_authorize(req: &Request, env: &Env) -> Result<Response> {
             let mut login = Url::parse(&format!("{}/login", jwt.issuer.trim_end_matches('/')))?;
             login
                 .query_pairs_mut()
-                .append_pair("oidc", "1")
                 .append_pair("client_id", &query.client_id)
                 .append_pair("redirect_uri", &query.redirect_uri)
                 .append_pair("scope", query.scope.as_deref().unwrap_or("openid"))
