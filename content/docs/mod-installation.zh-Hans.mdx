@@ -65,7 +65,8 @@ bypass_if_online_mode_verified = true
 # 若为 true：服务器 offline-mode 时强制模组客户端认证
 force_auth_if_offline_mode = true
 # 仅在 force_auth_if_offline_mode 为 true 时生效
-allow_vanilla_offline_clients = false
+# 若为 true：offline-mode 时允许原版客户端（未装模组）进入
+allow_vanilla_offline_clients = true
 # 旧版离线身份模式（用于迁移已有的 offline-mode 服务器）：
 # - 若为 true：每个 BeaconAuth 账户会被映射到其首次认证登录时声明的离线 UUID（"OfflinePlayer:<名字>"）
 #   并从此固定使用该身份。

@@ -109,7 +109,12 @@ class ServerLoginHandler @JvmOverloads constructor(
                 finish()
             } else {
                 logger.warn("Vanilla client rejected (mod required)")
-                fail(Component.translatable("disconnect.beaconauth.mod_required"))
+                fail(
+                    Component.translatable(
+                        "disconnect.beaconauth.mod_required",
+                        "This server requires the BeaconAuth mod in offline mode"
+                    )
+                )
             }
             return
         }

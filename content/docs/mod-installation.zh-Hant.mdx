@@ -62,7 +62,8 @@ bypass_if_online_mode_verified = true
 # If true: Modded clients MUST authenticate when server is offline-mode
 force_auth_if_offline_mode = true
 # Only applies when force_auth_if_offline_mode is true
-allow_vanilla_offline_clients = false
+# If true: offline-mode vanilla clients (without BeaconAuth mod) are allowed in.
+allow_vanilla_offline_clients = true
 # 舊版離線身份模式（用於遷移既有的 offline-mode 伺服器）：
 # - 若為 true：每個 BeaconAuth 帳戶會被對應到其首次認證登入時聲明的離線 UUID（"OfflinePlayer:<名稱>"）
 #   並從此固定使用該身份。
