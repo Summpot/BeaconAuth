@@ -163,7 +163,7 @@ jobs:
           tags: |
             type=ref,event=branch,suffix=-debug-amd64
             type=ref,event=pr,suffix=-debug-amd64
-            type=sha,prefix={{branch}}-,suffix=-debug-amd64
+            type=sha,prefix=sha-,suffix=-debug-amd64
             type=raw,value=latest-debug-amd64,enable={{is_default_branch}}
 
       - name: Build and push Docker image (linux/amd64)
@@ -221,7 +221,7 @@ jobs:
           tags: |
             type=ref,event=branch,suffix=-debug-arm64
             type=ref,event=pr,suffix=-debug-arm64
-            type=sha,prefix={{branch}}-,suffix=-debug-arm64
+            type=sha,prefix=sha-,suffix=-debug-arm64
             type=raw,value=latest-debug-arm64,enable={{is_default_branch}}
 
       - name: Build and push Docker image (linux/arm64)
