@@ -62,7 +62,8 @@ bypass_if_online_mode_verified = true
 # If true: Modded clients MUST authenticate when server is offline-mode
 force_auth_if_offline_mode = true
 # Only applies when force_auth_if_offline_mode is true
-allow_vanilla_offline_clients = false
+# If true: offline-mode vanilla clients (without BeaconAuth mod) are allowed in.
+allow_vanilla_offline_clients = true
 # レガシー オフライン ID モード（既存の offline-mode サーバー移行用）：
 # - true の場合：各 BeaconAuth アカウントは、初回の認証ログイン時に主張したオフライン UUID
 #   （"OfflinePlayer:<名前>"）に紐付けられ、以後その ID が固定されます。

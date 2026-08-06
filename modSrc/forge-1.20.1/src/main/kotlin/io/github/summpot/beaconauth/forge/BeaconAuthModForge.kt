@@ -168,7 +168,7 @@ private object BeaconAuthServerConfig {
                 "Allow vanilla clients (without BeaconAuth mod) in offline-mode",
                 "Only applies when force_auth_if_offline_mode is true"
             )
-            .define("allow_vanilla_offline_clients", false)
+            .define("allow_vanilla_offline_clients", true)
 
         useLegacyOfflineUuids = builder
             .comment(

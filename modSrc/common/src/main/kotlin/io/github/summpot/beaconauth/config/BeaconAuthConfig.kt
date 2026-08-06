@@ -19,7 +19,7 @@ object BeaconAuthConfig {
 	@Volatile private var jkuAllowedHostPatterns: Set<String> = emptySet()
 	@Volatile private var bypassIfOnlineModeVerified: Boolean = true
 	@Volatile private var forceAuthIfOfflineMode: Boolean = true
-	@Volatile private var allowVanillaOfflineClients: Boolean = false
+	@Volatile private var allowVanillaOfflineClients: Boolean = true
 	@Volatile private var useLegacyOfflineUuids: Boolean = false
 
 	private fun normalizeBaseUrl(raw: String): String = raw.trim().trimEnd('/')
