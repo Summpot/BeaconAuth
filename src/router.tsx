@@ -4,9 +4,9 @@ import { routeTree } from './routeTree.gen';
 
 /**
  * TanStack Router's default `parseSearch` coerces query-string values into
- * booleans/numbers via `JSON.parse` (e.g. `oidc=1` becomes the number `1`).
- * The search-param schemas expect raw strings (e.g. `z.literal('1')`), so the
- * coercion makes validation fail. We keep every value a string.
+ * booleans/numbers via `JSON.parse` (e.g. `1` becomes the number `1`, `true`
+ * becomes the boolean `true`). The OIDC/OAuth search-param schemas expect raw
+ * strings, so we keep every value a string.
  */
 const parseSearch = parseSearchWith((value) => value);
 // The stringify parser must throw for plain strings so they stay unencoded;

@@ -10,7 +10,6 @@ import { z } from 'zod';
  * with the code (the mod exchanges it at the token endpoint itself).
  */
 export const oidcSearchSchema = z.object({
-  oidc: z.literal('1').optional(),
   client_id: z.string().optional(),
   redirect_uri: z.string().optional(),
   scope: z.string().optional(),
@@ -26,8 +25,7 @@ export function isOidcFlow(
   params: OidcSearchParams,
 ): params is Required<OidcSearchParams> {
   return Boolean(
-    params.oidc === '1' &&
-      params.client_id &&
+    params.client_id &&
       params.redirect_uri &&
       params.code_challenge &&
       params.nonce,

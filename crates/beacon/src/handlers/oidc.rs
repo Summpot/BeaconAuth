@@ -124,7 +124,6 @@ fn login_redirect(
     let mut login = Url::parse(&format!("{issuer}/login")).unwrap();
     login
         .query_pairs_mut()
-        .append_pair("oidc", "1")
         .append_pair("client_id", query.get("client_id").map(String::as_str).unwrap_or(""))
         .append_pair("redirect_uri", query.get("redirect_uri").map(String::as_str).unwrap_or(""))
         .append_pair("scope", query.get("scope").map(String::as_str).unwrap_or("openid"))
