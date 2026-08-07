@@ -3,12 +3,18 @@ use serde_json::json;
 use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Response, Result};
 
 use migration::MigratorTrait;
+use sea_orm::{ConnectionTrait, Statement};
 
 use crate::wasm::{
     db::db_connect,
     env::env_string,
-    http::{error_response, internal_error_response, json_with_cors},
+    http::{error_response, json_with_cors},
 };
+
+/// Columns that the current production schema must have on the `users` table. The migration
+/// handler verifies these actually exist after `Migrator::up`, so an "applied" record alone
+/// doesn't mask a DDL that silently did not take effect (the earlier production bug).
+const REQUIRED_USERS_COLUMNS: &[&str] = &["identity_mode", "minecraft_textures_value", "minecraft_textures_signature"];
 
 #[derive(Debug, Deserialize)]
 struct CloudflareApiMessage {
@@ -117,7 +123,7 @@ async fn verify_cloudflare_api_token_against_url(token: &str, url: &str) -> Resu
 }
 
 async fn verify_cloudflare_api_token(env: &Env, token: &str) -> Result<CloudflareVerifyResult> {
-    // There are two token “families”:
+    // There are two token "families":
     // - User API tokens: verified via `/user/tokens/verify`
     // - Account API tokens: verified via `/accounts/{account_id}/tokens/verify`
     // See: https://api.cloudflare.com/client/v4/user/tokens/verify
@@ -148,6 +154,50 @@ async fn verify_cloudflare_api_token(env: &Env, token: &str) -> Result<Cloudflar
     }
 }
 
+/// List migration names in a given status set as a sorted Vec<String>.
+async fn migration_names(
+    db: &sea_orm::DatabaseConnection,
+    pending: bool,
+) -> Result<Vec<String>, worker::Error> {
+    let names = if pending {
+        migration::Migrator::get_pending_migrations(db).await
+    } else {
+        migration::Migrator::get_applied_migrations(db).await
+    }
+    .map_err(|e| worker::Error::RustError(format!("migration status query failed: {e}")))?;
+
+    let mut out: Vec<String> = names
+        .into_iter()
+        .map(|m| m.name().to_string())
+        .collect();
+    out.sort();
+    Ok(out)
+}
+
+/// Query `PRAGMA table_info(users)` and return the set of column names present.
+async fn users_columns(db: &sea_orm::DatabaseConnection) -> Result<Vec<String>, worker::Error> {
+    let backend = db.get_database_backend();
+    let pragma = if backend == sea_orm::DatabaseBackend::Sqlite {
+        "PRAGMA table_info(users)"
+    } else {
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
+    };
+    let stmt = Statement::from_string(backend, pragma.to_string());
+    let rows = db
+        .query_all_raw(stmt)
+        .await
+        .map_err(|e| worker::Error::RustError(format!("column introspection failed: {e}")))?;
+
+    let mut cols = Vec::new();
+    for row in rows {
+        if let Ok(name) = row.try_get("", "name") {
+            cols.push(name);
+        }
+    }
+    cols.sort();
+    Ok(cols)
+}
+
 pub async fn handle_migrations_up(req: &Request, env: &worker::Env) -> Result<Response> {
     let Some(token) = extract_bearer_token(req)? else {
         return error_response(req, 401, "missing_token", "Missing Authorization Bearer token");
@@ -163,25 +213,157 @@ pub async fn handle_migrations_up(req: &Request, env: &worker::Env) -> Result<Re
         }
     };
 
+    // Report which database we are about to migrate (host only — never the token/secret).
+    let database = env_string(env, "LIBSQL_URL")
+        .and_then(|u| {
+            let host = u
+                .trim_start_matches("libsql://")
+                .split('?')
+                .next()
+                .unwrap_or(&u)
+                .to_string();
+            Some(host)
+        })
+        .unwrap_or_else(|| "<unset>".to_string());
+
     let db = match db_connect(env).await {
         Ok(db) => db,
-        Err(e) => return internal_error_response(req, "Failed to open database binding", &e),
+        Err(e) => {
+            return error_response(
+                req,
+                500,
+                "migration_error",
+                format!("Failed to open database binding (libsql host `{database}`): {e}"),
+            )
+        }
     };
 
+    // Snapshot before applying so we can diff what `up` actually did.
+    let applied_before = match migration_names(&db, false).await {
+        Ok(v) => v,
+        Err(e) => return error_response(
+            req,
+            500,
+            "migration_error",
+            format!("Failed to list applied migrations: {e}"),
+        ),
+    };
+    let pending_before = match migration_names(&db, true).await {
+        Ok(v) => v,
+        Err(e) => return error_response(
+            req,
+            500,
+            "migration_error",
+            format!("Failed to list pending migrations: {e}"),
+        ),
+    };
+    let columns_before = match users_columns(&db).await {
+        Ok(v) => v,
+        Err(e) => {
+            worker::console_log!("Column introspection failed (non-fatal): {e}");
+            vec![]
+        }
+    };
+    let missing_before: Vec<&str> = REQUIRED_USERS_COLUMNS
+        .iter()
+        .copied()
+        .filter(|c| !columns_before.contains(&c.to_string()))
+        .collect();
+
+    worker::console_log!(
+        "migrations/up: db={database} applied_before={applied_before:?} pending_before={pending_before:?} missing_users_columns_before={missing_before:?}"
+    );
+
     if let Err(e) = migration::Migrator::up(&db, None).await {
-        return internal_error_response(req, "Failed to apply migrations", &e);
+        return error_response(
+            req,
+            500,
+            "migration_error",
+            format!(
+                "Failed to apply migrations (db={database}, applied_before={applied_before:?}, pending_before={pending_before:?}): {e}"
+            ),
+        );
     }
+
+    // Recompute after applying, and verify the DDL actually took effect.
+    let applied_after = match migration_names(&db, false).await {
+        Ok(v) => v,
+        Err(e) => return error_response(
+            req,
+            500,
+            "migration_error",
+            format!("Failed to list applied migrations after: {e}"),
+        ),
+    };
+    let pending_after = match migration_names(&db, true).await {
+        Ok(v) => v,
+        Err(e) => return error_response(
+            req,
+            500,
+            "migration_error",
+            format!("Failed to list pending migrations after: {e}"),
+        ),
+    };
+    let columns_after = match users_columns(&db).await {
+        Ok(v) => v,
+        Err(e) => {
+            worker::console_log!("Column introspection after migration failed (non-fatal): {e}");
+            vec![]
+        }
+    };
+    let missing_after: Vec<&str> = REQUIRED_USERS_COLUMNS
+        .iter()
+        .copied()
+        .filter(|c| !columns_after.contains(&c.to_string()))
+        .collect();
+
+    let newly_applied: Vec<String> = applied_after
+        .iter()
+        .filter(|m| !applied_before.contains(m))
+        .cloned()
+        .collect();
+
+    // If our expected columns are still missing after a reported-successful up, that is exactly
+    // the silent-DDL-failure mode we want to surface, not paper over.
+    let schema_ok = missing_after.is_empty();
+    let effective_status = if newly_applied.is_empty() && pending_after.is_empty() && schema_ok {
+        "up_to_date"
+    } else if newly_applied.is_empty() && !pending_after.is_empty() {
+        "pending_remain"
+    } else if !schema_ok {
+        "schema_incomplete"
+    } else {
+        "applied"
+    };
 
     let resp = Response::from_json(&json!({
         "success": true,
+        "database": {
+            // Host only. Credentials/tokens are never returned.
+            "host": database,
+        },
         "token": {
             "id": verify.id,
             "status": verify.status,
         },
+        "migration_table": migration::Migrator::migration_table_name().to_string(),
         "migrations": {
-            "applied": true
+            "status": effective_status,
+            "applied_before": applied_before,
+            "applied_after": applied_after,
+            "newly_applied": newly_applied,
+            "pending_after": pending_after,
+        },
+        "schema": {
+            "users_columns": columns_after,
+            "missing_required_columns": missing_after,
+            "required_columns_ok": schema_ok,
         }
     }))?;
+
+    worker::console_log!(
+        "migrations/up done: status={effective_status} newly_applied={newly_applied:?} pending_after={pending_after:?} missing_after={missing_after:?}"
+    );
 
     json_with_cors(req, resp)
 }
