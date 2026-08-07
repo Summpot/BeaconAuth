@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use base64::Engine;
@@ -7,7 +6,6 @@ use worker::{Env, Error, Result};
 
 use beacon_core::crypto;
 use entity::{identity, jwks_key, passkey, passkey_state, refresh_token, user};
-use migration::MigratorTrait;
 use uuid::Uuid;
 
 use sea_orm::{
@@ -17,12 +15,6 @@ use sea_orm::{
 use sea_orm::sea_query::Expr;
 
 use super::{env::env_string, util::now_ts};
-
-/// Guards the lazily-run auto-migration so it only runs once per isolate, and only after a
-/// successful connection. This makes the Worker self-heal its schema on the first DB-touching
-/// request after a deploy, regardless of which Turso/LibSQL URL is bound at runtime.
-static MIGRATION_ATTEMPTED: AtomicBool = AtomicBool::new(false);
-static MIGRATION_DONE: AtomicBool = AtomicBool::new(false);
 
 pub type UserRow = user::Model;
 pub type RefreshTokenRow = refresh_token::Model;
@@ -67,23 +59,6 @@ pub async fn db_connect(env: &Env) -> Result<DatabaseConnection> {
     options.sqlx_logging(false);
 
     let db = Database::connect(options).await.map_err(map_db_err)?;
-
-    // Self-heal the schema on first use. `Migrator::up` is idempotent (only applies pending
-    // migrations), so this is safe to run on every fresh isolate. We guard it so it runs at
-    // most once per isolate and never blocks the request's DB work on a later retry.
-    if !MIGRATION_DONE.load(Ordering::Acquire) && !MIGRATION_ATTEMPTED.swap(true, Ordering::AcqRel) {
-        match migration::Migrator::up(&db, None).await {
-            Ok(_) => {
-                MIGRATION_DONE.store(true, Ordering::Release);
-                worker::console_log!("Auto-migration: schema is up to date");
-            }
-            Err(e) => {
-                // Transient connection/lock errors during cold start should not fail user
-                // requests. The migration is re-attempted on the next fresh isolate.
-                worker::console_log!("Auto-migration failed (will retry on next isolate): {e}");
-            }
-        }
-    }
 
     Ok(db)
 }
