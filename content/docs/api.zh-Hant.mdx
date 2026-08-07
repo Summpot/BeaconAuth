@@ -33,24 +33,36 @@ API 提供於:
 }
 ```
 
-### Minecraft 驗證
+### Minecraft 驗證（OIDC）
 
-- `POST /v1/minecraft-jwt`
+Minecraft mod 使用標準的 OIDC authorization-code + PKCE 流程：
 
-範例 request:
+- `GET /.well-known/openid-configuration` — OIDC discovery
+- `GET /v1/oidc/authorize` — 授權端點（mod 透過登入界面開啟）
+- `POST /v1/oidc/complete` — SPA 完成授權，重新導向回 mod
+- `POST /v1/oidc/token` — token 端點（無 client secret，PKCE 綁定）
+- `GET /v1/oidc/userinfo` — userinfo 端點（以 access token 授權）
 
-```json
-{
-  "challenge": "PKCE_challenge_string",
-  "redirect_port": 38125
-}
-```
+### Minecraft 身分
+
+當 Mojang 已驗證的正版玩家在 online-mode 繞過路徑上被服務時，mod 可解析某 Mojang UUID 是否綁定到
+BeaconAuth 帳戶，以及應如何處理其身份：
+
+- `GET /v1/minecraft/lookup?uuid=<mojangUuid>` — 使用 `X-Minecraft-Auth` 共享密鑰
+  （`MINECRAFT_LOOKUP_SECRET`）驗證。回傳 `{ bound, identity_mode, user_subject,
+  textures_value, textures_signature }`。
+- `GET /v1/minecraft/identity-mode` — 目前使用者實際生效的身份偏好。
+- `POST /v1/minecraft/identity-mode` — 設定目前使用者的偏好（`mojang`/`legacy`）。
 
 ### OAuth
 
 - `POST /v1/oauth/start`
 - `POST /v1/oauth/link/start`
 - `GET /v1/oauth/callback`
+
+支援的 providers：`github`、`google`、`microsoft`（Entra ID）以及 `minecraft`（Microsoft
+consumer + Xbox，重用 `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` 憑證）。`minecraft`
+provider 會將真實的 Mojang UUID 綁定為 provider identity。
 
 ### Passkeys（WebAuthn）
 

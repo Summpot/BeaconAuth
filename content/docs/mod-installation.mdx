@@ -76,6 +76,14 @@ allow_vanilla_offline_clients = true
 # - Security: the identity is bound to the username used on first login, so another account
 #   registering the same username later would map to the same UUID. Intended for small servers.
 use_legacy_offline_uuids = false
+# If a Mojang-verified (premium) player is bound to a BeaconAuth account and their identity
+# preference is "legacy", map them back to the legacy offline UUID on online-mode bypass so
+# world data is preserved. Requires the lookup secret below.
+# Leave empty (default) to keep premium players on the Mojang UUID.
+minecraft_lookup_secret = ""
+# Only meaningful when minecraft_lookup_secret is set: enable the linked-premium legacy
+# resolution on online-mode bypass. Recommended true.
+resolve_linked_premium_legacy = true
 ```
 
 ### Notes
@@ -103,3 +111,28 @@ use_legacy_offline_uuids = false
    with `/beaconauth transfer-identity <minecraftName> <beaconUsername>`.
 6. Once everyone is migrated, the mapping keeps working; turning the mode off later switches
    accounts back to stable per-account UUIDs (new world data, not the legacy data).
+
+### Premium players on a migrated server (linked Minecraft accounts)
+
+When some of your migrated players are actually **premium** (they own a real Minecraft
+account), you can let them keep using their migrated world data without a web login:
+
+1. In the BeaconAuth web UI, players link their Minecraft account (Microsoft/Xbox sign-in)
+   and set their identity preference to **Legacy offline identity** (preserve world data).
+2. On the server, set `behavior.minecraft_lookup_secret` to the shared secret you configured
+   on the BeaconAuth server (`MINECRAFT_LOOKUP_SECRET`).
+3. When a Mojang-verified premium player joins (online-mode bypass), the mod asks the
+   BeaconAuth server whether that Mojang UUID is bound to an account with the "legacy"
+   preference. If yes, the player is mapped to the legacy offline UUID the account owns on
+   this world, and the cached Mojang `textures` property is replayed, so they keep their
+   world data **and** their real skin/cape.
+
+Notes:
+
+- The lookup only ever answers "is this Mojang UUID bound, and how should the mod resolve
+  its identity" — it does not expose any private data.
+- If the identity preference is "Mojang UUID" (the default) or the UUID is not bound, the
+  premium player simply keeps the Mojang UUID (vanilla behavior).
+- If the player's legacy offline identity is already claimed by another BeaconAuth account,
+  the premium player keeps the Mojang UUID and a warning is logged (never silently override).
+- `resolve_linked_premium_legacy = false` disables this resolution even when a secret is set.

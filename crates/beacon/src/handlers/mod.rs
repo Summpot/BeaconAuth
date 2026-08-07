@@ -1,6 +1,7 @@
 // Re-export all handlers
 pub mod auth;
 pub mod identity;
+pub mod minecraft;
 pub mod oidc;
 pub mod passkey;
 pub mod user;
@@ -45,6 +46,8 @@ pub async fn get_config(app_state: web::Data<AppState>) -> impl Responder {
         google_oauth: app_state.oauth_config.google_client_id.is_some()
             && app_state.oauth_config.google_client_secret.is_some(),
         microsoft_oauth: app_state.oauth_config.microsoft_client_id.is_some()
+            && app_state.oauth_config.microsoft_client_secret.is_some(),
+        minecraft_oauth: app_state.oauth_config.microsoft_client_id.is_some()
             && app_state.oauth_config.microsoft_client_secret.is_some(),
     };
 
@@ -429,6 +432,31 @@ pub async fn oauth_start(
                 });
             }
         }
+        "minecraft" => {
+            if let (Some(client_id), Some(_)) = (
+                &app_state.oauth_config.microsoft_client_id,
+                &app_state.oauth_config.microsoft_client_secret,
+            ) {
+                let redirect_uri = format!(
+                    "{}/api/v1/oauth/callback",
+                    app_state.oauth_config.redirect_base
+                );
+                let scope = "XboxLive.signin offline_access";
+                format!(
+                    "https://login.live.com/oauth20_authorize.srf?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+                    client_id,
+                    urlencoding::encode(&redirect_uri),
+                    urlencoding::encode(scope),
+                    urlencoding::encode(&state_token)
+                )
+            } else {
+                log::error!("Microsoft OAuth not configured");
+                return HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                    error: "oauth_not_configured".to_string(),
+                    message: "Microsoft OAuth is not configured".to_string(),
+                });
+            }
+        }
         _ => {
             return HttpResponse::BadRequest().json(ErrorResponse {
                 error: "invalid_provider".to_string(),
@@ -577,6 +605,31 @@ pub async fn oauth_link_start(
                 });
             }
         }
+        "minecraft" => {
+            if let (Some(client_id), Some(_)) = (
+                &app_state.oauth_config.microsoft_client_id,
+                &app_state.oauth_config.microsoft_client_secret,
+            ) {
+                let redirect_uri = format!(
+                    "{}/api/v1/oauth/callback",
+                    app_state.oauth_config.redirect_base
+                );
+                let scope = "XboxLive.signin offline_access";
+                format!(
+                    "https://login.live.com/oauth20_authorize.srf?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+                    client_id,
+                    urlencoding::encode(&redirect_uri),
+                    urlencoding::encode(scope),
+                    urlencoding::encode(&state_token)
+                )
+            } else {
+                log::error!("Microsoft OAuth not configured");
+                return HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                    error: "oauth_not_configured".to_string(),
+                    message: "Microsoft OAuth is not configured".to_string(),
+                });
+            }
+        }
         _ => {
             return HttpResponse::BadRequest().json(ErrorResponse {
                 error: "invalid_provider".to_string(),
@@ -640,6 +693,13 @@ pub async fn oauth_callback(
             Err(e) => {
                 log::error!("Microsoft OAuth failed: {}", e);
                 return HttpResponse::InternalServerError().body("Microsoft authentication failed");
+            }
+        },
+        "minecraft" => match exchange_minecraft_xbox_code(&app_state, &query.code).await {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("Minecraft OAuth failed: {}", e);
+                return HttpResponse::InternalServerError().body("Minecraft authentication failed");
             }
         },
         _ => {
@@ -744,6 +804,7 @@ pub async fn oauth_callback(
             "github" => "gh_",
             "google" => "gg_",
             "microsoft" => "ms_",
+            "minecraft" => "mc_",
             _ => "id_",
         };
 
@@ -893,6 +954,13 @@ pub async fn oauth_callback(
                     has_avatar_update = true;
                 }
             }
+            "minecraft" => {
+                if exchange.minecraft_textures_value.is_some() {
+                    update.minecraft_textures_value = Set(exchange.minecraft_textures_value.clone());
+                    update.minecraft_textures_signature = Set(exchange.minecraft_textures_signature.clone());
+                    has_avatar_update = true;
+                }
+            }
             _ => {}
         }
 
@@ -966,6 +1034,10 @@ struct OAuthExchangeResult {
     avatar_url: Option<String>,
     microsoft_avatar_b64: Option<String>,
     microsoft_avatar_content_type: Option<String>,
+
+    // Minecraft (Xbox) flow extras: cached Mojang-signed `textures` property.
+    minecraft_textures_value: Option<String>,
+    minecraft_textures_signature: Option<String>,
 }
 
 // Helper function to exchange GitHub code for user info
@@ -1065,6 +1137,8 @@ async fn exchange_github_code(
         avatar_url,
         microsoft_avatar_b64: None,
         microsoft_avatar_content_type: None,
+        minecraft_textures_value: None,
+        minecraft_textures_signature: None,
     })
 }
 
@@ -1148,6 +1222,8 @@ async fn exchange_google_code(
         avatar_url,
         microsoft_avatar_b64: None,
         microsoft_avatar_content_type: None,
+        minecraft_textures_value: None,
+        minecraft_textures_signature: None,
     })
 }
 
@@ -1297,6 +1373,194 @@ async fn exchange_microsoft_code(
         avatar_url: None,
         microsoft_avatar_b64,
         microsoft_avatar_content_type,
+        minecraft_textures_value: None,
+        minecraft_textures_signature: None,
+    })
+}
+
+/// Exchange a Microsoft consumer authorization code for a real Minecraft (Xbox/Mojang) profile.
+///
+/// This implements the standard Minecraft authentication stack used by first-party clients:
+///
+/// 1. OAuth code → Microsoft access token (`login.live.com` token endpoint, consumer scope).
+/// 2. Access token → XBL user token (`user.auth.xboxlive.com`).
+/// 3. XBL user token → XSTS token (`xsts.auth.xboxlive.com`), which performs the ToS/age
+///    (child-account) gate.
+/// 4. XSTS token → Minecraft login token (`api.minecraftservices.com/authentication/login_with_xbox`).
+/// 5. Fetch the Minecraft profile (`minecraft/profile`) → Mojang UUID + gamertag + signed `textures`.
+///
+/// The resulting `provider_user_id` is the **Mojang UUID** (stable), and `username` is the
+/// Minecraft gamertag. Textures are captured so the mod can serve the real skin/cape when a
+/// legacy offline identity is used.
+async fn exchange_minecraft_xbox_code(
+    app_state: &AppState,
+    code: &str,
+) -> Result<OAuthExchangeResult, anyhow::Error> {
+    use beacon_core::minecraft_xbox as mx;
+
+    let client = reqwest::Client::new();
+    let redirect_uri = format!(
+        "{}/api/v1/oauth/callback",
+        app_state.oauth_config.redirect_base.trim_end_matches('/')
+    );
+
+    let client_id = app_state
+        .oauth_config
+        .microsoft_client_id
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("MICROSOFT_CLIENT_ID not configured"))?
+        .clone();
+    let client_secret = app_state
+        .oauth_config
+        .microsoft_client_secret
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("MICROSOFT_CLIENT_SECRET not configured"))?
+        .clone();
+
+    // Step 1: Microsoft OAuth token exchange (consumer tenant, Xbox scope).
+    let token_resp = client
+        .post("https://login.live.com/oauth20_token.srf")
+        .form(&[
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("code", code),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", redirect_uri.as_str()),
+            ("scope", mx::MICROSOFT_SCOPE),
+        ])
+        .send()
+        .await?;
+
+    let status = token_resp.status();
+    let token_body = token_resp.text().await?;
+    if !status.is_success() {
+        anyhow::bail!(
+            "Microsoft (Minecraft) token exchange failed ({status}): {token_body} (check MICROSOFT_CLIENT_ID/MICROSOFT_CLIENT_SECRET and redirect URL: {redirect_uri})"
+        );
+    }
+
+    let token_json: serde_json::Value = serde_json::from_str(&token_body)
+        .map_err(|e| anyhow::anyhow!("Failed to parse Microsoft token response JSON: {e}"))?;
+    let microsoft_access_token = token_json
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            let err = token_json.get("error").and_then(|v| v.as_str()).unwrap_or("unknown_error");
+            let desc = token_json
+                .get("error_description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("no error_description");
+            anyhow::anyhow!("No Microsoft access_token (error={err}): {desc}")
+        })?;
+
+    // Step 2: XBL exchange.
+    let xbl_resp = client
+        .post("https://user.auth.xboxlive.com/user/authenticate")
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .json(&mx::xbl_token_body(microsoft_access_token))
+        .send()
+        .await?;
+
+    let xbl_status = xbl_resp.status();
+    let xbl_body = xbl_resp.text().await?;
+    if !xbl_status.is_success() {
+        anyhow::bail!("XBL token exchange failed ({xbl_status}): {xbl_body}");
+    }
+    let xbl_json: serde_json::Value =
+        serde_json::from_str(&xbl_body).map_err(|e| anyhow::anyhow!("Invalid XBL response: {e}"))?;
+    let xbl_token = xbl_json
+        .get("Token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("XBL response missing Token"))?;
+
+    // Step 3: XSTS exchange (performs ToS/child-account enforcement).
+    let xsts_resp = client
+        .post("https://xsts.auth.xboxlive.com/xsts/authorize")
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .json(&mx::xsts_token_body(xbl_token))
+        .send()
+        .await?;
+
+    let xsts_status = xsts_resp.status();
+    let xsts_body = xsts_resp.text().await?;
+    if !xsts_status.is_success() {
+        anyhow::bail!("XSTS token exchange failed ({xsts_status}): {xsts_body}")
+    }
+    let xsts_json: serde_json::Value =
+        serde_json::from_str(&xsts_body).map_err(|e| anyhow::anyhow!("Invalid XSTS response: {e}"))?;
+    let xsts_token_raw = xsts_json
+        .get("Token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("XSTS response missing Token"))?;
+    let xsts_token = mx::split_xsts_token(xsts_token_raw);
+
+    let uhs = mx::user_hash_from_xsts(&xsts_json)
+        .ok_or_else(|| anyhow::anyhow!("XSTS response missing DisplayClaims uhs"))?;
+
+    // Step 4: Minecraft login.
+    let mc_login_resp = client
+        .post("https://api.minecraftservices.com/authentication/login_with_xbox")
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .json(&mx::minecraft_login_body(&uhs, xsts_token))
+        .send()
+        .await?;
+
+    let mc_login_status = mc_login_resp.status();
+    let mc_login_body = mc_login_resp.text().await?;
+    if !mc_login_status.is_success() {
+        anyhow::bail!("Minecraft login exchange failed ({mc_login_status}): {mc_login_body}")
+    }
+    let mc_login_json: serde_json::Value =
+        serde_json::from_str(&mc_login_body).map_err(|e| anyhow::anyhow!("Invalid Minecraft login response: {e}"))?;
+    let mc_access_token = mc_login_json
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Minecraft login response missing access_token"))?;
+
+    // Step 5: Fetch the Minecraft profile.
+    let profile_resp = client
+        .get("https://api.minecraftservices.com/minecraft/profile")
+        .header("Authorization", format!("Bearer {mc_access_token}"))
+        .header("Accept", "application/json")
+        .send()
+        .await?;
+
+    let profile_status = profile_resp.status();
+    let profile_body = profile_resp.text().await?;
+    if !profile_status.is_success() {
+        anyhow::bail!("Minecraft profile fetch failed ({profile_status}): {profile_body}");
+    }
+    let profile_json: serde_json::Value =
+        serde_json::from_str(&profile_body).map_err(|e| anyhow::anyhow!("Invalid Minecraft profile response: {e}"))?;
+
+    let mojang_uuid = profile_json
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Minecraft profile missing id"))?
+        .to_string();
+    let gamertag = profile_json
+        .get("name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Minecraft profile missing name"))?
+        .to_string();
+
+    let (minecraft_textures_value, minecraft_textures_signature) = profile_json
+        .get("properties")
+        .and_then(mx::textures_property)
+        .map(|(v, s)| (Some(v), Some(s)))
+        .unwrap_or((None, None));
+
+    Ok(OAuthExchangeResult {
+        provider_user_id: mojang_uuid,
+        username: gamertag,
+        avatar_url: None,
+        microsoft_avatar_b64: None,
+        microsoft_avatar_content_type: None,
+        minecraft_textures_value,
+        minecraft_textures_signature,
     })
 }
 

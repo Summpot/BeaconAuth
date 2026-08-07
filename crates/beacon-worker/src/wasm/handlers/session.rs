@@ -327,6 +327,7 @@ pub async fn handle_user_me(req: &Request, env: &Env) -> Result<Response> {
         email: user.email,
         avatar_source: user.avatar_source,
         avatar_url,
+        identity_mode: user.identity_mode,
     })?;
     json_with_cors(req, resp)
 }

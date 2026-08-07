@@ -74,6 +74,13 @@ allow_vanilla_offline_clients = true
 # - 映射按世界存储于 <世界目录>/beaconauth-identities.json。
 # - 安全提示：身份绑定首次登录时的用户名，之后以相同用户名注册的账户会映射到同一 UUID。适用于小型服务器。
 use_legacy_offline_uuids = false
+# 若 Mojang 已验证（正版）玩家绑定到 BeaconAuth 账户，且其身份偏好为 “legacy”，
+# 则在 online-mode 绕过时将其映射回旧版离线 UUID，以保留世界数据。需要下方的查询密钥。
+# 留空（默认）则正版玩家继续使用 Mojang UUID。
+minecraft_lookup_secret = ""
+# 仅在设置了 minecraft_lookup_secret 时生效：在 online-mode 绕过时启用关联正版
+# 的旧版解析。建议设为 true。
+resolve_linked_premium_legacy = true
 ```
 
 ### 说明
@@ -100,3 +107,24 @@ use_legacy_offline_uuids = false
    `/beaconauth transfer-identity <游戏名> <BeaconAuth用户名>` 转移身份。
 6. 所有人迁移完成后映射仍会生效；之后再关闭该模式会让账户回到稳定的 per-account UUID
    （新世界数据，不再关联旧数据）。
+
+### 迁移服务器上的正版玩家（关联 Minecraft 账户）
+
+如果你迁移的部分玩家其实是**正版**（他们拥有真实的 Minecraft 账户），你可以让他们在无需网页登录的情况下
+继续使用已迁移的世界数据：
+
+1. 在 BeaconAuth 网页界面中，玩家关联其 Minecraft 账户（Microsoft/Xbox 登录），并将其身份偏好设置为
+   **旧版离线身份**（保留世界数据）。
+2. 在服务器上，将 `behavior.minecraft_lookup_secret` 设置为你已在 BeaconAuth 服务器上配置的共享密钥
+   （`MINECRAFT_LOOKUP_SECRET`）。
+3. 当 Mojang 已验证的正版玩家加入（online-mode 绕过）时，模组会向 BeaconAuth 服务器查询该 Mojang UUID
+   是否绑定到偏好为 “legacy” 的账户。若是，玩家会被映射到该账户在本世界拥有的旧版离线 UUID，并重放缓存的
+   Mojang `textures` 属性，从而在保留世界数据的**同时**保留真实的皮肤/披风。
+
+注意：
+
+- 该查询只会回答“此 Mojang UUID 是否已绑定，以及模组应如何解析其身份”——不会暴露任何私人数据。
+- 若身份偏好为 “Mojang UUID”（默认）或该 UUID 未绑定，则正版玩家继续使用 Mojang UUID（原版行为）。
+- 若玩家的旧版离线身份已被另一个 BeaconAuth 账户认领，该正版玩家继续使用 Mojang UUID，并记录一条警告
+  （绝不静默覆盖）。
+- `resolve_linked_premium_legacy = false` 即使设置了密钥也会禁用此解析。

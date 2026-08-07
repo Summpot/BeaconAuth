@@ -240,6 +240,7 @@ function LoginPage() {
     github: config?.github_oauth,
     google: config?.google_oauth,
     microsoft: config?.microsoft_oauth,
+    minecraft: config?.minecraft_oauth,
   };
   const enabledOAuthProviders = OAUTH_PROVIDERS.filter(
     (provider) => oauthEnabled[provider],

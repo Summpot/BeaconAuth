@@ -139,6 +139,7 @@ export interface UserInfo {
   email: string | null;
   avatar_source: string | null;
   avatar_url: string | null;
+  identity_mode: string | null;
 }
 
 /** Response shape of GET /api/v1/config. */
@@ -147,4 +148,5 @@ export interface ServerConfig {
   github_oauth: boolean;
   google_oauth: boolean;
   microsoft_oauth: boolean;
+  minecraft_oauth: boolean;
 }

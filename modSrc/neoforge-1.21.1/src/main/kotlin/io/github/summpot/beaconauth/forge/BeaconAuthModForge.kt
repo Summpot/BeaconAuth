@@ -68,6 +68,8 @@ private class BeaconAuthServerConfig(builder: ModConfigSpec.Builder) {
     private val forceAuthIfOfflineMode: ModConfigSpec.BooleanValue
     private val allowVanillaOfflineClients: ModConfigSpec.BooleanValue
     private val useLegacyOfflineUuids: ModConfigSpec.BooleanValue
+    private val minecraftLookupSecret: ModConfigSpec.ConfigValue<String>
+    private val resolveLinkedPremiumLegacy: ModConfigSpec.BooleanValue
 
     init {
         builder.comment(
@@ -175,6 +177,24 @@ private class BeaconAuthServerConfig(builder: ModConfigSpec.Builder) {
                 "Recommended: false"
             )
             .define("use_legacy_offline_uuids", false)
+        minecraftLookupSecret = builder
+            .comment(
+                "Shared secret for the auth server's /api/v1/minecraft/lookup endpoint",
+                "Enables mapping Mojang-verified (premium) players bound to a BeaconAuth account",
+                "with a 'legacy' identity preference back to their legacy offline UUID on online-mode bypass.",
+                "Leave empty to disable (premium players keep the Mojang UUID).",
+                "Recommended: empty, unless migrating an offline-mode server and premium bound players should preserve world data."
+            )
+            .define("minecraft_lookup_secret", "")
+
+        resolveLinkedPremiumLegacy = builder
+            .comment(
+                "Resolve linked premium players to their legacy offline identity on online-mode bypass",
+                "Only meaningful when minecraft_lookup_secret is set and the BeaconAuth account has identity mode 'legacy'.",
+                "When true: the player is mapped to their legacy offline UUID and receives their real skin.",
+                "Recommended: true"
+            )
+            .define("resolve_linked_premium_legacy", true)
 
         builder.pop()
     }
@@ -189,7 +209,9 @@ private class BeaconAuthServerConfig(builder: ModConfigSpec.Builder) {
             bypassIfOnlineModeVerified.getAsBoolean(),
             forceAuthIfOfflineMode.getAsBoolean(),
             allowVanillaOfflineClients.getAsBoolean(),
-            useLegacyOfflineUuids.getAsBoolean()
+            useLegacyOfflineUuids.getAsBoolean(),
+            minecraftLookupSecret.get(),
+            resolveLinkedPremiumLegacy.getAsBoolean()
         )
     }
 

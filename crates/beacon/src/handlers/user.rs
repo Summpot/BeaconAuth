@@ -91,6 +91,7 @@ pub async fn get_user_info(
         email: user.email,
         avatar_source: user.avatar_source,
         avatar_url,
+        identity_mode: user.identity_mode,
     };
 
     HttpResponse::Ok().json(body)

@@ -65,6 +65,8 @@ private object BeaconAuthServerConfig {
     private val forceAuthIfOfflineMode: ForgeConfigSpec.BooleanValue
     private val allowVanillaOfflineClients: ForgeConfigSpec.BooleanValue
     private val useLegacyOfflineUuids: ForgeConfigSpec.BooleanValue
+    private val minecraftLookupSecret: ForgeConfigSpec.ConfigValue<String>
+    private val resolveLinkedPremiumLegacy: ForgeConfigSpec.BooleanValue
 
     val spec: ForgeConfigSpec
 
@@ -178,6 +180,24 @@ private object BeaconAuthServerConfig {
                 "Recommended: false"
             )
             .define("use_legacy_offline_uuids", false)
+        minecraftLookupSecret = builder
+            .comment(
+                "Shared secret for the auth server's /api/v1/minecraft/lookup endpoint",
+                "Enables mapping Mojang-verified (premium) players bound to a BeaconAuth account",
+                "with a 'legacy' identity preference back to their legacy offline UUID on online-mode bypass.",
+                "Leave empty to disable (premium players keep the Mojang UUID).",
+                "Recommended: empty, unless migrating an offline-mode server and premium bound players should preserve world data."
+            )
+            .define("minecraft_lookup_secret", "")
+
+        resolveLinkedPremiumLegacy = builder
+            .comment(
+                "Resolve linked premium players to their legacy offline identity on online-mode bypass",
+                "Only meaningful when minecraft_lookup_secret is set and the BeaconAuth account has identity mode 'legacy'.",
+                "When true: the player is mapped to their legacy offline UUID and receives their real skin.",
+                "Recommended: true"
+            )
+            .define("resolve_linked_premium_legacy", true)
 
         builder.pop()
 
@@ -194,7 +214,9 @@ private object BeaconAuthServerConfig {
             bypassIfOnlineModeVerified.get(),
             forceAuthIfOfflineMode.get(),
             allowVanillaOfflineClients.get(),
-            useLegacyOfflineUuids.get()
+            useLegacyOfflineUuids.get(),
+            minecraftLookupSecret.get(),
+            resolveLinkedPremiumLegacy.get()
         )
     }
 }

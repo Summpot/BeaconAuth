@@ -36,6 +36,23 @@ pub struct Model {
     /// Cached Microsoft avatar (base64-encoded) and its content type.
     pub microsoft_avatar_b64: Option<String>,
     pub microsoft_avatar_content_type: Option<String>,
+
+    /// Per-user Minecraft identity preference.
+    ///
+    /// - `None` → fall back to the backend-global default (`MINECRAFT_IDENTITY_MODE`).
+    /// - `Some("mojang")` → use the real Mojang UUID (default).
+    /// - `Some("legacy")` → map to the legacy offline UUID ("OfflinePlayer:<name>") so a
+    ///   server migrating from offline mode keeps its world data.
+    pub identity_mode: Option<String>,
+
+    /// Mojang-signed `textures` profile property (value) captured at the last Minecraft
+    /// OAuth login, so the mod can replay the real skin/cape when serving a legacy
+    /// offline identity.
+    pub minecraft_textures_value: Option<String>,
+
+    /// Mojang-signed `textures` profile property (signature) captured at the last
+    /// Minecraft OAuth login.
+    pub minecraft_textures_signature: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

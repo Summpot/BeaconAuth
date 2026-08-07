@@ -21,6 +21,8 @@ object BeaconAuthConfig {
 	@Volatile private var forceAuthIfOfflineMode: Boolean = true
 	@Volatile private var allowVanillaOfflineClients: Boolean = true
 	@Volatile private var useLegacyOfflineUuids: Boolean = false
+	@Volatile private var minecraftLookupSecret: String = ""
+	@Volatile private var resolveLinkedPremiumLegacy: Boolean = true
 
 	private fun normalizeBaseUrl(raw: String): String = raw.trim().trimEnd('/')
 
@@ -49,7 +51,9 @@ object BeaconAuthConfig {
         bypassIfOnlineModeVerified: Boolean,
         forceAuthIfOfflineMode: Boolean,
         allowVanillaOfflineClients: Boolean,
-        useLegacyOfflineUuids: Boolean
+        useLegacyOfflineUuids: Boolean,
+        minecraftLookupSecret: String = "",
+        resolveLinkedPremiumLegacy: Boolean = true
     ) {
         val normalizedBaseUrl = normalizeBaseUrl(authBaseUrl)
         this.authBaseUrl = normalizedBaseUrl
@@ -61,6 +65,8 @@ object BeaconAuthConfig {
         this.forceAuthIfOfflineMode = forceAuthIfOfflineMode
         this.allowVanillaOfflineClients = allowVanillaOfflineClients
         this.useLegacyOfflineUuids = useLegacyOfflineUuids
+        this.minecraftLookupSecret = minecraftLookupSecret.trim()
+        this.resolveLinkedPremiumLegacy = resolveLinkedPremiumLegacy
     }
 
 	fun getAuthBaseUrl(): String = authBaseUrl
@@ -95,4 +101,17 @@ object BeaconAuthConfig {
 	 * to username-based impersonation.
 	 */
 	fun shouldUseLegacyOfflineUuids(): Boolean = useLegacyOfflineUuids
+
+	/**
+	 * Shared secret the mod presents to the auth server's `/api/v1/minecraft/lookup`. Empty
+	 * disables the linked-premium legacy resolution entirely.
+	 */
+	fun getMinecraftLookupSecret(): String = minecraftLookupSecret
+
+	/**
+	 * Whether Mojang-verified (premium) players who are bound to a BeaconAuth account and whose
+	 * identity preference is "legacy" should be mapped to the account's legacy offline UUID
+	 * (with Mojang textures replayed) on the online-mode bypass path. Default true.
+	 */
+	fun shouldResolveLinkedPremiumLegacy(): Boolean = resolveLinkedPremiumLegacy
 }

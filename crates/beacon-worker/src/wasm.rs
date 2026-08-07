@@ -100,6 +100,9 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     if method == Method::Post && path == "/v1/oauth/link/start" {
         return handlers::oauth::handle_oauth_link_start(req, &env).await;
     }
+    if method == Method::Post && path == "/v1/minecraft/identity-mode" {
+        return handlers::minecraft::handle_set_identity_mode(req, &env).await;
+    }
     if method == Method::Post && path == "/v1/oidc/token" {
         return oidc::handle_token(req, &env).await;
     }
@@ -121,6 +124,8 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         (Method::Get, "/v1/user/me/avatar") => handlers::session::handle_user_me_avatar(&req, &env).await,
         (Method::Get, "/v1/identities") => handlers::identity::handle_identities_list(&req, &env).await,
         (Method::Get, "/v1/oauth/callback") => handlers::oauth::handle_oauth_callback(&req, &env).await,
+        (Method::Get, "/v1/minecraft/lookup") => handlers::minecraft::handle_minecraft_lookup(&req, &env).await,
+        (Method::Get, "/v1/minecraft/identity-mode") => handlers::minecraft::handle_get_identity_mode(&req, &env).await,
         (Method::Get, "/.well-known/jwks.json") => handlers::config::handle_get_jwks(&req, &env).await,
 
         (Method::Get, "/v1/passkey/list") => handlers::passkey::handle_passkey_list(&req, &env).await,

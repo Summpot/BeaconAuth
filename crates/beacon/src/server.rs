@@ -29,6 +29,15 @@ pub fn build_api_routes() -> actix_web::Scope {
         .route("/oauth/start", web::post().to(handlers::oauth_start))
         .route("/oauth/link/start", web::post().to(handlers::oauth_link_start))
         .route("/oauth/callback", web::get().to(handlers::oauth_callback))
+        .route("/minecraft/lookup", web::get().to(handlers::minecraft::minecraft_lookup))
+        .route(
+            "/minecraft/identity-mode",
+            web::get().to(handlers::minecraft::get_identity_mode),
+        )
+        .route(
+            "/minecraft/identity-mode",
+            web::post().to(handlers::minecraft::set_identity_mode),
+        )
         .route("/refresh", web::post().to(handlers::refresh_token))
         .route("/user/me", web::get().to(handlers::user::get_user_info))
         .route("/user/profile", web::post().to(handlers::user::update_profile))
@@ -158,6 +167,8 @@ pub async fn build_app_state(config: &ServeConfig) -> anyhow::Result<web::Data<A
         microsoft_client_id: config.microsoft_client_id.clone(),
         microsoft_client_secret: config.microsoft_client_secret.clone(),
         microsoft_tenant: config.microsoft_tenant.clone(),
+        minecraft_identity_mode: config.minecraft_identity_mode.clone(),
+        minecraft_lookup_secret: config.minecraft_lookup_secret.clone(),
         redirect_base: config.base_url.clone(),
     };
 
@@ -416,6 +427,8 @@ mod tests {
             microsoft_client_id: None,
             microsoft_client_secret: None,
             microsoft_tenant: "common".to_string(),
+            minecraft_identity_mode: "mojang".to_string(),
+            minecraft_lookup_secret: None,
             redis_url: None,
             base_url: "https://beaconauth.pages.dev".to_string(),
             jwks_url: None,

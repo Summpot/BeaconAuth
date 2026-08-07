@@ -64,5 +64,9 @@ pub struct OAuthConfig {
     pub microsoft_client_id: Option<String>,
     pub microsoft_client_secret: Option<String>,
     pub microsoft_tenant: String,
+    /// Default per-user Minecraft identity preference ("mojang" | "legacy").
+    pub minecraft_identity_mode: String,
+    /// Shared secret the Minecraft mod presents to `/api/v1/minecraft/lookup`.
+    pub minecraft_lookup_secret: Option<String>,
     pub redirect_base: String,
 }

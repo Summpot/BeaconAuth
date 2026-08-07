@@ -1,11 +1,13 @@
 package io.github.summpot.beaconauth.server
 
 import com.mojang.authlib.GameProfile
+import com.mojang.authlib.properties.Property
 import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.login.LoginQueryType
 import io.github.summpot.beaconauth.login.LoginVerificationStatus
 import io.github.summpot.beaconauth.login.ServerLoginNegotiation
 import io.github.summpot.beaconauth.server.AuthServer.VerificationResult
+import io.github.summpot.beaconauth.server.MinecraftLookup
 import io.netty.buffer.Unpooled
 import net.minecraft.network.Connection
 import net.minecraft.network.FriendlyByteBuf
@@ -52,6 +54,120 @@ class ServerLoginHandler @JvmOverloads constructor(
     private val negotiation = ServerLoginNegotiation()
     private var transactionCounter = 0
 
+    // Pending linked-premium legacy lookup (default dual-path bypass).
+    @Volatile private var lookupPending = false
+    @Volatile private var lookupResult: MinecraftLookupResult? = null
+    private var premiumLookupPending = false
+
+    /**
+     * Whether a Mojang-verified premium player should be consulted for a legacy identity.
+     */
+    private fun shouldResolveLegacyForPremium(): Boolean {
+        return !helloWasIntercepted &&
+            server.usesAuthentication() &&
+            BeaconAuthConfig.shouldUseLegacyOfflineUuids() &&
+            BeaconAuthConfig.shouldResolveLinkedPremiumLegacy() &&
+            BeaconAuthConfig.getMinecraftLookupSecret().isNotEmpty()
+    }
+
+    /**
+     * Kick off an async lookup for the Mojang-verified UUID of the current profile.
+     */
+    private fun startPremiumLegacyLookup(): Boolean {
+        val profile = gameProfile ?: return false
+        val mojangUuid = profile.id ?: return false
+        if (lookupPending || lookupResult != null) {
+            return false
+        }
+        val ref = java.util.concurrent.atomic.AtomicReference<MinecraftLookupResult?>()
+        if (!MinecraftLookup.lookupAsync(mojangUuid, ref)) {
+            return false
+        }
+        lookupPending = true
+        Thread {
+            val deadline = System.currentTimeMillis() + 6000L
+            var v: MinecraftLookupResult? = null
+            while (System.currentTimeMillis() < deadline) {
+                v = ref.get()
+                if (v != null) break
+                Thread.sleep(25)
+            }
+            if (v == null) {
+                v = MinecraftLookupResult(false, null, null, null, null)
+            }
+            lookupResult = v
+        }.apply { isDaemon = true }.start()
+        return true
+    }
+
+    /**
+     * Called from [tick] while a legacy lookup is pending. Returns the resolved result when
+     * available.
+     */
+    private fun consumeLookupResult(): MinecraftLookupResult? {
+        if (!lookupPending) {
+            return null
+        }
+        val result = lookupResult
+        if (result != null) {
+            lookupPending = false
+            lookupResult = null
+            return result
+        }
+        return null
+    }
+
+    /**
+     * Apply the result of the premium legacy lookup. When the Mojang-verified UUID is bound to
+     * a BeaconAuth account with identity mode "legacy", swap the profile UUID to the account's
+     * legacy offline UUID (claiming it on first sight, preserving world data) and replay the
+     * cached Mojang `textures` property (real skin/cape). Otherwise keep the Mojang UUID.
+     */
+    private fun applyPremiumLegacyResolution(result: MinecraftLookupResult) {
+        val profile = gameProfile ?: return
+        val subject = result.userSubject
+        if (!result.useLegacyIdentity || subject.isNullOrEmpty()) {
+            logger.info(
+                "Premium {} keeps Mojang UUID {} (bound=${result.bound}, identityMode=${result.identityMode})",
+                profile.name,
+                profile.id
+            )
+            return
+        }
+        val offlineUuid = IdentityMapping.offlineUuidFor(profile.name)
+        val resolution = IdentityMapping.claim(subject, offlineUuid)
+        when (resolution) {
+            is IdentityMapping.Resolution.Bound -> {
+                val updated = GameProfile(resolution.uuid, profile.name)
+                // Replay Mojang-signed textures so the legacy offline identity shows the real skin.
+                if (!result.texturesValue.isNullOrEmpty() && !result.texturesSignature.isNullOrEmpty()) {
+                    updated.properties.put(
+                        "textures",
+                        Property("textures", result.texturesValue, result.texturesSignature)
+                    )
+                }
+                gameProfile = updated
+                // The player is Mojang-verified but we serve a legacy offline UUID, so their
+                // Mojang profile-key signed chat won't match. Treat them like a BeaconAuth
+                // identity so unsigned chat stays usable.
+                AuthServer.registerAuthenticatedPlayer(resolution.uuid)
+                logger.info(
+                    "Premium {} mapped to legacy offline UUID {} with Mojang textures (world data preserved)",
+                    profile.name,
+                    resolution.uuid
+                )
+            }
+            is IdentityMapping.Resolution.ClaimedByOther -> {
+                logger.warn(
+                    "Premium {} is bound to legacy identity {} but that identity is claimed by {}; keeping Mojang UUID",
+                    profile.name,
+                    offlineUuid,
+                    resolution.claimedBy
+                )
+            }
+        }
+    }
+
     /**
      * Expose the current GameProfile (potentially updated with a stable UUID) back to the mixin.
      */
@@ -59,6 +175,26 @@ class ServerLoginHandler @JvmOverloads constructor(
         get() = gameProfile
 
     fun tick() {
+        // While a premium legacy lookup is pending, poll for its result (delivered off-thread).
+        if (premiumLookupPending) {
+            val result = consumeLookupResult()
+            if (result != null) {
+                premiumLookupPending = false
+                applyPremiumLegacyResolution(result)
+                logger.info("Legacy identity lookup resolved; finishing negotiation")
+                finish()
+                return
+            }
+            negotiation.incrementTick()
+            if (negotiation.ticks > NEGOTIATION_TIMEOUT_TICKS) {
+                logger.warn("Legacy identity lookup timed out; falling back to Mojang UUID")
+                premiumLookupPending = false
+                lookupPending = false
+                finish()
+            }
+            return
+        }
+
         negotiation.incrementTick()
         if (negotiation.ticks > NEGOTIATION_TIMEOUT_TICKS) {
             fail(Component.translatable("disconnect.beaconauth.timeout"))
@@ -141,8 +277,26 @@ class ServerLoginHandler @JvmOverloads constructor(
         )
 
         if (bypass) {
-            logger.info("Existing session allowed (post-PROBE allow-through); finishing negotiation")
-            finish()
+            // Premium dual-path allow-through. When the server migrated from offline mode and
+            // the player is bound to a BeaconAuth account with a "legacy" identity preference,
+            // map them to the legacy offline UUID (preserving world data) and replay the cached
+            // Mojang textures. Otherwise keep the Mojang UUID (vanilla behavior).
+            if (bypassOnlineMode && shouldResolveLegacyForPremium()) {
+                logger.info(
+                    "Premium allow-through with legacy resolution enabled; querying auth server for ${gameProfile?.name} (${gameProfile?.id})"
+                )
+                if (startPremiumLegacyLookup()) {
+                    premiumLookupPending = true
+                    negotiation.resetTick()
+                    logger.info("Legacy identity lookup pending; deferring allow-through")
+                } else {
+                    logger.info("Legacy identity lookup disabled/unavailable; keeping Mojang UUID")
+                    finish()
+                }
+            } else {
+                logger.info("Existing session allowed (post-PROBE allow-through); finishing negotiation")
+                finish()
+            }
         } else {
             logger.info("Starting BeaconAuth web flow")
             startBeaconFlow()

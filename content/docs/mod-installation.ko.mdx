@@ -72,6 +72,14 @@ allow_vanilla_offline_clients = true
 # - 보안: ID는 첫 로그인 시 사용한 이름에 묶이므로, 나중에 같은 이름으로 가입한 계정도
 #   동일한 UUID로 매핑됩니다. 소규모 서버용입니다.
 use_legacy_offline_uuids = false
+# Mojang 검증(정품) 플레이어가 BeaconAuth 계정에 바인딩되어 있고 ID 선호가 "legacy"인 경우,
+# 온라인 모드 우회 시 레거시 오프라인 UUID로 다시 매핑하여 월드 데이터를 보존합니다.
+# 아래의 lookup secret이 필요합니다.
+# 비워 두면(기본값) 정품 플레이어는 Mojang UUID를 유지합니다.
+minecraft_lookup_secret = ""
+# minecraft_lookup_secret이 설정된 경우에만 유효: 온라인 모드 우회 시 연결된 정품 레거시
+# 해석을 활성화합니다. true를 권장합니다.
+resolve_linked_premium_legacy = true
 ```
 
 ### 참고
@@ -97,3 +105,27 @@ use_legacy_offline_uuids = false
    `/beaconauth transfer-identity <Minecraft이름> <BeaconAuth사용자이름>`으로 ID를 이전할 수 있습니다.
 6. 마이그레이션이 끝난 후에도 매핑은 유지됩니다. 이후 모드를 끄면 계정은 안정적인 per-account
    UUID(새 월드 데이터, 기존 데이터와는 무관)로 돌아갑니다.
+
+### 마이그레이션된 서버의 프리미엄 플레이어 (연결된 Minecraft 계정)
+
+마이그레이션된 플레이어 중 일부가 실제로 **프리미엄**(정식 Minecraft 계정 보유자)인 경우,
+웹 로그인 없이 마이그레이션된 월드 데이터를 계속 사용할 수 있습니다.
+
+1. BeaconAuth 웹 UI에서 플레이어는 자신의 Minecraft 계정을 연결(Microsoft/Xbox로 로그인)하고,
+   신원 환경설정을 **레거시 오프라인 신원(월드 데이터 보존)**으로 설정합니다.
+2. 서버에서 `behavior.minecraft_lookup_secret`을 BeaconAuth 서버에 설정한 공유 비밀키
+   (`MINECRAFT_LOOKUP_SECRET`)와 일치시킵니다.
+3. Mojang 검증된 프리미엄 플레이어가 접속하면(온라인 모드 바이패스), 모드는 BeaconAuth 서버에 해당
+   Mojang UUID가 'legacy' 환경설정의 계정에 연결되어 있는지 질의합니다. 연결된 경우, 플레이어는 이
+   월드에서 해당 계정이 소유한 레거시 오프라인 UUID로 매핑되고, 캐시된 Mojang `textures` 속성이 재생되어
+   월드 데이터**와** 실제 스킨/망토를 모두 유지합니다.
+
+참고:
+
+- 이 조회는 "이 Mojang UUID가 연결되어 있는지, 모드가 신원을 어떻게 해결해야 하는지"에만 답하며,
+  개인 정보를 노출하지 않습니다.
+- 신원 환경설정이 "Mojang UUID"(기본값)이거나 UUID가 연결되어 있지 않으면 프리미엄 플레이어는 단순히
+  Mojang UUID(바닐라 동작)를 유지합니다.
+- 플레이어의 레거시 오프라인 신원이 이미 다른 BeaconAuth 계정에 의해 인계된 경우, 프리미엄 플레이어는
+  Mojang UUID를 유지하고 경고가 로그에 기록됩니다(절대 조용히 덮어쓰지 않음).
+- `resolve_linked_premium_legacy = false`로 설정하면 비밀키가 설정되어 있어도 이 해결이 비활성화됩니다.

@@ -113,6 +113,17 @@ pub struct ServeConfig {
     #[arg(long, env = "MICROSOFT_TENANT", default_value = "common")]
     pub microsoft_tenant: String,
 
+    /// Default per-user Minecraft identity preference: "mojang" (real Mojang UUID, default)
+    /// or "legacy" (map to the legacy offline UUID "OfflinePlayer:<name>"). Individual users
+    /// can override this in their profile. Only used when Minecraft OAuth is configured.
+    #[arg(long, env = "MINECRAFT_IDENTITY_MODE", default_value = "mojang")]
+    pub minecraft_identity_mode: String,
+
+    /// Shared secret the Minecraft mod must present to `GET /api/v1/minecraft/lookup`
+    /// (`X-Minecraft-Auth` header). Required when this endpoint is enabled.
+    #[arg(long, env = "MINECRAFT_LOOKUP_SECRET")]
+    pub minecraft_lookup_secret: Option<String>,
+
     /// Base URL for the server (e.g., https://beaconauth.pages.dev)
     /// Used for OAuth redirects, JWT issuer claim, and WebAuthn RP origin
     #[arg(

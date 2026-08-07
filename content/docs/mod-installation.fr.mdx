@@ -72,6 +72,14 @@ allow_vanilla_offline_clients = true
 # - Sécurité : l'identité est liée au nom utilisé à la première connexion ; un autre compte
 #   s'inscrivant plus tard avec le même nom obtiendrait la même UUID. Conçu pour les petits serveurs.
 use_legacy_offline_uuids = false
+# Si un joueur premium vérifié Mojang est lié à un compte BeaconAuth et que sa préférence
+# d'identité est "legacy", remappez-le vers l'UUID hors ligne hérité lors du contournement
+# online-mode afin de préserver les données du monde. Nécessite le secret de recherche ci-dessous.
+# Laissez vide (défaut) pour conserver les joueurs premium sur l'UUID Mojang.
+minecraft_lookup_secret = ""
+# Pertinent uniquement si minecraft_lookup_secret est défini : active la résolution legacy
+# premium liée lors du contournement online-mode. Recommandé : true.
+resolve_linked_premium_legacy = true
 ```
 
 ### Notes
@@ -99,3 +107,31 @@ use_legacy_offline_uuids = false
    une identité avec `/beaconauth transfer-identity <nomMinecraft> <nomUtilisateurBeaconAuth>`.
 6. Une fois la migration terminée, l'association reste active ; désactiver ensuite le mode fait
    revenir les comptes à des UUID stables par compte (nouvelles données du monde, pas les anciennes).
+
+### Joueurs premium sur un serveur migré (comptes Minecraft liés)
+
+Si certains de vos joueurs migrés sont en réalité **premium** (ils possèdent un vrai compte
+Minecraft), vous pouvez leur permettre de continuer à utiliser leurs données de monde migrées
+sans connexion web :
+
+1. Dans l'interface web BeaconAuth, les joueurs lient leur compte Minecraft (connexion
+   Microsoft/Xbox) et définissent leur préférence d'identité sur **Identité hors ligne héritée**
+   (préserver les données du monde).
+2. Sur le serveur, définissez `behavior.minecraft_lookup_secret` sur le secret partagé que vous
+   avez configuré sur le serveur BeaconAuth (`MINECRAFT_LOOKUP_SECRET`).
+3. Lorsqu'un joueur premium vérifié Mojang se connecte (contournement online-mode), le mod demande
+   au serveur BeaconAuth si cet UUID Mojang est lié à un compte avec la préférence "legacy". Si
+   oui, le joueur est mappé vers l'UUID hors ligne hérité que le compte possède sur ce monde, et
+   la propriété Mojang `textures` en cache est rejouée, afin qu'il conserve ses données de monde
+   **et** son vrai skin/cape.
+
+Notes :
+
+- La recherche répond uniquement à « cet UUID Mojang est-il lié, et comment le mod doit-il
+  résoudre son identité » — elle n'expose aucune donnée privée.
+- Si la préférence d'identité est « UUID Mojang » (défaut) ou si l'UUID n'est pas lié, le joueur
+  premium conserve simplement l'UUID Mojang (comportement vanilla).
+- Si l'identité hors ligne héritée du joueur est déjà revendiquée par un autre compte BeaconAuth,
+  le joueur premium conserve l'UUID Mojang et un avertissement est journalisé (jamais de
+  remplacement silencieux).
+- `resolve_linked_premium_legacy = false` désactive cette résolution même lorsqu'un secret est défini.

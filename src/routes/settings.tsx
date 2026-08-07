@@ -53,18 +53,24 @@ const PROVIDER_OAUTH_FLAG = {
   github: 'github_oauth',
   google: 'google_oauth',
   microsoft: 'microsoft_oauth',
+  minecraft: 'minecraft_oauth',
 } as const satisfies Record<OAuthProvider, keyof ServerConfig>;
 
 const AVATAR_SOURCE_LABELS: Record<OAuthProvider, () => string> = {
   github: m.settings_avatar_source_github,
   google: m.settings_avatar_source_google,
   microsoft: m.settings_avatar_source_microsoft,
+  minecraft: () => '',
 };
+
+/** Providers that can serve as a web-UI avatar source (Minecraft is not one). */
+const AVATAR_PROVIDERS: OAuthProvider[] = ['github', 'google', 'microsoft'];
 
 const LINK_PROVIDER_LABELS: Record<OAuthProvider, () => string> = {
   github: m.settings_link_github,
   google: m.settings_link_google,
   microsoft: m.settings_link_microsoft,
+  minecraft: m.settings_link_minecraft,
 };
 
 const makePasswordChangeSchema = () =>
@@ -145,6 +151,10 @@ function SettingsPage() {
   const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const [passkeyName, setPasskeyName] = useState('');
   const [passkeySubmitting, setPasskeySubmitting] = useState(false);
+  const [minecraftLinked, setMinecraftLinked] = useState(false);
+  const [identityMode, setIdentityMode] = useState<'mojang' | 'legacy'>('mojang');
+  const [identityModeLoading, setIdentityModeLoading] = useState(true);
+  const [identityModeSaving, setIdentityModeSaving] = useState(false);
 
   const hasPassword = identities?.has_password ?? true;
   const linkedProviders = new Set(
@@ -314,9 +324,28 @@ function SettingsPage() {
         setPasskeys(passkeysData.passkeys || []);
         setIdentities(identitiesData);
         setConfig(configData);
+
+        const minecraftLinked = (identitiesData?.identities ?? []).some(
+          (i) => i.provider === 'minecraft',
+        );
+        setMinecraftLinked(minecraftLinked);
+
+        // Fetch the effective identity mode when Minecraft is configured & linked.
+        if (configData?.minecraft_oauth && minecraftLinked) {
+          try {
+            const mode =
+              await apiClient<{ mode: 'mojang' | 'legacy' }>(
+                '/api/v1/minecraft/identity-mode',
+              );
+            setIdentityMode(mode.mode ?? 'mojang');
+          } catch (err) {
+            console.error('Failed to load identity mode', err);
+          }
+        }
       } catch (error) {
         console.error('Failed to load settings data', error);
       } finally {
+        setIdentityModeLoading(false);
         setLoading(false);
       }
     };
@@ -351,6 +380,25 @@ function SettingsPage() {
       toast.error(
         getErrorMessage(error, m.settings_error_failed_start_oauth_link_flow()),
       );
+    }
+  };
+
+  const handleIdentityModeChange = async (mode: 'mojang' | 'legacy') => {
+    if (mode === identityMode) return;
+    setIdentityModeSaving(true);
+    try {
+      await apiClient('/api/v1/minecraft/identity-mode', {
+        method: 'POST',
+        body: { mode },
+      });
+      setIdentityMode(mode);
+      toast.success(m.settings_identity_mode_saved());
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, m.settings_identity_mode_error()),
+      );
+    } finally {
+      setIdentityModeSaving(false);
     }
   };
 
@@ -566,7 +614,7 @@ function SettingsPage() {
                                       </div>
                                     </div>
 
-                                    {enabledProviders.map((p) => (
+                                    {AVATAR_PROVIDERS.map((p) => (
                                       <div
                                         key={p}
                                         className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80"
@@ -641,6 +689,67 @@ function SettingsPage() {
                   )}
                 </profileForm.Subscribe>
               </form>
+            </Card>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-8 w-1 bg-primary/20 rounded-full" />
+              <h2 className="text-xl font-bold">
+                {m.settings_identity_mode_title()}
+              </h2>
+            </div>
+            <Card className="border border-border/60 shadow-xs">
+              <CardContent className="p-6">
+                <p className="text-muted-foreground text-sm mb-4">
+                  {m.settings_identity_mode_desc()}
+                </p>
+
+                {!config?.minecraft_oauth ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    {m.settings_identity_mode_not_configured()}
+                  </p>
+                ) : !minecraftLinked ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    {m.settings_identity_mode_not_linked()}
+                  </p>
+                ) : (
+                  <RadioGroup
+                    value={identityMode}
+                    onValueChange={(value) =>
+                      handleIdentityModeChange(value as 'mojang' | 'legacy')
+                    }
+                    disabled={identityModeSaving || identityModeLoading}
+                    className="grid gap-3"
+                  >
+                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                      <div className="flex items-center gap-3">
+                        <RadioGroupItem value="mojang" id="identity_mojang" />
+                        <Label
+                          htmlFor="identity_mojang"
+                          className="cursor-pointer"
+                        >
+                          {m.settings_identity_mode_mojang()}
+                        </Label>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-4 bg-card/80">
+                      <div className="flex items-center gap-3">
+                        <RadioGroupItem value="legacy" id="identity_legacy" />
+                        <Label
+                          htmlFor="identity_legacy"
+                          className="cursor-pointer"
+                        >
+                          {m.settings_identity_mode_legacy()}
+                        </Label>
+                      </div>
+                    </div>
+                    {identityModeSaving && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </RadioGroup>
+                )}
+              </CardContent>
             </Card>
           </section>
 

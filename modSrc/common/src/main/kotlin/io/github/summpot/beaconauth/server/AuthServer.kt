@@ -479,6 +479,17 @@ object AuthServer {
 
     fun isPlayerAuthenticated(playerUuid: UUID): Boolean = authenticatedPlayers.contains(playerUuid)
 
+    /**
+     * Register a player as BeaconAuth-authenticated (e.g. a Mojang-verified premium player who
+     * is served a legacy offline UUID on the online-mode bypass path, so their Mojang profile
+     * key signed chat is treated as unsigned and stays usable).
+     */
+    fun registerAuthenticatedPlayer(playerUuid: UUID) {
+        if (authenticatedPlayers.add(playerUuid)) {
+            logger.info("Registered player $playerUuid as BeaconAuth-authenticated")
+        }
+    }
+
     fun removeAuthenticatedPlayer(playerUuid: UUID) {
         if (authenticatedPlayers.remove(playerUuid)) {
             logger.info("Removed player from authenticated set (remaining: ${authenticatedPlayers.size})")

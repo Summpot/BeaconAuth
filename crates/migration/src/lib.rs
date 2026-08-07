@@ -2,6 +2,7 @@ pub use sea_orm_migration::prelude::*;
 
 mod m20250124_000001_create_all_tables;
 mod m20260120_000002_add_user_profile_fields;
+mod m20260808_000003_add_minecraft_identity_fields;
 
 pub struct Migrator;
 
@@ -12,6 +13,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20250124_000001_create_all_tables::Migration),
             Box::new(m20260120_000002_add_user_profile_fields::Migration),
+            Box::new(m20260808_000003_add_minecraft_identity_fields::Migration),
         ]
     }
 }

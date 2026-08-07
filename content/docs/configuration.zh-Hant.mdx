@@ -34,9 +34,11 @@ beacon serve --help
 | `--github-client-secret` | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret。 |
 | `--google-client-id` | `GOOGLE_CLIENT_ID` | Google OAuth client ID。 |
 | `--google-client-secret` | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret。 |
-| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Microsoft Entra ID client ID。 |
-| `--microsoft-client-secret` | `MICROSOFT_CLIENT_SECRET` | Microsoft Entra ID client secret。 |
+| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Microsoft Entra ID client ID。也用於 Minecraft（Xbox）OAuth 流程。 |
+| `--microsoft-client-secret` | `MICROSOFT_CLIENT_SECRET` | Microsoft Entra ID client secret。也用於 Minecraft（Xbox）OAuth 流程。 |
 | `--microsoft-tenant` | `MICROSOFT_TENANT` | 預設為 `common`。 |
+| `--minecraft-identity-mode` | `MINECRAFT_IDENTITY_MODE` | 預設的每位使用者 Minecraft 身份偏好：`mojang`（預設）或 `legacy`。 |
+| `--minecraft-lookup-secret` | `MINECRAFT_LOOKUP_SECRET` | Minecraft mod 向 `GET /api/v1/minecraft/lookup` 出示的共享密鑰。留空則停用該端點。 |
 
 ### 管理指令
 
@@ -70,6 +72,8 @@ GOOGLE_CLIENT_SECRET=
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_TENANT=common
+MINECRAFT_IDENTITY_MODE=mojang
+MINECRAFT_LOOKUP_SECRET=
 ```
 
 ## Cloudflare Worker 設定

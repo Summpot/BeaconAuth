@@ -34,9 +34,11 @@ beacon serve --help
 | `--github-client-secret` | `GITHUB_CLIENT_SECRET` | GitHub OAuth クライアントシークレット。 |
 | `--google-client-id` | `GOOGLE_CLIENT_ID` | Google OAuth クライアント ID。 |
 | `--google-client-secret` | `GOOGLE_CLIENT_SECRET` | Google OAuth クライアントシークレット。 |
-| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Microsoft Entra ID クライアント ID。 |
+| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Microsoft Entra ID クライアント ID。Minecraft (Xbox) OAuth フローにも再利用されます。 |
 | `--microsoft-client-secret` | `MICROSOFT_CLIENT_SECRET` | Microsoft Entra ID クライアントシークレット。 |
-| `--microsoft-tenant` | `MICROSOFT_TENANT` | 既定は `common`。 |
+| `--microsoft-tenant` | `MICROSOFT_TENANT` | 既定は `common`。Entra `microsoft` プロバイダーのみに使用されます。`minecraft` プロバイダーは常にコンシューマー テナントを使用します。 |
+| `--minecraft-identity-mode` | `MINECRAFT_IDENTITY_MODE` | 既定のユーザー別 Minecraft 身元プリファレンス: `mojang`（既定）または `legacy`。 |
+| `--minecraft-lookup-secret` | `MINECRAFT_LOOKUP_SECRET` | Minecraft mod が `GET /api/v1/minecraft/lookup` に提示する共有シークレット。空の場合はエンドポイントを無効化します。 |
 
 ### 管理コマンド
 
@@ -70,6 +72,10 @@ GOOGLE_CLIENT_SECRET=
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_TENANT=common
+
+# Minecraft identity (コンシューマー Xbox フロー)
+MINECRAFT_IDENTITY_MODE=mojang
+MINECRAFT_LOOKUP_SECRET=
 ```
 
 ## Cloudflare Worker 設定
@@ -96,4 +102,5 @@ Worker は `wrangler.workers.jsonc` とデプロイ時変数で設定します�
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT`
+- `MINECRAFT_IDENTITY_MODE`, `MINECRAFT_LOOKUP_SECRET`
 - `LIBSQL_AUTH_TOKEN`（libSQL/Turso 用）

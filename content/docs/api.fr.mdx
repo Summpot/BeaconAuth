@@ -33,24 +33,37 @@ Exemple: `POST /v1/login`
 }
 ```
 
-### Authentification Minecraft
+### Authentification Minecraft (OIDC)
 
-- `POST /v1/minecraft-jwt`
+Le mod Minecraft utilise un flux OIDC standard code d'autorisation + PKCE :
 
-Exemple de requête:
+- `GET /.well-known/openid-configuration` — découverte OIDC
+- `GET /v1/oidc/authorize` — endpoint d'autorisation (le mod l'ouvre via l'UI de connexion)
+- `POST /v1/oidc/complete` — la SPA termine l'autorisation et redirige vers le mod
+- `POST /v1/oidc/token` — endpoint de token (sans client secret, lié au PKCE)
+- `GET /v1/oidc/userinfo` — endpoint userinfo (autorisé par access token)
 
-```json
-{
-  "challenge": "PKCE_challenge_string",
-  "redirect_port": 38125
-}
-```
+### Identité Minecraft
+
+Lorsqu'un joueur premium vérifié Mojang est servi via le chemin de contournement online-mode, le
+mod peut résoudre si un UUID Mojang est lié à un compte BeaconAuth et comment gérer son identité :
+
+- `GET /v1/minecraft/lookup?uuid=<mojangUuid>` — authentifié avec le secret partagé
+  `X-Minecraft-Auth` (`MINECRAFT_LOOKUP_SECRET`). Renvoie `{ bound, identity_mode, user_subject,
+  textures_value, textures_signature }`.
+- `GET /v1/minecraft/identity-mode` — la préférence d'identité effective de l'utilisateur actuel.
+- `POST /v1/minecraft/identity-mode` — définit la préférence de l'utilisateur actuel
+  (`mojang`/`legacy`).
 
 ### OAuth
 
 - `POST /v1/oauth/start`
 - `POST /v1/oauth/link/start`
 - `GET /v1/oauth/callback`
+
+Fournisseurs pris en charge : `github`, `google`, `microsoft` (Entra ID) et `minecraft` (Microsoft
+consumer + Xbox, réutilisant les identifiants `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`). Le
+fournisseur `minecraft` lie le véritable UUID Mojang comme identité du fournisseur.
 
 ### Passkeys (WebAuthn)
 

@@ -145,6 +145,12 @@ pub struct ConfigResponse {
     pub google_oauth: bool,
     /// Whether Microsoft OAuth is configured
     pub microsoft_oauth: bool,
+    /// Whether Minecraft (Xbox) OAuth is configured.
+    ///
+    /// When `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` are set, this is `true` even if
+    /// `microsoft_oauth` is `false` (the Minecraft flow reuses the same credentials but is
+    /// a separate, consumer-tenant Xbox flow).
+    pub minecraft_oauth: bool,
 }
 
 /// Session token claims (for access token and refresh token)
@@ -196,6 +202,9 @@ pub struct UserMeResponse {
 
     /// Fully-resolved avatar URL to render (may be external, or a BeaconAuth endpoint).
     pub avatar_url: Option<String>,
+
+    /// Per-user Minecraft identity preference: "mojang" | "legacy" | null (use backend default).
+    pub identity_mode: Option<String>,
 }
 
 /// Request payload for updating user profile fields.
@@ -214,6 +223,54 @@ pub struct UpdateUserProfileRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateUserProfileResponse {
     pub success: bool,
+}
+
+/// Request payload for setting the per-user Minecraft identity preference.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetMinecraftIdentityModeRequest {
+    /// "mojang" | "legacy".
+    pub mode: String,
+}
+
+/// Response for setting the per-user Minecraft identity preference.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetMinecraftIdentityModeResponse {
+    pub success: bool,
+}
+
+/// Response for the authenticated `/api/v1/minecraft/identity-mode` endpoint.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MinecraftIdentityModeResponse {
+    /// The effective preference: "mojang" | "legacy".
+    pub mode: String,
+}
+
+/// Response model for `GET /api/v1/minecraft/lookup?uuid=U`.
+///
+/// The mod's online-mode bypass path uses this to decide whether a Mojang-verified UUID has
+/// a BeaconAuth binding and how to resolve the in-game identity (legacy offline UUID vs the
+/// Mojang UUID itself).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MinecraftLookupResponse {
+    /// Whether the Mojang UUID is bound to a BeaconAuth account.
+    pub bound: bool,
+
+    /// Effective identity preference for the bound user: "mojang" | "legacy" | null
+    /// (null when no preference and no backend default is set).
+    pub identity_mode: Option<String>,
+
+    /// BeaconAuth user id (subject) of the bound account. The mod uses this to resolve (or
+    /// claim) the account's per-world legacy offline UUID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_subject: Option<String>,
+
+    /// Mojang-signed `textures` property value, when cached.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub textures_value: Option<String>,
+
+    /// Mojang-signed `textures` property signature, when cached.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub textures_signature: Option<String>,
 }
 
 // -------------------- Passkey models (optional feature) --------------------

@@ -33,24 +33,36 @@ API は以下で提供されます:
 }
 ```
 
-### Minecraft 認証
+### Minecraft 認証 (OIDC)
 
-- `POST /v1/minecraft-jwt`
+Minecraft mod は標準の OIDC 認可コード + PKCE フローを使用します:
 
-例:
+- `GET /.well-known/openid-configuration` — OIDC discovery
+- `GET /v1/oidc/authorize` — 認可エンドポイント（mod がログイン UI 経由で開きます）
+- `POST /v1/oidc/complete` — SPA が認可を完了し、mod にリダイレクトします
+- `POST /v1/oidc/token` — トークンエンドポイント（クライアントシークレットなし、PKCE バインド）
+- `GET /v1/oidc/userinfo` — userinfo エンドポイント（アクセストークン認可）
 
-```json
-{
-  "challenge": "PKCE_challenge_string",
-  "redirect_port": 38125
-}
-```
+### Minecraft identity
+
+Mojang 検証済みのプレミアムプレイヤーがオンラインモードバイパスで接続するとき、mod は Mojang UUID が
+BeaconAuth アカウントに紐づいているか、その身元をどう解決するかを確認できます:
+
+- `GET /v1/minecraft/lookup?uuid=<mojangUuid>` — `X-Minecraft-Auth` 共有シークレット
+  （`MINECRAFT_LOOKUP_SECRET`）で認証。`{ bound, identity_mode, user_subject, textures_value,
+  textures_signature }` を返します。
+- `GET /v1/minecraft/identity-mode` — 現在のユーザーの有効な身元プリファレンス。
+- `POST /v1/minecraft/identity-mode` — 現在のユーザーのプリファレンス（`mojang`/`legacy`）を設定。
 
 ### OAuth
 
 - `POST /v1/oauth/start`
 - `POST /v1/oauth/link/start`
 - `GET /v1/oauth/callback`
+
+対応プロバイダー: `github`, `google`, `microsoft`（Entra ID）、`minecraft`（Microsoft コンシューマー +
+Xbox。`MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` を再利用）。`minecraft` プロバイダーは実際の
+Mojang UUID をプロバイダー身元としてバインドします。
 
 ### パスキー（WebAuthn）
 

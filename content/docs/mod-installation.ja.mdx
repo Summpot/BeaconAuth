@@ -72,6 +72,14 @@ allow_vanilla_offline_clients = true
 # - セキュリティ：ID は初回ログイン時のユーザー名に紐付くため、後から同名で登録した
 #   アカウントも同じ UUID にマッピングされます。小規模サーバー向けです。
 use_legacy_offline_uuids = false
+# Mojang 検証済み（正版）プレイヤーが BeaconAuth アカウントに紐付けられ、その ID の
+# 設定が "legacy" の場合、オンラインモードバイパス時にレガシーのオフライン UUID にマッピングし直し、
+# ワールドデータを保持します。下記の lookup secret が必要です。
+# 空のまま（既定）にすると、正版プレイヤーは Mojang UUID のままになります。
+minecraft_lookup_secret = ""
+# minecraft_lookup_secret が設定されている場合のみ有効：オンラインモードバイパス時に
+# 紐付け済みの正版レガシー解決を有効にします。true を推奨します。
+resolve_linked_premium_legacy = true
 ```
 
 ### メモ
@@ -97,3 +105,28 @@ use_legacy_offline_uuids = false
    `/beaconauth transfer-identity <Minecraft名> <BeaconAuthユーザー名>` で ID を移行できます。
 6. 移行完了後もマッピングは有効です。あとでこのモードを無効にすると、アカウントは安定した
    per-account UUID（新しいワールドデータ、旧データとは関連しません）に戻ります。
+
+### 移行済みサーバー上のプレミアムプレイヤー（リンク済み Minecraft アカウント）
+
+移行済みのプレイヤーの一部が実際には**プレミアム**（正規の Minecraft アカウント所持者）の場合、
+ウェブログインなしで移行済みのワールドデータを使い続けられます。
+
+1. BeaconAuth ウェブ UI で、プレイヤーは自分の Minecraft アカウントを連携（Microsoft/Xbox でサインイン）し、
+   身元プリファレンスを**旧版オフライン身元（ワールドデータを保持）**に設定します。
+2. サーバー側で、`behavior.minecraft_lookup_secret` を BeaconAuth サーバーで設定した共有シークレット
+   （`MINECRAFT_LOOKUP_SECRET`）に合わせます。
+3. Mojang 検証済みのプレミアムプレイヤーが参加するとき（オンラインモードバイパス）、mod は
+   BeaconAuth サーバーに、その Mojang UUID が「legacy」プリファレンスのアカウントに紐づいているかを
+   問い合わせます。紐づいている場合、プレイヤーはこのワールドでそのアカウントが所有する旧版オフライン UUID に
+   マッピングされ、キャッシュされた Mojang `textures` プロパティが再生されるため、ワールドデータ**と**
+   実際のスキン/ケープの両方を維持できます。
+
+注意:
+
+- このルックアップは「この Mojang UUID は紐づいているか、mod がその身元をどう解決すべきか」にしか答えず、
+  個人情報は公開しません。
+- 身元プリファレンスが「Mojang UUID」（既定）の場合、または UUID が紐づいていない場合、プレミアムプレイヤーは
+  単に Mojang UUID（バニラ動作）を維持します。
+- プレイヤーの旧版オフライン身元が別の BeaconAuth アカウントにすでに認領されている場合、プレミアムプレイヤーは
+  Mojang UUID を維持し、警告がログに記録されます（静かに上書きはされません）。
+- `resolve_linked_premium_legacy = false` にすると、シークレットを設定していてもこの解決は無効になります。

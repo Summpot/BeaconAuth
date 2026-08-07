@@ -199,6 +199,50 @@ pub async fn db_update_user_avatar_cache(
     Ok(())
 }
 
+/// Cache the Mojang-signed `textures` profile property for a Minecraft-bound user.
+pub async fn db_update_user_minecraft_textures(
+    db: &DatabaseConnection,
+    user_id: &str,
+    textures_value: Option<&str>,
+    textures_signature: Option<&str>,
+) -> Result<()> {
+    let Some(row) = db_user_by_id(db, user_id).await? else {
+        return Err(Error::RustError("User not found".to_string()));
+    };
+
+    let ts = now_ts();
+    let mut active: user::ActiveModel = row.into();
+    active.updated_at = Set(ts);
+    if let Some(v) = textures_value {
+        active.minecraft_textures_value = Set(Some(v.to_string()));
+    }
+    if let Some(s) = textures_signature {
+        active.minecraft_textures_signature = Set(Some(s.to_string()));
+    }
+
+    active.update(db).await.map_err(map_db_err)?;
+    Ok(())
+}
+
+/// Set the per-user Minecraft identity preference ("mojang" | "legacy").
+pub async fn db_update_user_identity_mode(
+    db: &DatabaseConnection,
+    user_id: &str,
+    mode: &str,
+) -> Result<()> {
+    let Some(row) = db_user_by_id(db, user_id).await? else {
+        return Err(Error::RustError("User not found".to_string()));
+    };
+
+    let ts = now_ts();
+    let mut active: user::ActiveModel = row.into();
+    active.updated_at = Set(ts);
+    active.identity_mode = Set(Some(mode.to_string()));
+
+    active.update(db).await.map_err(map_db_err)?;
+    Ok(())
+}
+
 pub async fn db_passkeys_by_user_id(db: &DatabaseConnection, user_id: &str) -> Result<Vec<PasskeyDbRow>> {
     passkey::Entity::find()
     .filter(passkey::Column::UserId.eq(user_id.to_string()))

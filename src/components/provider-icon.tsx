@@ -1,12 +1,13 @@
 import { Github, Link2 } from 'lucide-react';
 import * as m from '@/paraglide/messages';
 
-export type OAuthProvider = 'github' | 'google' | 'microsoft';
+export type OAuthProvider = 'github' | 'google' | 'microsoft' | 'minecraft';
 
 export const OAUTH_PROVIDERS: OAuthProvider[] = [
   'github',
   'google',
   'microsoft',
+  'minecraft',
 ];
 
 export function providerLabel(provider: string): string {
@@ -17,6 +18,8 @@ export function providerLabel(provider: string): string {
       return m.provider_google();
     case 'microsoft':
       return m.provider_microsoft();
+    case 'minecraft':
+      return m.provider_minecraft();
     default:
       return provider;
   }
@@ -70,6 +73,29 @@ export function ProviderIcon({
           <path fill="#7FBA00" d="M13 2h9v9h-9z" />
           <path fill="#00A4EF" d="M2 13h9v9H2z" />
           <path fill="#FFB900" d="M13 13h9v9h-9z" />
+        </svg>
+      );
+    case 'minecraft':
+      return (
+        <svg
+          role="img"
+          className={className}
+          viewBox="0 0 24 24"
+          aria-label={m.provider_minecraft()}
+        >
+          {/* Minecraft grass-block inspired icon (cube top + green world). */}
+          <path
+            fill="#8BC34A"
+            d="M12 2 2 7v10l10 5 10-5V7L12 2z"
+          />
+          <path
+            fill="#4CAF50"
+            d="M12 2v10l10 5V7L12 2zm0 10L4 7v10l8 4V12z"
+          />
+          <path
+            fill="#388E3C"
+            d="M12 6l-6-1 6-3 6 3-6 1zM12 9l-6-1v2l6 1 6-1V8l-6 1z"
+          />
         </svg>
       );
     default:

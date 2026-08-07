@@ -33,24 +33,36 @@ API는 다음 경로로 제공됩니다:
 }
 ```
 
-### Minecraft 인증
+### Minecraft 인증 (OIDC)
 
-- `POST /v1/minecraft-jwt`
+Minecraft 모드는 표준 OIDC authorization-code + PKCE 흐름을 사용합니다:
 
-예시 요청:
+- `GET /.well-known/openid-configuration` — OIDC discovery
+- `GET /v1/oidc/authorize` — 인가 엔드포인트 (모드가 로그인 UI를 통해 엽니다)
+- `POST /v1/oidc/complete` — SPA가 인가를 완료하고 모드로 리디렉션합니다
+- `POST /v1/oidc/token` — 토큰 엔드포인트 (클라이언트 시크릿 없음, PKCE 바인딩)
+- `GET /v1/oidc/userinfo` — userinfo 엔드포인트 (액세스 토큰 인가)
 
-```json
-{
-  "challenge": "PKCE_challenge_string",
-  "redirect_port": 38125
-}
-```
+### Minecraft identity
+
+Mojang 검증된 프리미엄 플레이어가 온라인 모드 바이패스로 접속할 때, 모드는 Mojang UUID가
+BeaconAuth 계정에 연결되어 있는지, 그 신원을 어떻게 해결할지 확인할 수 있습니다:
+
+- `GET /v1/minecraft/lookup?uuid=<mojangUuid>` — `X-Minecraft-Auth` 공유 비밀키
+  (`MINECRAFT_LOOKUP_SECRET`)로 인증. `{ bound, identity_mode, user_subject, textures_value,
+  textures_signature }`를 반환합니다.
+- `GET /v1/minecraft/identity-mode` — 현재 사용자의 유효 신원 환경설정.
+- `POST /v1/minecraft/identity-mode` — 현재 사용자의 환경설정(`mojang`/`legacy`)을 설정.
 
 ### OAuth
 
 - `POST /v1/oauth/start`
 - `POST /v1/oauth/link/start`
 - `GET /v1/oauth/callback`
+
+지원 프로바이더: `github`, `google`, `microsoft` (Entra ID), `minecraft` (Microsoft consumer +
+Xbox, `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` 재사용). `minecraft` 프로바이더는 실제
+Mojang UUID를 프로바이더 신원으로 바인딩합니다.
 
 ### 패스키 (WebAuthn)
 
