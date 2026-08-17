@@ -70,25 +70,60 @@ const clientLoader = browserCollections.docs.createClientLoader({
   },
 });
 
+function DocsLoadingFallback() {
+  return (
+    <div
+      className="relative overflow-hidden px-6 py-10"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      {/* Subtle background glow matching the app's Scandi palette */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        <div className="absolute -top-10 right-[8%] h-64 w-64 rounded-full bg-primary/[0.03] blur-3xl dark:bg-primary/[0.05]" />
+        <div className="absolute top-16 left-[-6%] h-72 w-72 rounded-full bg-accent/30 blur-3xl dark:bg-accent/10" />
+      </div>
+      <div className="relative">
+        {/* Title row with inline shimmer rail */}
+        <div className="flex items-center gap-3">
+          <span className="inline-flex size-7 items-center justify-center rounded-lg border border-border/60 bg-card/80">
+            <span className="size-2.5 rounded-full bg-primary/40 animate-pulse" />
+          </span>
+          <span className="text-sm font-medium tracking-tight text-muted-foreground">
+            {m.docs_loading()}
+          </span>
+        </div>
+        <div className="mt-3 h-1 w-20 overflow-hidden rounded-full bg-border/70">
+          <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-transparent via-primary/60 to-transparent animate-pulse" />
+        </div>
+        {/* Content skeleton — staggered, rounded, feels like DocsPage */}
+        <div className="mt-8 space-y-4">
+          <div className="h-7 w-[18rem] max-w-[72%] rounded-lg bg-muted/55 animate-pulse" />
+          <div className="h-4 w-[26rem] max-w-full rounded-md bg-muted/40 animate-pulse [animation-delay:80ms]" />
+          <div className="h-px w-full bg-border/50" />
+          <div className="space-y-2.5 pt-1">
+            <div className="h-3.5 w-full rounded-md bg-muted/45 animate-pulse [animation-delay:120ms]" />
+            <div className="h-3.5 w-[92%] rounded-md bg-muted/35 animate-pulse [animation-delay:180ms]" />
+            <div className="h-3.5 w-[88%] rounded-md bg-muted/35 animate-pulse [animation-delay:240ms]" />
+            <div className="h-3.5 w-[78%] rounded-md bg-muted/30 animate-pulse [animation-delay:300ms]" />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <div className="h-8 w-24 rounded-lg bg-muted/35 animate-pulse [animation-delay:200ms]" />
+            <div className="h-8 w-20 rounded-lg bg-muted/25 animate-pulse [animation-delay:260ms]" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Page() {
   const data = useFumadocsLoader(Route.useLoaderData());
   return (
     <DocsLayout {...baseOptions()} tree={data.tree as Root}>
-      <Suspense
-        fallback={
-          <div className="px-6 py-8" aria-busy="true" aria-live="polite">
-            <div className="text-sm text-muted-foreground">
-              {m.docs_loading()}
-            </div>
-            <div className="mt-4 space-y-3">
-              <div className="h-8 w-64 rounded bg-muted/60 animate-pulse" />
-              <div className="h-4 w-96 max-w-full rounded bg-muted/60 animate-pulse" />
-              <div className="h-4 w-80 max-w-full rounded bg-muted/60 animate-pulse" />
-              <div className="h-4 w-md max-w-full rounded bg-muted/60 animate-pulse" />
-            </div>
-          </div>
-        }
-      >
+      <Suspense fallback={<DocsLoadingFallback />}>
         {clientLoader.useContent(data.path, {
           className: '',
         })}
