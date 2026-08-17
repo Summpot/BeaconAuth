@@ -21,8 +21,8 @@ actix-files = "0.6"
 
 # Database
 # Use Summpot fork with libsql support.
-sea-orm = { git = "https://github.com/Summpot/sea-orm.git", branch = "libsql", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros"] }
-sea-orm-migration = { git = "https://github.com/Summpot/sea-orm.git", branch = "libsql", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls"] }
+sea-orm = { git = "https://github.com/Summpot/sea-orm.git", branch = "master", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros"] }
+sea-orm-migration = { git = "https://github.com/Summpot/sea-orm.git", branch = "master", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls"] }
 
 # JWT & Crypto
 jsonwebtoken = { version = "10.2", default-features = false, features = ["rust_crypto"] }
@@ -85,8 +85,8 @@ getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
 which = "8.0"
 
 # # Local development override:
-# # This workspace is often opened alongside a sibling checkout of `SeaQL/sea-orm` (branch `libsql`).
-# # The `libsql` branch is required for the Cloudflare Worker (wasm) build, and already exists in the
+# # This workspace is often opened alongside a sibling checkout of `SeaQL/sea-orm` (branch `master`).
+# # The `master` branch is required for the Cloudflare Worker (wasm) build, and already exists in the
 # # adjacent `../sea-orm` folder in this multi-root workspace.
 # #
 # # Using a local patch here allows us to iterate on libsql + wasm fixes without waiting for crates.io

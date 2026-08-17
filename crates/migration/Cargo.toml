@@ -14,10 +14,10 @@ entity = { workspace = true }
 # linked into Cloudflare Workers (wasm32) without pulling in native runtime dependencies.
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-sea-orm-migration = { git = "https://github.com/Summpot/sea-orm.git", branch = "libsql", default-features = false }
+sea-orm-migration = { git = "https://github.com/Summpot/sea-orm.git", branch = "master", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-sea-orm-migration = { git = "https://github.com/Summpot/sea-orm.git", branch = "libsql", default-features = false }
+sea-orm-migration = { git = "https://github.com/Summpot/sea-orm.git", branch = "master", default-features = false }
 
 # Native-only tooling uses Tokio + direct sea-orm connections.
 tokio = { workspace = true }
