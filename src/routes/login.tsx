@@ -257,7 +257,7 @@ function LoginPage() {
   if (configLoading) {
     return (
       <PageLoader
-        title={m.profile_loading()}
+        title={m.common_loading()}
         icon={<BeaconIcon className="size-6 text-primary" />}
       />
     );

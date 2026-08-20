@@ -138,12 +138,6 @@ export function AppNavbar() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
-                      <Link to="/profile" className="cursor-default">
-                        <User className="h-4 w-4" />
-                        <span>{m.button_view_profile()}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
                       <Link to="/settings" className="cursor-default">
                         <Settings className="h-4 w-4" />
                         <span>{m.nav_settings()}</span>
@@ -227,12 +221,6 @@ export function AppNavbar() {
                 {isAuthed ? (
                   <>
                     <Button variant="ghost" className="justify-start" asChild>
-                      <Link to="/profile" onClick={() => setMobileOpen(false)}>
-                        <User className="h-4 w-4 mr-2" />
-                        {m.button_view_profile()}
-                      </Link>
-                    </Button>
-                    <Button variant="ghost" className="justify-start" asChild>
                       <Link to="/settings" onClick={() => setMobileOpen(false)}>
                         <Settings className="h-4 w-4 mr-2" />
                         {m.nav_settings()}
@@ -247,7 +235,7 @@ export function AppNavbar() {
                     >
                       <LogOut className="h-4 w-4 mr-2" />
                       {logoutMutation.isPending
-                        ? m.profile_logging_out()
+                        ? m.nav_logging_out()
                         : m.nav_logout()}
                     </Button>
                   </>

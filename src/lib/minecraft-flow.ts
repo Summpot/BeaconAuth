@@ -75,12 +75,12 @@ export async function completeOidcFlow(
 
 /**
  * Finish an auth flow: hand off to Minecraft (OIDC) when requested,
- * otherwise go to the profile page. Uses a hard navigation to avoid SPA
+ * otherwise go to the settings page. Uses a hard navigation to avoid SPA
  * cache edge cases.
  */
 export async function redirectAfterAuth(
   params: OidcSearchParams,
 ): Promise<void> {
   if (await completeOidcFlow(params)) return;
-  window.location.href = '/profile';
+  window.location.href = '/settings';
 }

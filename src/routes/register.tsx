@@ -82,7 +82,7 @@ function RegisterPage() {
       }
 
       // Ensure any stale /me cache (especially a cached 401 from earlier) is cleared
-      // before we hit /profile.
+      // before we hit /settings.
       await queryClient.invalidateQueries({ queryKey: queryKeys.userMe() });
 
       try {

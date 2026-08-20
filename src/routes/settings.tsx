@@ -142,7 +142,13 @@ interface IdentitiesResponse {
   passkey_count: number;
 }
 
+const searchParamsSchema = z.object({
+  status: z.enum(['success', 'error']).optional(),
+  message: z.string().optional(),
+});
+
 function SettingsPage() {
+  const { status, message } = Route.useSearch();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([]);
   const [identities, setIdentities] = useState<IdentitiesResponse | null>(null);
@@ -152,9 +158,22 @@ function SettingsPage() {
   const [passkeyName, setPasskeyName] = useState('');
   const [passkeySubmitting, setPasskeySubmitting] = useState(false);
   const [minecraftLinked, setMinecraftLinked] = useState(false);
-  const [identityMode, setIdentityMode] = useState<'mojang' | 'legacy'>('mojang');
+  const [identityMode, setIdentityMode] = useState<'mojang' | 'legacy'>(
+    'mojang',
+  );
   const [identityModeLoading, setIdentityModeLoading] = useState(true);
   const [identityModeSaving, setIdentityModeSaving] = useState(false);
+
+  useEffect(() => {
+    if (status && message) {
+      const text = decodeURIComponent(message.replace(/\+/g, ' '));
+      if (status === 'success') {
+        toast.success(text);
+      } else {
+        toast.error(text);
+      }
+    }
+  }, [status, message]);
 
   const hasPassword = identities?.has_password ?? true;
   const linkedProviders = new Set(
@@ -333,10 +352,9 @@ function SettingsPage() {
         // Fetch the effective identity mode when Minecraft is configured & linked.
         if (configData?.minecraft_oauth && minecraftLinked) {
           try {
-            const mode =
-              await apiClient<{ mode: 'mojang' | 'legacy' }>(
-                '/api/v1/minecraft/identity-mode',
-              );
+            const mode = await apiClient<{ mode: 'mojang' | 'legacy' }>(
+              '/api/v1/minecraft/identity-mode',
+            );
             setIdentityMode(mode.mode ?? 'mojang');
           } catch (err) {
             console.error('Failed to load identity mode', err);
@@ -394,9 +412,7 @@ function SettingsPage() {
       setIdentityMode(mode);
       toast.success(m.settings_identity_mode_saved());
     } catch (error) {
-      toast.error(
-        getErrorMessage(error, m.settings_identity_mode_error()),
-      );
+      toast.error(getErrorMessage(error, m.settings_identity_mode_error()));
     } finally {
       setIdentityModeSaving(false);
     }
@@ -459,7 +475,7 @@ function SettingsPage() {
   if (loading) {
     return (
       <PageLoader
-        title={m.profile_loading()}
+        title={m.common_loading()}
         icon={<BeaconIcon className="size-6 text-primary" />}
       />
     );
@@ -1281,4 +1297,7 @@ function SettingsPage() {
   );
 }
 
-export const Route = createFileRoute('/settings')({ component: SettingsPage });
+export const Route = createFileRoute('/settings')({
+  component: SettingsPage,
+  validateSearch: searchParamsSchema,
+});

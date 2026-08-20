@@ -21,7 +21,7 @@ function OAuthCompletePage() {
   const [message, setMessage] = useState(
     m.oauth_complete_processing_authentication(),
   );
-  const [target, setTarget] = useState<'profile' | 'minecraft' | null>(null);
+  const [target, setTarget] = useState<'settings' | 'minecraft' | null>(null);
 
   useEffect(() => {
     const completeAuth = async () => {
@@ -34,17 +34,17 @@ function OAuthCompletePage() {
 
         // Check if we're in Minecraft mode or normal web mode
         if (!challenge || !redirectPortStr) {
-          // Normal web OAuth login - redirect to profile page
+          // Normal web OAuth login - redirect to settings page
           setStatus('success');
-          setTarget('profile');
-          setMessage(m.oauth_complete_auth_success_profile());
+          setTarget('settings');
+          setMessage(m.oauth_complete_auth_success_settings());
 
           // Clean up any partial sessionStorage data
           sessionStorage.removeItem('minecraft_challenge');
           sessionStorage.removeItem('minecraft_redirect_port');
 
           setTimeout(() => {
-            window.location.href = '/profile';
+            window.location.href = '/settings';
           }, 750);
           return;
         }
@@ -59,7 +59,7 @@ function OAuthCompletePage() {
         setTarget('minecraft');
         setMessage(m.oauth_complete_auth_success_minecraft());
         setTimeout(() => {
-          window.location.href = '/profile';
+          window.location.href = '/settings';
         }, 750);
       } catch (error) {
         console.error('OAuth completion error:', error);
@@ -90,8 +90,8 @@ function OAuthCompletePage() {
   const subtitle =
     target === 'minecraft'
       ? m.oauth_complete_subtitle_minecraft()
-      : target === 'profile'
-        ? m.oauth_complete_subtitle_profile()
+      : target === 'settings'
+        ? m.oauth_complete_subtitle_settings()
         : m.oauth_complete_subtitle_error();
 
   return (

@@ -46,22 +46,11 @@ export function HomePage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             {user ? (
-              <>
-                <Link to="/profile">
-                  <Button size="lg" className="h-11 px-6 text-base">
-                    {m.button_view_profile()}
-                  </Button>
-                </Link>
-                <Link to="/settings">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="h-11 px-6 text-base"
-                  >
-                    {m.button_manage_settings()}
-                  </Button>
-                </Link>
-              </>
+              <Link to="/settings">
+                <Button size="lg" className="h-11 px-6 text-base">
+                  {m.button_manage_settings()}
+                </Button>
+              </Link>
             ) : (
               <>
                 <Link to="/login">

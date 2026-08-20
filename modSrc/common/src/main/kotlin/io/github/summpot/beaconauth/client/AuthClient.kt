@@ -176,14 +176,14 @@ object AuthClient {
 
             if (!error.isNullOrBlank()) {
                 logger.error("OIDC authorization error: $error")
-                sendRedirectResponse(exchange, "/profile?status=error&message=" + java.net.URLEncoder.encode(error, "UTF-8"))
+                sendRedirectResponse(exchange, "/settings?status=error&message=" + java.net.URLEncoder.encode(error, "UTF-8"))
                 loginPhaseCallback?.onAuthError("Authorization error: $error")
                 return
             }
 
             if (code.isNullOrBlank()) {
                 logger.error("Received callback without code parameter")
-                sendRedirectResponse(exchange, "/profile?status=error&message=Missing+code+parameter")
+                sendRedirectResponse(exchange, "/settings?status=error&message=Missing+code+parameter")
                 loginPhaseCallback?.onAuthError("Missing code parameter")
                 return
             }
@@ -192,7 +192,7 @@ object AuthClient {
             val expectedState = currentState
             if (expectedState == null || state == null || state != expectedState) {
                 logger.error("OIDC state mismatch")
-                sendRedirectResponse(exchange, "/profile?status=error&message=State+mismatch")
+                sendRedirectResponse(exchange, "/settings?status=error&message=State+mismatch")
                 loginPhaseCallback?.onAuthError("State mismatch")
                 return
             }
@@ -200,7 +200,7 @@ object AuthClient {
             val verifier = currentCodeVerifier
             if (verifier == null) {
                 logger.error("No code verifier found - login flow not initiated properly")
-                sendRedirectResponse(exchange, "/profile?status=error&message=Login+flow+not+initiated")
+                sendRedirectResponse(exchange, "/settings?status=error&message=Login+flow+not+initiated")
                 loginPhaseCallback?.onAuthError("Login flow not initiated")
                 return
             }
@@ -221,11 +221,11 @@ object AuthClient {
             loginPhaseCallback?.onAuthSuccess(idToken)
             currentNonce = null
 
-            // Redirect to profile page with success status
-            sendRedirectResponse(exchange, "/profile?status=success&message=Authentication+successful")
+            // Redirect to settings page with success status
+            sendRedirectResponse(exchange, "/settings?status=success&message=Authentication+successful")
         } catch (e: Exception) {
             logger.error("Error handling auth callback: ${e.message}", e)
-            sendRedirectResponse(exchange, "/profile?status=error&message=" + java.net.URLEncoder.encode(e.message ?: "Unknown error", "UTF-8"))
+            sendRedirectResponse(exchange, "/settings?status=error&message=" + java.net.URLEncoder.encode(e.message ?: "Unknown error", "UTF-8"))
             loginPhaseCallback?.onAuthError(e.message ?: "Unknown error")
         } finally {
             exchange.close()
