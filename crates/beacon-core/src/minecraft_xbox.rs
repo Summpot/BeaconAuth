@@ -22,6 +22,17 @@ pub const MICROSOFT_SCOPE: &str = "XboxLive.signin offline_access";
 /// Minecraft auth stack).
 pub const XBX_TILE_ID: &str = "000000004C12AE6F";
 
+/// HTTP `User-Agent` sent on the OAuth/Xbox/Minecraft exchange requests.
+///
+/// `api.minecraftservices.com` sits behind an Azure Front Door WAF that blocks requests
+/// without a `User-Agent` header (and flags non-browser agents from cloud egress as bots),
+/// returning a "The request is blocked" HTML error. The Cloudflare Workers runtime does not
+/// inject a `User-Agent`, so we must set one explicitly across every step of the exchange.
+/// A plain application-agent (e.g. "BeaconAuth") still trips this WAF, so a browser-style
+/// agent is used, matching the ecosystem's standard practice for server-side Minecraft auth.
+pub const MINECRAFT_HTTP_USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
 /// Request body for the OAuth authorize step (Microsoft consumer account).
 pub fn microsoft_access_token_body(
     client_id: &str,

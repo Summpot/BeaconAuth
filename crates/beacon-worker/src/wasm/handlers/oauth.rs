@@ -409,6 +409,7 @@ async fn exchange_minecraft_xbox_code(
     let headers = Headers::new();
     headers.set("Accept", "application/json")?;
     headers.set("Content-Type", "application/x-www-form-urlencoded")?;
+    headers.set("User-Agent", mx::MINECRAFT_HTTP_USER_AGENT)?;
     init.with_headers(headers);
 
     let mut token_resp = Fetch::Request(
@@ -452,6 +453,7 @@ async fn exchange_minecraft_xbox_code(
     let headers = Headers::new();
     headers.set("Content-Type", "application/json")?;
     headers.set("Accept", "application/json")?;
+    headers.set("User-Agent", mx::MINECRAFT_HTTP_USER_AGENT)?;
     init.with_headers(headers);
 
     let mut xbl_resp = Fetch::Request(
@@ -482,6 +484,7 @@ async fn exchange_minecraft_xbox_code(
     let headers = Headers::new();
     headers.set("Content-Type", "application/json")?;
     headers.set("Accept", "application/json")?;
+    headers.set("User-Agent", mx::MINECRAFT_HTTP_USER_AGENT)?;
     init.with_headers(headers);
 
     let mut xsts_resp = Fetch::Request(
@@ -515,6 +518,7 @@ async fn exchange_minecraft_xbox_code(
     let headers = Headers::new();
     headers.set("Content-Type", "application/json")?;
     headers.set("Accept", "application/json")?;
+    headers.set("User-Agent", mx::MINECRAFT_HTTP_USER_AGENT)?;
     init.with_headers(headers);
 
     let mut mc_login_resp = Fetch::Request(
@@ -547,6 +551,7 @@ async fn exchange_minecraft_xbox_code(
     let headers = Headers::new();
     headers.set("Authorization", &format!("Bearer {mc_access_token}"))?;
     headers.set("Accept", "application/json")?;
+    headers.set("User-Agent", mx::MINECRAFT_HTTP_USER_AGENT)?;
     init.with_headers(headers);
 
     let mut profile_resp = Fetch::Request(
