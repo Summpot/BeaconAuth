@@ -37,7 +37,6 @@ crates/beacon-worker/assets/
 .idea
 
 target
-Cargo.lock
 
 *.db
 *.db-shm
