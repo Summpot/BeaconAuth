@@ -1,0 +1,39 @@
+{
+  "chat.beaconauth.welcome": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.welcome_title": "§6✦ §eWillkommen auf dem Server!",
+  "chat.beaconauth.login_prompt": "§a[BeaconAuth] Klicke hier, um dich anzumelden.",
+  "chat.beaconauth.divider": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.authenticated": "§a✓ Du bist bereits authentifiziert, willkommen zurück!",
+  "chat.beaconauth.login_click": "§a[Hier klicken zum Anmelden]",
+  "chat.beaconauth.login_url": "§7Oder Link kopieren: %s",
+  "chat.beaconauth.success": "§a✓ Authentifizierung erfolgreich: %s",
+  "chat.beaconauth.failed": "§c✗ Authentifizierung fehlgeschlagen: %s",
+  "chat.beaconauth.server_not_ready": "§cAuthentifizierungsserver nicht gestartet, Login nicht möglich",
+  "chat.beaconauth.generating_url": "§7Login-URL wird erzeugt...",
+  "chat.beaconauth.auto_login": "§7Automatischer Login gestartet...",
+  "chat.beaconauth.login_cancelled": "§cAuthentifizierung abgebrochen",
+
+  "command.beaconauth.must_be_player": "Dieser Befehl muss von einem Spieler ausgeführt werden",
+  "command.beaconauth.login_failed": "Login konnte nicht gestartet werden: %s",
+  "command.beaconauth.login_request_sent": "§7Login-Anfrage wurde an deinen Client gesendet",
+
+  "html.beaconauth.success.title": "Login erfolgreich",
+  "html.beaconauth.success.heading": "Login erfolgreich!",
+  "html.beaconauth.success.message": "Du kannst diese Seite schließen und zum Spiel zurückkehren",
+  "html.beaconauth.error.title": "Login-Fehler",
+  "html.beaconauth.error.heading": "Login-Fehler",
+
+  "server.beaconauth.player_joined": "Spieler %s hat den Server betreten",
+  "server.beaconauth.not_authenticated": "Spieler %s ist nicht authentifiziert",
+  "server.beaconauth.already_authenticated": "Spieler %s ist bereits authentifiziert",
+  "server.beaconauth.auth_successful": "✓ Authentifizierung erfolgreich für %s (Benutzer: %s, ID: %s)",
+  "server.beaconauth.auth_failed": "✗ Authentifizierung fehlgeschlagen für %s: %s",
+
+  "disconnect.beaconauth.timeout": "Login-Zeitüberschreitung beim Warten auf BeaconAuth",
+  "disconnect.beaconauth.mod_required": "Dieser Server erfordert das BeaconAuth-Mod im Offline-Modus",
+  "disconnect.beaconauth.invalid_init": "Ungültige BeaconAuth-Login-Initialisierungsdaten",
+  "disconnect.beaconauth.server_error": "BeaconAuth-Serverfehler. Bitte später erneut versuchen",
+  "disconnect.beaconauth.invalid_verify": "Ungültige BeaconAuth-Verifizierungsdaten",
+  "disconnect.beaconauth.failure": "BeaconAuth-Verifizierung fehlgeschlagen: %s",
+  "disconnect.beaconauth.cancelled": "Authentifizierung abgebrochen: %s"
+}

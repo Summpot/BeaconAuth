@@ -1,6 +1,7 @@
 package io.github.summpot.beaconauth.server
 
 import com.mojang.authlib.GameProfile
+import io.github.summpot.beaconauth.util.MinecraftCompat
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.storage.LevelResource
 import org.slf4j.LoggerFactory
@@ -41,14 +42,14 @@ object OfficialNameGuard {
             return true
         }
 
-        val profileCache = server.profileCache
-        if (profileCache != null && profileCache.get(uuid).isPresent) {
+        val profileCache = MinecraftCompat.nameToIdCache(server)
+        if (profileCache != null && cacheContainsUuid(profileCache, uuid)) {
             return true
         }
 
-        return playerList.whiteList.isWhiteListed(profile)
-            || playerList.ops.get(profile) != null
-            || playerList.bans.get(profile) != null
+        return isWhiteListed(playerList, profile)
+            || listedEntry(playerList, "getOps", "ops", profile) != null
+            || listedEntry(playerList, "getBans", "bans", profile) != null
     }
 
     private fun hasPlayerData(server: MinecraftServer, uuid: UUID?): Boolean {
@@ -66,7 +67,7 @@ object OfficialNameGuard {
         username: String,
         beaconAuthUuid: UUID?,
     ): GameProfile? {
-        val profileCache = server.profileCache ?: return null
+        val profileCache = MinecraftCompat.nameToIdCache(server) ?: return null
         return try {
             val loadMethod = profileCache.javaClass.methods.firstOrNull { it.name == "load" && it.parameterCount == 0 }
                 ?: return null
@@ -90,7 +91,7 @@ object OfficialNameGuard {
     }
 
     private fun lookupMojangProfile(server: MinecraftServer, username: String): GameProfile? {
-        val repository = server.profileRepository
+        val repository = MinecraftCompat.profileRepository(server) ?: return null
 
         lookupWithFindProfileByName(repository, username)?.let { return it }
         return lookupWithLegacyCallback(repository, username)
@@ -98,7 +99,7 @@ object OfficialNameGuard {
 
     private fun lookupWithFindProfileByName(repository: Any, username: String): GameProfile? {
         val method = repository.javaClass.methods.firstOrNull {
-            it.name == "findProfileByName" &&
+            (it.name == "findProfileByName" || it.name == "fetchByName") &&
                 it.parameterCount == 1 &&
                 it.parameterTypes[0] == String::class.java
         } ?: return null
@@ -140,6 +141,74 @@ object OfficialNameGuard {
         } catch (e: Exception) {
             logger.warn("Unable to look up official Minecraft profile for '$username': ${e.message}")
             null
+        }
+    }
+
+    private fun cacheContainsUuid(cache: Any, uuid: UUID): Boolean {
+        return try {
+            val get = cache.javaClass.methods.firstOrNull { method ->
+                method.name == "get" &&
+                    method.parameterCount == 1 &&
+                    method.parameterTypes[0] == UUID::class.java
+            } ?: return false
+            when (val result = get.invoke(cache, uuid)) {
+                is Optional<*> -> result.isPresent
+                is Boolean -> result
+                null -> false
+                else -> true
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun nameAndId(profile: GameProfile): Any? {
+        return try {
+            Class.forName("net.minecraft.server.players.NameAndId")
+                .getConstructor(GameProfile::class.java)
+                .newInstance(profile)
+        } catch (_: Exception) {
+            profile
+        }
+    }
+
+    private fun isWhiteListed(playerList: Any, profile: GameProfile): Boolean {
+        val key = nameAndId(profile) ?: return false
+        val method = playerList.javaClass.methods.firstOrNull { it.name == "isWhiteListed" && it.parameterCount == 1 }
+            ?: return false
+        return try {
+            method.invoke(playerList, key) as? Boolean ?: false
+        } catch (_: Exception) {
+            try {
+                val list = playerList.javaClass.methods.firstOrNull { it.name == "getWhiteList" }?.invoke(playerList)
+                    ?: return false
+                list.javaClass.methods.firstOrNull { it.name == "isWhiteListed" && it.parameterCount == 1 }
+                    ?.invoke(list, key) as? Boolean ?: false
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private fun listedEntry(playerList: Any, getterName: String, fieldName: String, profile: GameProfile): Any? {
+        val list = try {
+            playerList.javaClass.methods.firstOrNull { it.name == getterName && it.parameterCount == 0 }?.invoke(playerList)
+                ?: playerList.javaClass.methods.firstOrNull { it.name == fieldName && it.parameterCount == 0 }?.invoke(playerList)
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        val key = nameAndId(profile) ?: return null
+        val get = list.javaClass.methods.firstOrNull { method ->
+            method.name == "get" && method.parameterCount == 1
+        } ?: return null
+        return try {
+            get.invoke(list, key)
+        } catch (_: Exception) {
+            try {
+                get.invoke(list, profile)
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 

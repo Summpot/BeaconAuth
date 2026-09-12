@@ -59,7 +59,9 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: |
+            21
+            25
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -90,6 +92,8 @@ jobs:
             neoforge-1.21.1
             fabric-1.21.8
             neoforge-1.21.8
+            fabric-26.2
+            neoforge-26.2
           )
 
           for p in "${projects[@]}"; do
@@ -97,6 +101,8 @@ jobs:
             if [ -d "$dir" ]; then
               find "$dir" -maxdepth 1 -type f -name "*.jar" \
                 ! -name "*-dev-shadow.jar" \
+                ! -name "*-dev.jar" \
+                ! -name "*-sources.jar" \
                 -exec cp -v "{}" mod-artifacts/ \;
             else
               echo "Skipping missing libs dir: $dir"
@@ -182,6 +188,18 @@ jobs:
             minecraft-version: '1.21.8'
             java-version: '21'
             version-suffix: nf1218
+          - artifact-id: fabric-26.2
+            loader: fabric
+            loader-label: Fabric
+            minecraft-version: '26.2'
+            java-version: '25'
+            version-suffix: f262
+          - artifact-id: neoforge-26.2
+            loader: neoforge
+            loader-label: NeoForge
+            minecraft-version: '26.2'
+            java-version: '25'
+            version-suffix: nf262
 
     steps:
       - name: Checkout code

@@ -25,3 +25,7 @@ include("neoforge-1.21.1")
 include("common-1.21.8")
 include("fabric-1.21.8")
 include("neoforge-1.21.8")
+
+include("common-26.2")
+include("fabric-26.2")
+include("neoforge-26.2")

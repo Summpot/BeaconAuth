@@ -15,6 +15,7 @@ import kotlin.io.path.writeLines
 
 plugins {
     id("dev.architectury.loom") version "1.17-SNAPSHOT" apply false
+    id("dev.architectury.loom-no-remap") version "1.17-SNAPSHOT" apply false
     id("architectury-plugin") version "3.5-SNAPSHOT"
     id("com.gradleup.shadow") version "9.6.1" apply false
     kotlin("jvm") version "2.2.21" apply false
@@ -87,7 +88,13 @@ gradle.projectsEvaluated {
 }
 
 subprojects {
-    apply(plugin = "dev.architectury.loom")
+    // Minecraft 26.1+ ships unobfuscated. The remap Loom plugin expects Mojang/Yarn
+    // mappings that no longer exist for those versions.
+    if (name.endsWith("-26.2")) {
+        apply(plugin = "dev.architectury.loom-no-remap")
+    } else {
+        apply(plugin = "dev.architectury.loom")
+    }
     apply(plugin = "architectury-plugin")
     apply(plugin = "maven-publish")
     apply(plugin = "org.jetbrains.kotlin.jvm")

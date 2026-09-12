@@ -1,0 +1,39 @@
+{
+  "chat.beaconauth.welcome": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.welcome_title": "§6✦ §eサーバーへようこそ！",
+  "chat.beaconauth.login_prompt": "§a[BeaconAuth] ここをクリックしてログインしてください。",
+  "chat.beaconauth.divider": "§e━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  "chat.beaconauth.authenticated": "§a✓ すでに認証済みです。おかえりなさい！",
+  "chat.beaconauth.login_click": "§a[クリックしてログイン]",
+  "chat.beaconauth.login_url": "§7またはリンクをコピー: %s",
+  "chat.beaconauth.success": "§a✓ 認証に成功しました: %s",
+  "chat.beaconauth.failed": "§c✗ 認証に失敗しました: %s",
+  "chat.beaconauth.server_not_ready": "§c認証サーバーが起動していないためログインできません",
+  "chat.beaconauth.generating_url": "§7ログインURLを生成しています...",
+  "chat.beaconauth.auto_login": "§7自動ログインを開始しました...",
+  "chat.beaconauth.login_cancelled": "§c認証がキャンセルされました",
+
+  "command.beaconauth.must_be_player": "このコマンドはプレイヤーのみ実行できます",
+  "command.beaconauth.login_failed": "ログイン開始に失敗しました: %s",
+  "command.beaconauth.login_request_sent": "§7ログイン要求をクライアントに送信しました",
+
+  "html.beaconauth.success.title": "ログイン成功",
+  "html.beaconauth.success.heading": "ログイン成功！",
+  "html.beaconauth.success.message": "このページを閉じてゲームに戻れます",
+  "html.beaconauth.error.title": "ログインエラー",
+  "html.beaconauth.error.heading": "ログインエラー",
+
+  "server.beaconauth.player_joined": "プレイヤー %s がサーバーに参加しました",
+  "server.beaconauth.not_authenticated": "プレイヤー %s は認証されていません",
+  "server.beaconauth.already_authenticated": "プレイヤー %s はすでに認証されています",
+  "server.beaconauth.auth_successful": "✓ %s の認証に成功しました (ユーザー: %s, ID: %s)",
+  "server.beaconauth.auth_failed": "✗ %s の認証に失敗しました: %s",
+
+  "disconnect.beaconauth.timeout": "BeaconAuth の待機中にログインがタイムアウトしました",
+  "disconnect.beaconauth.mod_required": "このサーバーはオフラインモードで BeaconAuth Mod が必要です",
+  "disconnect.beaconauth.invalid_init": "BeaconAuth ログイン初期化データが無効です",
+  "disconnect.beaconauth.server_error": "BeaconAuth サーバーエラー。後でもう一度お試しください",
+  "disconnect.beaconauth.invalid_verify": "BeaconAuth 検証ペイロードが無効です",
+  "disconnect.beaconauth.failure": "BeaconAuth 検証に失敗しました: %s",
+  "disconnect.beaconauth.cancelled": "認証がキャンセルされました: %s"
+}

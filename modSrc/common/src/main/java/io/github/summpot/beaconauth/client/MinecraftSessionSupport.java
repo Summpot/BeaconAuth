@@ -29,11 +29,13 @@ public final class MinecraftSessionSupport {
         }
 
         try {
-            if (user.getType() == User.Type.LEGACY) {
+            var getType = user.getClass().getMethod("getType");
+            Object type = getType.invoke(user);
+            if (type != null && "LEGACY".equals(String.valueOf(type))) {
                 return true;
             }
         } catch (Throwable ignored) {
-            // User.Type may differ across loaders; fall through to token checks.
+            // User.Type was removed in 26.x; fall through to token checks.
         }
 
         String accessToken = user.getAccessToken();

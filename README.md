@@ -56,6 +56,7 @@ Supported build targets:
 | 1.20.1 | Fabric, Forge |
 | 1.21.1 | Fabric, NeoForge |
 | 1.21.8 | Fabric, NeoForge |
+| 26.2 | Fabric, NeoForge |
 
 Release jars are produced by the `modSrc` Gradle build and by the `Mod` GitHub Actions
 workflow. See the [mod installation guide](content/docs/mod-installation.mdx) for file

@@ -6,9 +6,10 @@ import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.util.PKCEUtils
 import io.github.summpot.beaconauth.util.TranslationHelper
 import com.google.gson.JsonParser
-import net.minecraft.Util
+import io.github.summpot.beaconauth.util.MinecraftCompat
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.ConfirmLinkScreen
+import net.minecraft.client.gui.screens.Screen
 import org.slf4j.LoggerFactory
 import java.net.BindException
 import java.net.InetSocketAddress
@@ -111,13 +112,14 @@ object AuthClient {
     @JvmStatic
     fun showLoginConfirmation(loginUrl: String, onConfirm: () -> Unit, onCancel: (String) -> Unit) {
         val minecraft = Minecraft.getInstance()
-        val previous = minecraft.screen
+        val previous = MinecraftCompat.currentScreen(minecraft)
         minecraft.execute {
-            minecraft.setScreen(
+            MinecraftCompat.setScreen(
+                minecraft,
                 ConfirmLinkScreen({ accepted ->
-                    minecraft.setScreen(previous)
+                    MinecraftCompat.setScreen(minecraft, previous)
                     if (accepted) {
-                        Util.getPlatform().openUri(loginUrl)
+                        MinecraftCompat.openUri(loginUrl)
                         onConfirm()
                     } else {
                         onCancel(TranslationHelper.loginCancelled().string)
@@ -292,12 +294,12 @@ object AuthClient {
         try {
             val minecraft = Minecraft.getInstance()
             minecraft.execute {
-                val windowHandle = minecraft.window.window
+                val windowHandle = MinecraftCompat.glfwWindowHandle(minecraft)
 
                 // Check current window state
                 val isIconified = org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(windowHandle, org.lwjgl.glfw.GLFW.GLFW_ICONIFIED) == org.lwjgl.glfw.GLFW.GLFW_TRUE
                 val isFocused = org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(windowHandle, org.lwjgl.glfw.GLFW.GLFW_FOCUSED) == org.lwjgl.glfw.GLFW.GLFW_TRUE
-                val isFullscreen = minecraft.window.isFullscreen
+                val isFullscreen = MinecraftCompat.isFullscreen(minecraft)
 
                 logger.info("Window state: Minimized=$isIconified, Focused=$isFocused, Fullscreen=$isFullscreen")
 
@@ -321,7 +323,7 @@ object AuthClient {
                 val wasWindowed = !isFullscreen
 
                 // Switch to fullscreen (this reliably grabs focus)
-                minecraft.window.toggleFullScreen()
+                MinecraftCompat.toggleFullScreen(minecraft)
 
                 // Schedule restoration back to windowed mode after a short delay
                 if (wasWindowed) {
@@ -330,8 +332,8 @@ object AuthClient {
                         Thread.sleep(100)
                         minecraft.execute {
                             // Switch back to windowed mode
-                            if (minecraft.window.isFullscreen) {
-                                minecraft.window.toggleFullScreen()
+                            if (MinecraftCompat.isFullscreen(minecraft)) {
+                                MinecraftCompat.toggleFullScreen(minecraft)
                                 logger.info("Restored windowed mode after focus grab")
                             }
                         }
@@ -339,9 +341,9 @@ object AuthClient {
                 }
 
                 // Close pause screen if it's open (so player returns to gameplay)
-                val currentScreen = minecraft.screen
+                val currentScreen = MinecraftCompat.currentScreen(minecraft)
                 if (currentScreen != null && currentScreen.javaClass.simpleName == "PauseScreen") {
-                    minecraft.setScreen(null)
+                    MinecraftCompat.setScreen(minecraft, null as Screen?)
                     logger.info("Closed pause screen to resume gameplay")
                 }
 
@@ -353,7 +355,7 @@ object AuthClient {
             try {
                 val minecraft = Minecraft.getInstance()
                 minecraft.execute {
-                    org.lwjgl.glfw.GLFW.glfwRequestWindowAttention(minecraft.window.window)
+                    org.lwjgl.glfw.GLFW.glfwRequestWindowAttention(MinecraftCompat.glfwWindowHandle(minecraft))
                 }
             } catch (fallbackError: Exception) {
                 logger.error("Fallback focus also failed: ${fallbackError.message}")

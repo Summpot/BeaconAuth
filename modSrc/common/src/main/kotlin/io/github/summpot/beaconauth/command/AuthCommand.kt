@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.context.CommandContext
 import io.github.summpot.beaconauth.config.BeaconAuthConfig
 import io.github.summpot.beaconauth.server.IdentityMapping
+import io.github.summpot.beaconauth.util.MinecraftCompat
 import io.github.summpot.beaconauth.util.TranslationHelper
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
@@ -43,7 +44,7 @@ object AuthCommand {
                 )
                 .then(
                     Commands.literal("transfer-identity")
-                        .requires { source -> source.hasPermission(2) }
+                        .requires { source -> MinecraftCompat.hasPermissionLevel(source, 2) }
                         .then(
                             Commands.argument("profile", GameProfileArgument.gameProfile())
                                 .then(
@@ -54,7 +55,7 @@ object AuthCommand {
                 )
                 .then(
                     Commands.literal("unmigrated")
-                        .requires { source -> source.hasPermission(2) }
+                        .requires { source -> MinecraftCompat.hasPermissionLevel(source, 2) }
                         .executes { context -> executeUnmigrated(context) }
                 )
         )
