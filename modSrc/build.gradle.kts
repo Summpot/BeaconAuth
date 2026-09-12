@@ -112,13 +112,22 @@ subprojects {
 
     repositories {
         mavenCentral()
+        // FCAP is published here; NeoForged's copy is a mirror. Gradle does not
+        // fall through on HTTP 502, so pin this group away from maven.neoforged.net.
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "Fuzs Mod Resources"
+                    url = uri("https://raw.githubusercontent.com/Fuzss/modresources/main/maven/")
+                }
+            }
+            filter {
+                includeGroup("fuzs.forgeconfigapiport")
+            }
+        }
         maven {
             name = "NeoForged"
             url = uri("https://maven.neoforged.net/releases")
-        }
-        maven {
-            name = "Fuzs Mod Resources"
-            url = uri("https://raw.githubusercontent.com/Fuzss/modresources/main/maven/")
         }
     }
 

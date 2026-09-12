@@ -116,7 +116,7 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: |
-          cargo test --workspace --all-features
+          cargo test --workspace --all-features --locked
           sccache --show-stats
 
   build-docker-amd64:
