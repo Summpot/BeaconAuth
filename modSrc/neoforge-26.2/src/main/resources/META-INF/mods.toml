@@ -8,7 +8,7 @@ modId = "beaconauth"
 version = "${version}"
 displayName = "Beacon Auth"
 displayURL = "https://github.com/Summpot/BeaconAuth"
-logoFile = "icon.png"
+iconFile = "icon.png"
 authors = "Summpot"
 description = '''
 Secure web, OAuth, and passkey authentication for Minecraft servers using a BeaconAuth auth server.
