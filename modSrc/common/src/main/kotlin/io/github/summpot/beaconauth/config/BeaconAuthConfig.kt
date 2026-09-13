@@ -102,16 +102,9 @@ object BeaconAuthConfig {
 	 */
 	fun shouldUseLegacyOfflineUuids(): Boolean = useLegacyOfflineUuids
 
-	/**
-	 * Shared secret the mod presents to the auth server's `/api/v1/minecraft/lookup`. Empty
-	 * disables the linked-premium legacy resolution entirely.
-	 */
-	fun getMinecraftLookupSecret(): String = minecraftLookupSecret
+	/** Deprecated / no-op: Minecraft lookup endpoint has been removed. */
+	fun getMinecraftLookupSecret(): String = ""
 
-	/**
-	 * Whether Mojang-verified (premium) players who are bound to a BeaconAuth account and whose
-	 * identity preference is "legacy" should be mapped to the account's legacy offline UUID
-	 * (with Mojang textures replayed) on the online-mode bypass path. Default true.
-	 */
-	fun shouldResolveLinkedPremiumLegacy(): Boolean = resolveLinkedPremiumLegacy
+	/** Deprecated / no-op: Minecraft lookup endpoint has been removed. */
+	fun shouldResolveLinkedPremiumLegacy(): Boolean = false
 }

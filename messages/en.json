@@ -210,15 +210,5 @@
   "login_passkey_registered": "Passkey created",
   "login_passkey_registered_desc": "A passkey was added to your account on this device.",
   "confirm_dialog_confirm": "Confirm",
-  "confirm_dialog_cancel": "Cancel",
-  "provider_minecraft": "Minecraft",
-  "settings_link_minecraft": "Link Minecraft",
-  "settings_identity_mode_title": "Minecraft identity",
-  "settings_identity_mode_desc": "Choose which identity you use on servers that migrated from offline mode. The real Mojang UUID is the default; the legacy identity preserves world data from an offline-mode server.",
-  "settings_identity_mode_not_configured": "Minecraft login is not configured on this server.",
-  "settings_identity_mode_not_linked": "Link a Minecraft account to choose your identity.",
-  "settings_identity_mode_mojang": "Mojang UUID (new identity)",
-  "settings_identity_mode_legacy": "Legacy offline identity (preserve world data)",
-  "settings_identity_mode_saved": "Minecraft identity preference saved.",
-  "settings_identity_mode_error": "Failed to save Minecraft identity preference."
+  "confirm_dialog_cancel": "Cancel"
 }

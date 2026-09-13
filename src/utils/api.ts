@@ -148,5 +148,4 @@ export interface ServerConfig {
   github_oauth: boolean;
   google_oauth: boolean;
   microsoft_oauth: boolean;
-  minecraft_oauth: boolean;
 }

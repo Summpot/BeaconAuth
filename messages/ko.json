@@ -210,15 +210,5 @@
   "login_passkey_registered": "패스키가 생성되었습니다",
   "login_passkey_registered_desc": "이 기기의 계정에 패스키가 추가되었습니다.",
   "confirm_dialog_confirm": "확인",
-  "confirm_dialog_cancel": "취소",
-  "provider_minecraft": "Minecraft",
-  "settings_link_minecraft": "Minecraft 연결",
-  "settings_identity_mode_title": "Minecraft 신원",
-  "settings_identity_mode_desc": "오프라인 모드에서 마이그레이션한 서버에서 사용할 신원을 선택하세요. 기본값은 실제 Mojang UUID이며, 레거시 신원은 오프라인 모드 서버의 월드 데이터를 보존합니다.",
-  "settings_identity_mode_not_configured": "이 서버에는 Minecraft 로그인이 구성되어 있지 않습니다.",
-  "settings_identity_mode_not_linked": "Minecraft 계정을 연결하면 신원을 선택할 수 있습니다.",
-  "settings_identity_mode_mojang": "Mojang UUID (새 신원)",
-  "settings_identity_mode_legacy": "레거시 오프라인 신원 (월드 데이터 보존)",
-  "settings_identity_mode_saved": "Minecraft 신원 설정이 저장되었습니다.",
-  "settings_identity_mode_error": "Minecraft 신원 설정 저장에 실패했습니다."
+  "confirm_dialog_cancel": "취소"
 }

@@ -104,23 +104,3 @@ resolve_linked_premium_legacy = true
 6. 所有人遷移完成後對應關係仍會生效；之後再關閉該模式會讓帳戶回到穩定的 per-account UUID
    （新世界資料，不再關聯舊資料）。
 
-### 遷移伺服器上的正版玩家（關聯 Minecraft 帳戶）
-
-如果你遷移的部分玩家其實是**正版**（他們擁有真實的 Minecraft 帳戶），你可以讓他們在不需網頁登入的情況下
-繼續使用已遷移的世界資料：
-
-1. 在 BeaconAuth 網頁界面中，玩家關聯其 Minecraft 帳戶（Microsoft/Xbox 登入），並將其身份偏好設定為
-   **舊版離線身分**（保留世界資料）。
-2. 在伺服器上，將 `behavior.minecraft_lookup_secret` 設定為你已在 BeaconAuth 伺服器上設定的共享密鑰
-   （`MINECRAFT_LOOKUP_SECRET`）。
-3. 當 Mojang 已驗證的正版玩家加入（online-mode 繞過）時，模組會向 BeaconAuth 伺服器查詢該 Mojang UUID
-   是否綁定到偏好為 “legacy” 的帳戶。若是，玩家會被對應到該帳戶在本世界擁有的舊版離線 UUID，並重放快取的
-   Mojang `textures` 屬性，從而在保留世界資料的**同時**保留真實的皮膚/披風。
-
-注意：
-
-- 該查詢只會回答「此 Mojang UUID 是否已綁定，以及模組應如何解析其身份」——不會暴露任何私人資料。
-- 若身份偏好為 “Mojang UUID”（預設）或該 UUID 未綁定，則正版玩家繼續使用 Mojang UUID（原版行為）。
-- 若玩家的舊版離線身分已被另一個 BeaconAuth 帳戶認領，該正版玩家繼續使用 Mojang UUID，並記錄一條警告
-  （絕不靜默覆寫）。
-- `resolve_linked_premium_legacy = false` 即使設定了密鑰也會停用此解析。

@@ -210,15 +210,5 @@
   "login_passkey_registered": "通行金鑰已建立",
   "login_passkey_registered_desc": "已在此裝置上為您的帳戶新增一個通行金鑰。",
   "confirm_dialog_confirm": "確認",
-  "confirm_dialog_cancel": "取消",
-  "provider_minecraft": "Minecraft",
-  "settings_link_minecraft": "關聯 Minecraft",
-  "settings_identity_mode_title": "Minecraft 身份",
-  "settings_identity_mode_desc": "選擇你在從離線模式遷移的伺服器上使用的身份。真實 Mojang UUID 是預設值；舊版身份可保留離線模式伺服器的世界資料。",
-  "settings_identity_mode_not_configured": "此伺服器未設定 Minecraft 登入。",
-  "settings_identity_mode_not_linked": "關聯 Minecraft 帳號後即可選擇身份。",
-  "settings_identity_mode_mojang": "Mojang UUID（新身份）",
-  "settings_identity_mode_legacy": "舊版離線身份（保留世界資料）",
-  "settings_identity_mode_saved": "Minecraft 身份偏好已儲存。",
-  "settings_identity_mode_error": "儲存 Minecraft 身份偏好失敗。"
+  "confirm_dialog_cancel": "取消"
 }

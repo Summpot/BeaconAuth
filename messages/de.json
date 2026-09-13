@@ -210,15 +210,5 @@
   "login_passkey_registered": "Passkey erstellt",
   "login_passkey_registered_desc": "Auf diesem Gerät wurde ein Passkey zu deinem Konto hinzugefügt.",
   "confirm_dialog_confirm": "Bestätigen",
-  "confirm_dialog_cancel": "Abbrechen",
-  "provider_minecraft": "Minecraft",
-  "settings_link_minecraft": "Minecraft verknüpfen",
-  "settings_identity_mode_title": "Minecraft-Identität",
-  "settings_identity_mode_desc": "Wählen Sie, welche Identität Sie auf Servern verwenden, die vom Offline-Modus migriert wurden. Die echte Mojang-UUID ist die Standardeinstellung; die Legacy-Identität bewahrt die Weltdaten eines Offline-Mode-Servers.",
-  "settings_identity_mode_not_configured": "Minecraft-Anmeldung ist auf diesem Server nicht konfiguriert.",
-  "settings_identity_mode_not_linked": "Verknüpfen Sie ein Minecraft-Konto, um Ihre Identität zu wählen.",
-  "settings_identity_mode_mojang": "Mojang-UUID (neue Identität)",
-  "settings_identity_mode_legacy": "Legacy-Offline-Identität (Weltdaten bewahren)",
-  "settings_identity_mode_saved": "Minecraft-Identitätseinstellung gespeichert.",
-  "settings_identity_mode_error": "Minecraft-Identitätseinstellung konnte nicht gespeichert werden."
+  "confirm_dialog_cancel": "Abbrechen"
 }

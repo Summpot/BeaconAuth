@@ -210,15 +210,5 @@
   "login_passkey_registered": "Passkey créée",
   "login_passkey_registered_desc": "Une passkey a été ajoutée à votre compte sur cet appareil.",
   "confirm_dialog_confirm": "Confirmer",
-  "confirm_dialog_cancel": "Annuler",
-  "provider_minecraft": "Minecraft",
-  "settings_link_minecraft": "Lier Minecraft",
-  "settings_identity_mode_title": "Identité Minecraft",
-  "settings_identity_mode_desc": "Choisissez l'identité que vous utilisez sur les serveurs migrés depuis le mode hors ligne. La vraie UUID Mojang est la valeur par défaut ; l'identité héritée préserve les données du monde d'un serveur en mode hors ligne.",
-  "settings_identity_mode_not_configured": "La connexion Minecraft n'est pas configurée sur ce serveur.",
-  "settings_identity_mode_not_linked": "Lie un compte Minecraft pour choisir ton identité.",
-  "settings_identity_mode_mojang": "UUID Mojang (nouvelle identité)",
-  "settings_identity_mode_legacy": "Identité hors ligne héritée (préserver les données du monde)",
-  "settings_identity_mode_saved": "Préférence d'identité Minecraft enregistrée.",
-  "settings_identity_mode_error": "Échec de l'enregistrement de la préférence d'identité Minecraft."
+  "confirm_dialog_cancel": "Annuler"
 }

@@ -34,11 +34,9 @@ beacon serve --help
 | `--github-client-secret` | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret. |
 | `--google-client-id` | `GOOGLE_CLIENT_ID` | Google OAuth client ID. |
 | `--google-client-secret` | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret. |
-| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Microsoft Entra ID client ID. Minecraft (Xbox) OAuth 흐름에서도 사용됩니다. |
+| `--microsoft-client-id` | `MICROSOFT_CLIENT_ID` | Microsoft Entra ID client ID. |
 | `--microsoft-client-secret` | `MICROSOFT_CLIENT_SECRET` | Microsoft Entra ID client secret. |
-| `--microsoft-tenant` | `MICROSOFT_TENANT` | 기본값은 `common` 입니다. Entra `microsoft` 프로바이더에만 사용됩니다. `minecraft` 프로바이더는 항상 consumer 테넌트를 사용합니다. |
-| `--minecraft-identity-mode` | `MINECRAFT_IDENTITY_MODE` | 기본 사용자별 Minecraft 신원 환경설정: `mojang`(기본값) 또는 `legacy`. |
-| `--minecraft-lookup-secret` | `MINECRAFT_LOOKUP_SECRET` | Minecraft 모드가 `GET /api/v1/minecraft/lookup`에 제시하는 공유 비밀키. 비어 있으면 엔드포인트를 비활성화합니다. |
+| `--microsoft-tenant` | `MICROSOFT_TENANT` | 기본값은 `common` 입니다. |
 
 ### 관리용 명령
 
@@ -72,35 +70,30 @@ GOOGLE_CLIENT_SECRET=
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_TENANT=common
-
-# Minecraft identity (consumer Xbox 흐름)
-MINECRAFT_IDENTITY_MODE=mojang
-MINECRAFT_LOOKUP_SECRET=
 ```
 
 ## Cloudflare Worker 구성
 
-Worker는 `wrangler.workers.jsonc` 및 배포 시점 변수로 설정합니다.
+Worker는 `wrangler.workers.jsonc` 및 배포 시 변수를 통해 구성됩니다.
 
-### `wrangler.workers.jsonc` 에 정의되는 변수
+### `wrangler.workers.jsonc`에 정의된 변수
 
-| 변수 | 목적 |
+| Variable | Purpose |
 |---|---|
-| `LIBSQL_URL` | libSQL/Turso DB 엔드포인트. |
-| `BASE_URL` | issuer + OAuth 리다이렉트에 사용할 공개 base URL. |
-| `JWKS_URL` | 선택적으로 광고할 JWKS URL. |
-| `JKU_ALLOWED_HOST_PATTERNS` | JWT `jku` fetch 에 허용할 호스트 패턴. |
-| `JWT_KID` | 헤더의 JWT key id. |
-| `ACCESS_TOKEN_EXPIRATION` | 액세스 토큰 수명(초). |
-| `REFRESH_TOKEN_EXPIRATION` | 리프레시 토큰 수명(초). |
-| `JWT_EXPIRATION` | 일반 JWT 만료(초). |
+| `LIBSQL_URL` | libSQL/Turso 데이터베이스 엔드포인트. |
+| `BASE_URL` | 발급자 + OAuth 리디렉션을 위한 공개 기본 URL. |
+| `JWKS_URL` | 선택적 공개 JWKS URL. |
+| `JKU_ALLOWED_HOST_PATTERNS` | JWT `jku` 조회가 허용되는 호스트. |
+| `JWT_KID` | 헤더의 JWT 키 ID. |
+| `ACCESS_TOKEN_EXPIRATION` | 액세스 토큰 유효 기간 (초). |
+| `REFRESH_TOKEN_EXPIRATION` | 리프레시 토큰 유효 기간 (초). |
+| `JWT_EXPIRATION` | 일반 JWT 만료 시간 (초). |
 
-### 시크릿 (Worker)
+### Secrets (Worker)
 
-배포 워크플로는 필요에 따라 아래 시크릿을 동기화할 수 있습니다:
+배포 워크플로우는 선택적으로 다음 시크릿을 동기화할 수 있습니다:
 
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT`
-- `MINECRAFT_IDENTITY_MODE`, `MINECRAFT_LOOKUP_SECRET`
-- `LIBSQL_AUTH_TOKEN` (libSQL/Turso 용)
+- `LIBSQL_AUTH_TOKEN` (libSQL/Turso용)

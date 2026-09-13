@@ -210,15 +210,5 @@
   "login_passkey_registered": "パスキーを作成しました",
   "login_passkey_registered_desc": "この端末のアカウントにパスキーが追加されました。",
   "confirm_dialog_confirm": "確認",
-  "confirm_dialog_cancel": "キャンセル",
-  "provider_minecraft": "Minecraft",
-  "settings_link_minecraft": "Minecraft を連携",
-  "settings_identity_mode_title": "Minecraft の身元",
-  "settings_identity_mode_desc": "オフラインモードから移行したサーバーで使用する身元を選択します。既定は実際の Mojang UUID です。レガシー身元はオフラインモードサーバーのワールドデータを保持します。",
-  "settings_identity_mode_not_configured": "このサーバーでは Minecraft ログインが設定されていません。",
-  "settings_identity_mode_not_linked": "Minecraft アカウントを連携すると身元を選択できます。",
-  "settings_identity_mode_mojang": "Mojang UUID（新しい身元）",
-  "settings_identity_mode_legacy": "レガシーオフライン身元（ワールドデータを保持）",
-  "settings_identity_mode_saved": "Minecraft の身元設定を保存しました。",
-  "settings_identity_mode_error": "Minecraft の身元設定の保存に失敗しました。"
+  "confirm_dialog_cancel": "キャンセル"
 }

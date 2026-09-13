@@ -22,7 +22,6 @@ pub async fn handle_get_config(req: &Request, env: &Env) -> Result<Response> {
         github_oauth: github_ok,
         google_oauth: google_ok,
         microsoft_oauth: microsoft_ok,
-        minecraft_oauth: microsoft_ok,
     };
 
     let resp = Response::from_json(&body)?;
