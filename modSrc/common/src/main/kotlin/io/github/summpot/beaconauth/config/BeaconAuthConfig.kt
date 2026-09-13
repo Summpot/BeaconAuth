@@ -22,6 +22,7 @@ object BeaconAuthConfig {
 	@Volatile private var allowVanillaOfflineClients: Boolean = true
 	@Volatile private var useLegacyOfflineUuids: Boolean = false
 	@Volatile private var minecraftLookupSecret: String = ""
+	@Volatile private var minecraftLinkSecret: String = ""
 	@Volatile private var resolveLinkedPremiumLegacy: Boolean = true
 
 	private fun normalizeBaseUrl(raw: String): String = raw.trim().trimEnd('/')
@@ -53,7 +54,8 @@ object BeaconAuthConfig {
         allowVanillaOfflineClients: Boolean,
         useLegacyOfflineUuids: Boolean,
         minecraftLookupSecret: String = "",
-        resolveLinkedPremiumLegacy: Boolean = true
+        resolveLinkedPremiumLegacy: Boolean = true,
+        minecraftLinkSecret: String = ""
     ) {
         val normalizedBaseUrl = normalizeBaseUrl(authBaseUrl)
         this.authBaseUrl = normalizedBaseUrl
@@ -66,6 +68,7 @@ object BeaconAuthConfig {
         this.allowVanillaOfflineClients = allowVanillaOfflineClients
         this.useLegacyOfflineUuids = useLegacyOfflineUuids
         this.minecraftLookupSecret = minecraftLookupSecret.trim()
+        this.minecraftLinkSecret = if (minecraftLinkSecret.isNotBlank()) minecraftLinkSecret.trim() else this.minecraftLookupSecret
         this.resolveLinkedPremiumLegacy = resolveLinkedPremiumLegacy
     }
 
@@ -75,36 +78,17 @@ object BeaconAuthConfig {
 	fun getOidcClientId(): String = oidcClientId
 	fun getTokenEndpoint(): String = tokenEndpoint
 	fun getJkuAllowedHostPatterns(): Set<String> = jkuAllowedHostPatterns
-	/**
-	 * Online-mode behavior switch.
-	 *
-	 * When true (default): premium players can join without BeaconAuth web login and keep
-	 * their Mojang UUID (including vanilla clients); offline/community players with the mod
-	 * can still join via BeaconAuth after Mojang session verification fails.
-	 *
-	 * When false: every online-mode player must complete BeaconAuth (vanilla clients without
-	 * the mod are rejected).
-	 */
 	fun shouldBypassIfOnlineModeVerified(): Boolean = bypassIfOnlineModeVerified
 	fun shouldForceAuthIfOfflineMode(): Boolean = forceAuthIfOfflineMode
 	fun shouldAllowVanillaOfflineClients(): Boolean = allowVanillaOfflineClients
-	/**
-	 * Legacy offline-UUID identity mode (default false).
-	 *
-	 * When true, each BeaconAuth account is mapped to the offline-mode UUID
-	 * ("OfflinePlayer:<name>") it claimed on its first authenticated login. The mapping is
-	 * persisted per-world in <world>/beaconauth-identities.json and the account keeps that UUID
-	 * afterwards, so world data from an existing offline-mode server is preserved without
-	 * renaming files. Intended for small community servers.
-	 *
-	 * When false (default), BeaconAuth identities use stable per-account UUIDs that are immune
-	 * to username-based impersonation.
-	 */
 	fun shouldUseLegacyOfflineUuids(): Boolean = useLegacyOfflineUuids
 
-	/** Deprecated / no-op: Minecraft lookup endpoint has been removed. */
-	fun getMinecraftLookupSecret(): String = ""
+	/** Secret used for signing in-game /beaconauth link tickets */
+	fun getMinecraftLinkSecret(): String =
+		if (minecraftLinkSecret.isNotBlank()) minecraftLinkSecret else minecraftLookupSecret
 
-	/** Deprecated / no-op: Minecraft lookup endpoint has been removed. */
-	fun shouldResolveLinkedPremiumLegacy(): Boolean = false
+	/** Backwards-compatible alias for getMinecraftLinkSecret */
+	fun getMinecraftLookupSecret(): String = getMinecraftLinkSecret()
+
+	fun shouldResolveLinkedPremiumLegacy(): Boolean = resolveLinkedPremiumLegacy
 }

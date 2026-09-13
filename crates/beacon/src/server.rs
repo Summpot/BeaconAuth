@@ -71,6 +71,22 @@ pub fn build_api_routes() -> actix_web::Scope {
         .route("/oidc/token", web::post().to(handlers::oidc::token))
         .route("/oidc/complete", web::post().to(handlers::oidc::complete))
         .route("/oidc/userinfo", web::get().to(handlers::oidc::userinfo))
+        .route(
+            "/minecraft/link/verify",
+            web::post().to(handlers::minecraft::verify_link_ticket),
+        )
+        .route(
+            "/minecraft/link/confirm",
+            web::post().to(handlers::minecraft::confirm_link_ticket),
+        )
+        .route(
+            "/minecraft/link/unlink",
+            web::post().to(handlers::minecraft::unlink_minecraft),
+        )
+        .route(
+            "/minecraft/identity-mode",
+            web::post().to(handlers::minecraft::set_identity_mode),
+        )
 }
 
 /// All backend routes under the `/api` context path.
@@ -159,6 +175,7 @@ pub async fn build_app_state(config: &ServeConfig) -> anyhow::Result<web::Data<A
         microsoft_client_secret: config.microsoft_client_secret.clone(),
         microsoft_tenant: config.microsoft_tenant.clone(),
         redirect_base: config.base_url.clone(),
+        minecraft_link_secret: config.minecraft_link_secret.clone(),
     };
 
     // 4. Initialize WebAuthn
@@ -416,6 +433,7 @@ mod tests {
             microsoft_client_id: None,
             microsoft_client_secret: None,
             microsoft_tenant: "common".to_string(),
+            minecraft_link_secret: None,
             redis_url: None,
             base_url: "https://beaconauth.pages.dev".to_string(),
             jwks_url: None,

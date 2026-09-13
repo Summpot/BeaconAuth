@@ -417,6 +417,21 @@ pub async fn handle_token(mut req: Request, env: &Env) -> Result<Response> {
     let now = Utc::now();
     let exp = now + chrono::Duration::seconds(ID_TOKEN_TTL_SECS);
 
+    let (username, identity_mode, minecraft_uuid) = match db_user_by_id(&db, &state.user_id).await {
+        Ok(Some(u)) => {
+            let mc_id = crate::wasm::db::db_identities_by_user_id(&db, &state.user_id)
+                .await
+                .ok()
+                .and_then(|list| {
+                    list.into_iter()
+                        .find(|i| i.provider == "minecraft")
+                        .map(|i| i.provider_user_id)
+                });
+            (Some(u.username), u.identity_mode, mc_id)
+        }
+        _ => (None, None, None),
+    };
+
     let claims = IdTokenClaims {
         iss: jwt.issuer.clone(),
         sub: state.user_id.clone(),
@@ -425,7 +440,9 @@ pub async fn handle_token(mut req: Request, env: &Env) -> Result<Response> {
         iat: now.timestamp(),
         auth_time: now.timestamp(),
         nonce: state.nonce.clone(),
-        preferred_username: None,
+        preferred_username: username,
+        minecraft_uuid,
+        identity_mode,
     };
     let id_token = match sign_jwt(&jwt, &claims) {
         Ok(t) => t,
@@ -492,9 +509,20 @@ pub async fn handle_userinfo(req: &Request, env: &Env) -> Result<Response> {
         return json_with_cors(req, resp);
     };
 
+    let mc_id = crate::wasm::db::db_identities_by_user_id(&db, &user_id)
+        .await
+        .ok()
+        .and_then(|list| {
+            list.into_iter()
+                .find(|i| i.provider == "minecraft")
+                .map(|i| i.provider_user_id)
+        });
+
     let resp = Response::from_json(&json!({
         "sub": user.id,
         "preferred_username": user.username,
+        "identity_mode": user.identity_mode,
+        "minecraft_uuid": mc_id,
     }))?;
     json_with_cors(req, resp)
 }

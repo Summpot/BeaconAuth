@@ -482,6 +482,24 @@ pub async fn db_password_identity_by_identifier(
     Ok(())
 }
 
+pub async fn db_update_user_identity_mode(
+    db: &DatabaseConnection,
+    user_id: &str,
+    identity_mode: &str,
+) -> Result<()> {
+    let ts = now_ts();
+
+    user::Entity::update_many()
+        .col_expr(user::Column::IdentityMode, Expr::value(identity_mode))
+        .col_expr(user::Column::UpdatedAt, Expr::value(ts))
+        .filter(user::Column::Id.eq(user_id.to_string()))
+        .exec(db)
+        .await
+        .map_err(map_db_err)?;
+
+    Ok(())
+}
+
 pub async fn db_update_password_identity_identifier(
     db: &DatabaseConnection,
     user_id: &str,

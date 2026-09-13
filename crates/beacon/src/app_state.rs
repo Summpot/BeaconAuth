@@ -65,4 +65,5 @@ pub struct OAuthConfig {
     pub microsoft_client_secret: Option<String>,
     pub microsoft_tenant: String,
     pub redirect_base: String,
+    pub minecraft_link_secret: Option<String>,
 }

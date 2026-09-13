@@ -4,7 +4,7 @@ import {
 } from '@simplewebauthn/browser';
 import { useForm } from '@tanstack/react-form';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Key, Lightbulb, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Gamepad2, Key, Lightbulb, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -39,6 +39,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageLoader } from '@/components/ui/page-loader';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Tooltip,
   TooltipContent,
@@ -175,6 +176,10 @@ function SettingsPage() {
   const linkableProviders = enabledProviders.filter(
     (p) => !linkedProviders.has(p),
   );
+  const minecraftIdentity = identities?.identities.find(
+    (i) => i.provider === 'minecraft',
+  );
+  const [updatingMode, setUpdatingMode] = useState(false);
 
   const refreshIdentities = async () => {
     try {
@@ -351,6 +356,32 @@ function SettingsPage() {
       toast.error(
         getErrorMessage(error, m.settings_error_failed_unlink_login_method()),
       );
+    }
+  };
+
+  const handleUnlinkMinecraft = async () => {
+    try {
+      await apiClient('/api/v1/minecraft/link/unlink', { method: 'POST' });
+      toast.success(m.settings_minecraft_unlinked_success());
+      await refreshIdentities();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const handleIdentityModeChange = async (newMode: 'mojang' | 'legacy') => {
+    setUpdatingMode(true);
+    try {
+      await apiClient('/api/v1/minecraft/identity-mode', {
+        method: 'POST',
+        body: { identity_mode: newMode },
+      });
+      setUser((prev) => (prev ? { ...prev, identity_mode: newMode } : prev));
+      toast.success(m.settings_minecraft_mode_updated());
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setUpdatingMode(false);
     }
   };
 
@@ -776,7 +807,8 @@ function SettingsPage() {
                     </h3>
 
                     {(identities?.identities || []).filter(
-                      (i) => i.provider !== 'password',
+                      (i) =>
+                        i.provider !== 'password' && i.provider !== 'minecraft',
                     ).length === 0 ? (
                       <div className="text-center p-8 border-2 border-dashed rounded-xl text-muted-foreground bg-secondary/30">
                         {m.settings_no_oauth()}
@@ -784,7 +816,11 @@ function SettingsPage() {
                     ) : (
                       <div className="grid gap-3">
                         {(identities?.identities || [])
-                          .filter((i) => i.provider !== 'password')
+                          .filter(
+                            (i) =>
+                              i.provider !== 'password' &&
+                              i.provider !== 'minecraft',
+                          )
                           .map((i) => (
                             <div
                               key={i.id}
@@ -851,6 +887,138 @@ function SettingsPage() {
                     )}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-8 w-1 bg-primary/20 rounded-full" />
+              <h2 className="text-xl font-bold">
+                {m.settings_minecraft_identity_title()}
+              </h2>
+            </div>
+
+            <Card className="border border-border/60 shadow-xs">
+              <CardContent className="p-6 space-y-6">
+                <div>
+                  <p className="text-muted-foreground text-sm">
+                    {m.settings_minecraft_identity_desc()}
+                  </p>
+                </div>
+
+                {minecraftIdentity ? (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card/80">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12 rounded-xl border shadow-xs">
+                          <AvatarImage
+                            src={`https://mc-heads.net/avatar/${minecraftIdentity.provider_user_id}/64`}
+                            alt="Minecraft Avatar"
+                          />
+                          <AvatarFallback className="rounded-xl font-bold">
+                            MC
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">
+                              {m.settings_minecraft_linked()}
+                            </h3>
+                            <Badge variant="outline" className="text-xs">
+                              Mojang
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground font-mono break-all mt-0.5">
+                            {minecraftIdentity.provider_user_id}
+                          </p>
+                        </div>
+                      </div>
+
+                      <ConfirmDialog
+                        title={m.settings_minecraft_unlink()}
+                        description={m.settings_minecraft_unlink_confirm()}
+                        confirmLabel={m.settings_minecraft_unlink()}
+                        destructive
+                        onConfirm={handleUnlinkMinecraft}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title={m.settings_minecraft_unlink()}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </ConfirmDialog>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                      <div>
+                        <h4 className="font-medium text-sm">
+                          {m.settings_minecraft_identity_mode_title()}
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {m.settings_minecraft_identity_mode_desc()}
+                        </p>
+                      </div>
+
+                      <RadioGroup
+                        value={user?.identity_mode ?? 'mojang'}
+                        onValueChange={(val) =>
+                          handleIdentityModeChange(val as 'mojang' | 'legacy')
+                        }
+                        disabled={updatingMode}
+                        className="grid gap-3"
+                      >
+                        <div className="flex items-start gap-3 rounded-xl border border-border/60 p-4 bg-card/80">
+                          <RadioGroupItem
+                            value="mojang"
+                            id="mode_mojang"
+                            className="mt-1"
+                          />
+                          <div className="grid gap-1.5 cursor-pointer">
+                            <Label
+                              htmlFor="mode_mojang"
+                              className="font-semibold cursor-pointer"
+                            >
+                              {m.settings_minecraft_mode_mojang()}
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              {m.settings_minecraft_mode_mojang_desc()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3 rounded-xl border border-border/60 p-4 bg-card/80">
+                          <RadioGroupItem
+                            value="legacy"
+                            id="mode_legacy"
+                            className="mt-1"
+                          />
+                          <div className="grid gap-1.5 cursor-pointer">
+                            <Label
+                              htmlFor="mode_legacy"
+                              className="font-semibold cursor-pointer"
+                            >
+                              {m.settings_minecraft_mode_legacy()}
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              {m.settings_minecraft_mode_legacy_desc()}
+                            </p>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center p-8 border-2 border-dashed rounded-xl text-muted-foreground bg-secondary/30 space-y-2">
+                    <Gamepad2 className="h-8 w-8 mx-auto opacity-50 mb-2" />
+                    <p className="text-sm max-w-md mx-auto">
+                      {m.settings_minecraft_not_linked()}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>

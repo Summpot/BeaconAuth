@@ -1,4 +1,4 @@
-import { Github, Link2 } from 'lucide-react';
+import { Gamepad2, Github, Link2 } from 'lucide-react';
 import * as m from '@/paraglide/messages';
 
 export type OAuthProvider = 'github' | 'google' | 'microsoft';
@@ -17,6 +17,8 @@ export function providerLabel(provider: string): string {
       return m.provider_google();
     case 'microsoft':
       return m.provider_microsoft();
+    case 'minecraft':
+      return m.provider_minecraft();
     default:
       return provider;
   }
@@ -72,6 +74,8 @@ export function ProviderIcon({
           <path fill="#FFB900" d="M13 13h9v9h-9z" />
         </svg>
       );
+    case 'minecraft':
+      return <Gamepad2 className={className} />;
     default:
       return <Link2 className={className} />;
   }

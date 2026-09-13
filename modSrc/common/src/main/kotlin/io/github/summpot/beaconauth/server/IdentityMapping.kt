@@ -27,10 +27,18 @@ import kotlin.concurrent.withLock
 object IdentityMapping {
     private val logger = LoggerFactory.getLogger("BeaconAuth/IdentityMapping")
 
+    data class MojangProfileRecord(
+        val mojangUuid: String,
+        val mojangName: String,
+        val identityMode: String = "mojang",
+    )
+
     private data class FileShape(
         val version: Int = 1,
         val identities: Map<String, String> = emptyMap(),
         val owners: Map<String, String> = emptyMap(),
+        val mojangProfiles: Map<String, MojangProfileRecord> = emptyMap(),
+        val mojangToSubject: Map<String, String> = emptyMap(),
     )
 
     private data class UserCacheEntry(val name: String?, val uuid: String?)
@@ -47,6 +55,10 @@ object IdentityMapping {
     private val identities = HashMap<String, UUID>()
     // offline uuid -> claiming subject; guarded by [lock]. Derived from [identities] when loading v1 files.
     private val owners = HashMap<UUID, String>()
+    // subject -> mojang profile; guarded by [lock].
+    private val mojangProfiles = HashMap<String, MojangProfileRecord>()
+    // mojang uuid -> subject; guarded by [lock].
+    private val mojangToSubject = HashMap<UUID, String>()
     private val lock = ReentrantLock()
     private var mappingPath: Path? = null
 
@@ -74,6 +86,8 @@ object IdentityMapping {
             mappingPath = path
             identities.clear()
             owners.clear()
+            mojangProfiles.clear()
+            mojangToSubject.clear()
             if (Files.isRegularFile(path)) {
                 try {
                     Files.newBufferedReader(path).use { reader ->
@@ -101,6 +115,19 @@ object IdentityMapping {
                                 }
                                 owners[uuid] = subject
                             }
+                        }
+                        if (data?.mojangProfiles != null) {
+                            mojangProfiles.putAll(data.mojangProfiles)
+                            for ((subj, prof) in data.mojangProfiles) {
+                                try {
+                                    mojangToSubject[UUID.fromString(prof.mojangUuid)] = subj
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        for ((uuidString, subj) in data?.mojangToSubject.orEmpty()) {
+                            try {
+                                mojangToSubject[UUID.fromString(uuidString)] = subj
+                            } catch (_: Exception) {}
                         }
                     }
                     logger.info("Loaded {} BeaconAuth identity mappings from {}", identities.size, path)
@@ -287,12 +314,54 @@ object IdentityMapping {
                 version = 1,
                 identities = identities.mapValues { it.value.toString() },
                 owners = owners.mapKeys { it.key.toString() },
+                mojangProfiles = mojangProfiles,
+                mojangToSubject = mojangToSubject.mapKeys { it.key.toString() },
             )
             Files.newBufferedWriter(path).use { writer ->
                 gson.toJson(data, writer)
             }
         } catch (e: Exception) {
             logger.error("Failed to save BeaconAuth identity mappings to $path: ${e.message}")
+        }
+    }
+
+    /**
+     * Record a verified Mojang link for [subject] with preferred [identityMode].
+     */
+    fun recordMojangLink(subject: String, mojangUuid: UUID, mojangName: String, identityMode: String) {
+        lock.withLock {
+            val record = MojangProfileRecord(mojangUuid.toString(), mojangName, identityMode)
+            mojangProfiles[subject] = record
+            mojangToSubject[mojangUuid] = subject
+            saveLocked()
+            logger.info("Recorded Mojang link for subject {}: uuid={}, name={}, mode={}", subject, mojangUuid, mojangName, identityMode)
+        }
+    }
+
+    /**
+     * Look up the BeaconAuth subject that owns [mojangUuid], if known.
+     */
+    fun getSubjectForMojangUuid(mojangUuid: UUID): String? = lock.withLock { mojangToSubject[mojangUuid] }
+
+    /**
+     * Look up the Mojang profile record for BeaconAuth [subject], if any.
+     */
+    fun getMojangProfile(subject: String): MojangProfileRecord? = lock.withLock { mojangProfiles[subject] }
+
+    /**
+     * If [mojangUuid] is linked to a BeaconAuth account whose identity mode is 'legacy'
+     * (or if the server has useLegacyOfflineUuids enabled), return the mapped legacy offline UUID.
+     * Otherwise returns null.
+     */
+    fun getLegacyUuidForMojangUuid(mojangUuid: UUID): UUID? {
+        lock.withLock {
+            val subject = mojangToSubject[mojangUuid] ?: return null
+            val profile = mojangProfiles[subject]
+            val isLegacyMode = profile?.identityMode == "legacy" || BeaconAuthConfig.shouldUseLegacyOfflineUuids()
+            if (isLegacyMode) {
+                return identities[subject]
+            }
+            return null
         }
     }
 }

@@ -4,6 +4,7 @@ pub mod identity;
 pub mod oidc;
 pub mod passkey;
 pub mod user;
+pub mod minecraft;
 
 // Re-export the auth handlers
 pub use auth::refresh_token;

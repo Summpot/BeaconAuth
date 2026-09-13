@@ -122,6 +122,18 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         (Method::Get, "/v1/identities") => handlers::identity::handle_identities_list(&req, &env).await,
         (Method::Get, "/v1/oauth/callback") => handlers::oauth::handle_oauth_callback(&req, &env).await,
         (Method::Get, "/.well-known/jwks.json") => handlers::config::handle_get_jwks(&req, &env).await,
+        (Method::Post, "/v1/minecraft/link/verify") => {
+            handlers::minecraft::handle_minecraft_link_verify(req, &env).await
+        }
+        (Method::Post, "/v1/minecraft/link/confirm") => {
+            handlers::minecraft::handle_minecraft_link_confirm(req, &env).await
+        }
+        (Method::Post, "/v1/minecraft/link/unlink") => {
+            handlers::minecraft::handle_minecraft_link_unlink(&req, &env).await
+        }
+        (Method::Post, "/v1/minecraft/identity-mode") => {
+            handlers::minecraft::handle_minecraft_identity_mode(req, &env).await
+        }
 
         (Method::Get, "/v1/passkey/list") => handlers::passkey::handle_passkey_list(&req, &env).await,
         (Method::Delete, p) if p.starts_with("/v1/passkey/") => {

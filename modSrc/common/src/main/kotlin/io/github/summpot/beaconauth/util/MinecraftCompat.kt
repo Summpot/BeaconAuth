@@ -129,4 +129,22 @@ object MinecraftCompat {
         }
         return null
     }
+
+    fun createOpenUrlClickEvent(url: String): net.minecraft.network.chat.ClickEvent? {
+        try {
+            val actionClass = Class.forName("net.minecraft.network.chat.ClickEvent\$Action")
+            val openUrlAction = java.lang.Enum.valueOf(actionClass.asSubclass(Enum::class.java), "OPEN_URL")
+            val clickEventClass = net.minecraft.network.chat.ClickEvent::class.java
+            val constructor = clickEventClass.getConstructor(actionClass, String::class.java)
+            return constructor.newInstance(openUrlAction, url)
+        } catch (_: Throwable) {
+            try {
+                val openUrlClass = Class.forName("net.minecraft.network.chat.ClickEvent\$OpenUrl")
+                val constructor = openUrlClass.getConstructor(URI::class.java)
+                return constructor.newInstance(URI.create(url)) as net.minecraft.network.chat.ClickEvent
+            } catch (_: Throwable) {
+                return null
+            }
+        }
+    }
 }

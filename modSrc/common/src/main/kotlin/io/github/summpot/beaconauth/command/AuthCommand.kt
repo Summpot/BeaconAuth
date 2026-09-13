@@ -58,6 +58,10 @@ object AuthCommand {
                         .requires { source -> MinecraftCompat.hasPermissionLevel(source, 2) }
                         .executes { context -> executeUnmigrated(context) }
                 )
+                .then(
+                    Commands.literal("link")
+                        .executes { context -> executeLink(context) }
+                )
         )
     }
 
@@ -163,5 +167,78 @@ object AuthCommand {
         } else {
             source.sendSystemMessage(message)
         }
+    }
+
+    private fun executeLink(context: CommandContext<CommandSourceStack>): Int {
+        val player = try {
+            context.source.playerOrException
+        } catch (_: Exception) {
+            sendFailure(context.source, Component.literal("§cThis command can only be executed by a player."))
+            return 1
+        }
+
+        val secret = BeaconAuthConfig.getMinecraftLinkSecret()
+        if (secret.isBlank()) {
+            sendFailure(
+                context.source,
+                Component.literal("§cServer configuration error: behavior.minecraft_link_secret is not set.")
+            )
+            return 1
+        }
+
+        val server = context.source.server
+        if (server != null && !server.usesAuthentication()) {
+            sendFailure(
+                context.source,
+                Component.literal("§cAccount linking requires the server to run in online mode.")
+            )
+            return 1
+        }
+
+        val profile = player.gameProfile
+        val uuid = profile.id.toString()
+        val name = profile.name
+
+        val token = try {
+            val now = java.util.Date()
+            val exp = java.util.Date(System.currentTimeMillis() + 5 * 60 * 1000) // 5 minutes
+            val claims = com.nimbusds.jwt.JWTClaimsSet.Builder()
+                .issuer("beaconauth-minecraft-mod")
+                .subject("minecraft-link")
+                .claim("uuid", uuid)
+                .claim("name", name)
+                .issueTime(now)
+                .expirationTime(exp)
+                .claim("nonce", java.util.UUID.randomUUID().toString())
+                .build()
+
+            val signed = com.nimbusds.jwt.SignedJWT(
+                com.nimbusds.jose.JWSHeader(com.nimbusds.jose.JWSAlgorithm.HS256),
+                claims
+            )
+            signed.sign(com.nimbusds.jose.crypto.MACSigner(secret.toByteArray(Charsets.UTF_8)))
+            signed.serialize()
+        } catch (e: Exception) {
+            sendFailure(context.source, Component.literal("§cFailed to generate link token: ${e.message}"))
+            return 1
+        }
+
+        val baseUrl = BeaconAuthConfig.getAuthBaseUrl().trimEnd('/')
+        val url = "$baseUrl/link/minecraft?token=$token"
+
+        val clickEvent = MinecraftCompat.createOpenUrlClickEvent(url)
+        val linkText = Component.literal("§e§n[Click Here to Link BeaconAuth Account]§r")
+        if (clickEvent != null) {
+            linkText.withStyle { it.withClickEvent(clickEvent) }
+        }
+
+        sendSuccess(
+            context.source,
+            Component.literal("§aLink ticket generated (valid for 5 minutes):\n")
+                .append(linkText)
+                .append(Component.literal("\n§7Or open: §f$url")),
+            false
+        )
+        return 1
     }
 }

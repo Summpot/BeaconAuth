@@ -113,6 +113,10 @@ pub struct ServeConfig {
     #[arg(long, env = "MICROSOFT_TENANT", default_value = "common")]
     pub microsoft_tenant: String,
 
+    /// Secret shared between the Minecraft mod and BeaconAuth for signing in-game link tickets.
+    #[arg(long, env = "MINECRAFT_LINK_SECRET")]
+    pub minecraft_link_secret: Option<String>,
+
     /// Base URL for the server (e.g., https://beaconauth.pages.dev)
     /// Used for OAuth redirects, JWT issuer claim, and WebAuthn RP origin
     #[arg(

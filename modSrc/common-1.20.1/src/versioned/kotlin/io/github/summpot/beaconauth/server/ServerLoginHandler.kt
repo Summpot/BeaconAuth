@@ -106,6 +106,9 @@ class ServerLoginHandler @JvmOverloads constructor(
             }
 
             if (allowVanilla) {
+                if (hasMojangVerifiedUUID) {
+                    applyLegacyMappingIfConfigured()
+                }
                 logger.info("Vanilla client allowed; finishing negotiation")
                 finish()
             } else {
@@ -142,11 +145,35 @@ class ServerLoginHandler @JvmOverloads constructor(
         )
 
         if (bypass) {
+            if (hasMojangVerifiedUUID) {
+                applyLegacyMappingIfConfigured()
+            }
             logger.info("Existing session allowed (post-PROBE allow-through); finishing negotiation")
             finish()
         } else {
             logger.info("Starting BeaconAuth web flow")
             startBeaconFlow()
+        }
+    }
+
+    private fun applyLegacyMappingIfConfigured() {
+        val current = gameProfile ?: return
+        val mojangUuid = current.id ?: return
+        IdentityMapping.attach(server)
+
+        val texturesProp = current.properties?.get("textures")?.firstOrNull()
+        if (texturesProp != null) {
+            MojangProfileCache.put(mojangUuid, texturesProp)
+        }
+
+        val legacyUuid = IdentityMapping.getLegacyUuidForMojangUuid(mojangUuid)
+        if (legacyUuid != null && legacyUuid != mojangUuid) {
+            logger.info("Mapping Mojang verified player ${current.name} ($mojangUuid) to legacy UUID $legacyUuid")
+            val newProfile = GameProfile(legacyUuid, current.name)
+            if (texturesProp != null) {
+                newProfile.properties.put("textures", texturesProp)
+            }
+            gameProfile = newProfile
         }
     }
 
@@ -235,16 +262,23 @@ class ServerLoginHandler @JvmOverloads constructor(
                         fail(Component.translatable("disconnect.beaconauth.official_name_conflict", effectiveName))
                         return
                     }
-                    if (stableUuid != null) {
-                        // Replace the login profile UUID with the BeaconAuth identity UUID
-                        // (stable per-account UUID, or the mapped legacy offline UUID in
-                        // legacy offline identity mode). This keeps world data intact.
-                        gameProfile = GameProfile(stableUuid, effectiveName)
+                    val targetUuid = stableUuid ?: profile.id
+                    if (targetUuid != null) {
+                        val newProfile = GameProfile(targetUuid, effectiveName)
+                        val mcUuid = result.minecraftUuid
+                        val texturesProp = if (mcUuid != null) {
+                            MojangProfileCache.getOrFetch(mcUuid, 3000)
+                        } else null
+
+                        if (texturesProp != null) {
+                            newProfile.properties.put("textures", texturesProp)
+                            logger.info("Injected Mojang textures for $effectiveName ($targetUuid) from linked Mojang UUID $mcUuid")
+                        }
+                        gameProfile = newProfile
                         logger.info(
-                            "Using BeaconAuth identity for ${profile.name}: name=$effectiveName stableUuid=$stableUuid"
+                            "Using BeaconAuth identity for ${profile.name}: name=$effectiveName targetUuid=$targetUuid"
                         )
                     } else if (effectiveName != profile.name && profile.id != null) {
-                        // Best-effort: still apply the BeaconAuth username even if stableUuid was not returned.
                         gameProfile = GameProfile(profile.id, effectiveName)
                         logger.info("Using BeaconAuth username for ${profile.name}: $effectiveName")
                     }

@@ -339,6 +339,8 @@ object AuthServer {
         val username: String? = null,
         val stableUuid: UUID? = null,
         val legacyIdentityClaimed: Boolean = false,
+        val minecraftUuid: UUID? = null,
+        val identityMode: String? = null,
     )
 
     /** Thrown when a legacy offline identity is already owned by another BeaconAuth account. */
@@ -415,13 +417,41 @@ object AuthServer {
 
             val username = claims.getStringClaim("preferred_username") ?: profileName
             val subject = claims.subject ?: throw SecurityException("ID token missing subject")
-            val stableUuid = resolveIdentityUuid(subject, profileName, server)
+            val minecraftUuidClaim = claims.getStringClaim("minecraft_uuid")
+            val identityModeClaim = claims.getStringClaim("identity_mode") ?: "mojang"
+
+            val minecraftUuid = try {
+                minecraftUuidClaim?.let { UUID.fromString(it) }
+            } catch (_: Exception) {
+                null
+            }
+
+            if (server != null) {
+                IdentityMapping.attach(server)
+                if (minecraftUuid != null) {
+                    IdentityMapping.recordMojangLink(subject, minecraftUuid, username, identityModeClaim)
+                }
+            }
+
+            val stableUuid = if (identityModeClaim == "mojang" && minecraftUuid != null) {
+                minecraftUuid
+            } else {
+                resolveIdentityUuid(subject, profileName, server)
+            }
+
             authenticatedPlayers.add(stableUuid)
             logger.info(
                 "✓ Authentication successful for $profileName (user: $username, subject: $subject, " +
-                    "identityUuid: $stableUuid, legacyOfflineMode: ${BeaconAuthConfig.shouldUseLegacyOfflineUuids()})"
+                    "identityUuid: $stableUuid, mojangUuid: $minecraftUuid, mode: $identityModeClaim, legacyOfflineMode: ${BeaconAuthConfig.shouldUseLegacyOfflineUuids()})"
             )
-            VerificationResult(true, "Welcome, $username!", username, stableUuid)
+            VerificationResult(
+                true,
+                "Welcome, $username!",
+                username,
+                stableUuid,
+                minecraftUuid = minecraftUuid,
+                identityMode = identityModeClaim
+            )
         } catch (e: com.nimbusds.jose.RemoteKeySourceException) {
             logger.error("✗ Failed to fetch JWKS for $profileName: ${e.message}")
             VerificationResult(false, "Cannot contact authentication server")

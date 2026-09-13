@@ -12,8 +12,8 @@
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use base64::Engine;
 use chrono::Utc;
-use entity::passkey_state;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use entity::{identity, passkey_state, user};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use sha2::{Digest, Sha256};
 use url::Url;
 use uuid::Uuid;
@@ -333,6 +333,22 @@ pub async fn token(
 
     let now = Utc::now();
     let exp = now + chrono::Duration::seconds(ID_TOKEN_TTL_SECS);
+
+    let (username, identity_mode, minecraft_uuid) = match user::Entity::find_by_id(state.user_id.clone()).one(&app_state.db).await {
+        Ok(Some(u)) => {
+            let mc_id = identity::Entity::find()
+                .filter(identity::Column::UserId.eq(state.user_id.clone()))
+                .filter(identity::Column::Provider.eq("minecraft"))
+                .one(&app_state.db)
+                .await
+                .ok()
+                .flatten()
+                .map(|i| i.provider_user_id);
+            (Some(u.username), u.identity_mode, mc_id)
+        }
+        _ => (None, None, None),
+    };
+
     let id_claims = IdTokenClaims {
         iss: app_state.oauth_config.redirect_base.clone(),
         sub: state.user_id.clone(),
@@ -341,7 +357,9 @@ pub async fn token(
         iat: now.timestamp(),
         auth_time: now.timestamp(),
         nonce: state.nonce.clone(),
-        preferred_username: None,
+        preferred_username: username,
+        minecraft_uuid,
+        identity_mode,
     };
     let id_token = match super::auth::generate_jwt(&app_state, &id_claims) {
         Ok(t) => t,
@@ -501,12 +519,23 @@ pub async fn userinfo(app_state: web::Data<AppState>, req: HttpRequest) -> impl 
         Err(_) => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "invalid_token"})),
     };
 
-    use entity::user;
     match user::Entity::find_by_id(user_id.clone()).one(&app_state.db).await {
-        Ok(Some(u)) => HttpResponse::Ok().json(serde_json::json!({
-            "sub": u.id,
-            "preferred_username": u.username,
-        })),
+        Ok(Some(u)) => {
+            let mc_id = identity::Entity::find()
+                .filter(identity::Column::UserId.eq(user_id.clone()))
+                .filter(identity::Column::Provider.eq("minecraft"))
+                .one(&app_state.db)
+                .await
+                .ok()
+                .flatten()
+                .map(|i| i.provider_user_id);
+            HttpResponse::Ok().json(serde_json::json!({
+                "sub": u.id,
+                "preferred_username": u.username,
+                "identity_mode": u.identity_mode,
+                "minecraft_uuid": mc_id,
+            }))
+        }
         Ok(None) => HttpResponse::Unauthorized().json(serde_json::json!({"error": "invalid_token"})),
         Err(e) => {
             log::error!("userinfo DB error: {e}");
