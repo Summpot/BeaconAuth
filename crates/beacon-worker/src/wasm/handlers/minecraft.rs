@@ -1,6 +1,6 @@
 use beacon_core::minecraft::verify_minecraft_link_token;
 use beacon_core::models::{
-    self, ConfirmMinecraftLinkRequest, SetMinecraftIdentityModeRequest,
+    ConfirmMinecraftLinkRequest, SetMinecraftIdentityModeRequest,
     VerifyMinecraftTicketRequest, VerifyMinecraftTicketResponse,
 };
 use worker::{Env, Request, Response, Result};

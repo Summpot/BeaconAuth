@@ -457,6 +457,7 @@ pub async fn handle_oauth_start(mut req: Request, env: &Env) -> Result<Response>
                 urlencoding::encode(&callback_url),
                 urlencoding::encode(scope),
                 urlencoding::encode(&state_token)
+            )
         }
         _ => {
             return error_response(&req, 400, "invalid_provider", "Unsupported OAuth provider");
@@ -578,6 +579,7 @@ pub async fn handle_oauth_link_start(mut req: Request, env: &Env) -> Result<Resp
                 urlencoding::encode(&callback_url),
                 urlencoding::encode(scope),
                 urlencoding::encode(&state_token)
+            )
         }
         _ => {
             return error_response(&req, 400, "invalid_provider", "Unsupported OAuth provider");

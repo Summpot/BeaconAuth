@@ -4136,7 +4136,7 @@ dependencies = [
 [[package]]
 name = "sea-orm"
 version = "2.0.1"
-source = "git+https://github.com/Summpot/sea-orm.git?branch=master#53c5769bcc8463642c5d2ff225e43be6c1f96220"
+source = "git+https://github.com/Summpot/sea-orm.git?branch=master#a8fa76c410deabef079e7f0a6b3e2d4b44d80784"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4173,7 +4173,7 @@ dependencies = [
 [[package]]
 name = "sea-orm-arrow"
 version = "2.0.0-rc.4"
-source = "git+https://github.com/Summpot/sea-orm.git?branch=master#53c5769bcc8463642c5d2ff225e43be6c1f96220"
+source = "git+https://github.com/Summpot/sea-orm.git?branch=master#a8fa76c410deabef079e7f0a6b3e2d4b44d80784"
 dependencies = [
  "arrow",
  "sea-query",
@@ -4183,7 +4183,7 @@ dependencies = [
 [[package]]
 name = "sea-orm-macros"
 version = "2.0.1"
-source = "git+https://github.com/Summpot/sea-orm.git?branch=master#53c5769bcc8463642c5d2ff225e43be6c1f96220"
+source = "git+https://github.com/Summpot/sea-orm.git?branch=master#a8fa76c410deabef079e7f0a6b3e2d4b44d80784"
 dependencies = [
  "heck 0.5.0",
  "itertools 0.14.0",
@@ -4198,7 +4198,7 @@ dependencies = [
 [[package]]
 name = "sea-orm-migration"
 version = "2.0.1"
-source = "git+https://github.com/Summpot/sea-orm.git?branch=master#53c5769bcc8463642c5d2ff225e43be6c1f96220"
+source = "git+https://github.com/Summpot/sea-orm.git?branch=master#a8fa76c410deabef079e7f0a6b3e2d4b44d80784"
 dependencies = [
  "async-trait",
  "sea-orm",
